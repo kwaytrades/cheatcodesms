@@ -7,6 +7,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
 import Campaigns from "./pages/Campaigns";
+import CampaignBuilder from "./pages/CampaignBuilder";
 import Inbox from "./pages/Inbox";
 import NotFound from "./pages/NotFound";
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/" element={<Dashboard />}>
             <Route index element={<Analytics />} />
             <Route path="campaigns" element={<Campaigns />} />
+            <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="inbox" element={<Inbox />} />
           </Route>
           <Route path="*" element={<NotFound />} />
