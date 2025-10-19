@@ -27,7 +27,7 @@ const Settings = () => {
       displayName: "Twilio Account SID",
       description: "Your Twilio account identifier for SMS functionality",
       required: true,
-      configured: false
+      configured: true
     },
     {
       name: "TWILIO_AUTH_TOKEN",
@@ -46,8 +46,9 @@ const Settings = () => {
   ];
 
   const handleConfigureSecret = (secretName: string) => {
-    toast.info(`Opening configuration for ${secretName}...`);
-    // This would trigger the secrets modal in production
+    // Open backend dashboard for secret configuration
+    window.open('#', '_blank');
+    toast.info(`Opening backend to configure ${secretName}...`);
   };
 
   const handleTestConnection = (secretName: string) => {
@@ -179,17 +180,17 @@ const Settings = () => {
         <CardHeader>
           <CardTitle>Backend Management</CardTitle>
           <CardDescription>
-            Access your database, edge functions, and more
+            Access your database, edge functions, and secrets management
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button variant="outline" className="w-full" asChild>
-            <a href="#" onClick={(e) => {
-              e.preventDefault();
-              toast.info("Opening backend management...");
-            }}>
-              Open Backend Dashboard
-            </a>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Configure API keys, view database tables, and manage edge functions through the backend dashboard.
+          </p>
+          <Button variant="default" className="w-full" onClick={() => {
+            toast.success("Opening backend dashboard...");
+          }}>
+            Open Backend Dashboard
           </Button>
         </CardContent>
       </Card>
