@@ -29,7 +29,9 @@ type SecretFormValues = z.infer<typeof secretFormSchema>;
 const Settings = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentSecret, setCurrentSecret] = useState<SecretConfig | null>(null);
-  const [configuredSecrets, setConfiguredSecrets] = useState<Set<string>>(new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID"]));
+  const [configuredSecrets, setConfiguredSecrets] = useState<Set<string>>(
+    new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"])
+  );
   
   const form = useForm<SecretFormValues>({
     resolver: zodResolver(secretFormSchema),
@@ -210,7 +212,7 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">SMS Messaging</p>
               </div>
             </div>
-            <Badge variant="secondary">Inactive</Badge>
+            <Badge variant="default">Active</Badge>
           </div>
         </CardContent>
       </Card>
