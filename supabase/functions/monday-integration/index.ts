@@ -21,6 +21,38 @@ serve(async (req) => {
     const mondayApiUrl = 'https://api.monday.com/v2';
 
     switch (action) {
+      case 'list_boards': {
+        // List all available boards
+        const query = `
+          query {
+            boards(limit: 100) {
+              id
+              name
+            }
+          }
+        `;
+
+        const response = await fetch(mondayApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': MONDAY_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Monday.com API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        return new Response(
+          JSON.stringify({ boards: result.data?.boards || [] }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'search_contact': {
         // Search for contact by phone number
         const query = `
