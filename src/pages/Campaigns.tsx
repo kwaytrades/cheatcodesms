@@ -6,14 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Plus, Play, Pause, CheckCircle, Clock, Send } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 interface Campaign {
   id: string;
   name: string;
   status: string;
+  message_template: string;
+  audience_filter: { contact_ids?: string[] } | null;
   total_contacts: number;
   sent_count: number;
   delivered_count: number;
+  failed_count: number;
   reply_count: number;
   created_at: string;
 }
@@ -22,6 +26,7 @@ const Campaigns = () => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sendingCampaignId, setSendingCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     loadCampaigns();
@@ -55,7 +60,7 @@ const Campaigns = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setCampaigns(data || []);
+      setCampaigns((data || []) as Campaign[]);
     } catch (error) {
       console.error("Error loading campaigns:", error);
     } finally {
@@ -88,6 +93,101 @@ const Campaigns = () => {
         return "secondary";
       default:
         return "outline";
+    }
+  };
+
+  const handleSendCampaign = async (campaign: Campaign, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!campaign.audience_filter?.contact_ids || campaign.audience_filter.contact_ids.length === 0) {
+      toast.error("No contacts selected for this campaign");
+      return;
+    }
+
+    setSendingCampaignId(campaign.id);
+
+    try {
+      // Update campaign status to running
+      const { error: updateError } = await supabase
+        .from("campaigns")
+        .update({ status: "running" })
+        .eq("id", campaign.id);
+
+      if (updateError) throw updateError;
+
+      // Get contacts
+      const { data: contacts, error: contactsError } = await supabase
+        .from("contacts")
+        .select("id, full_name, phone_number")
+        .in("id", campaign.audience_filter.contact_ids);
+
+      if (contactsError) throw contactsError;
+
+      toast.success(`Sending campaign to ${contacts.length} contacts...`);
+
+      // Send messages in background
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const contact of contacts) {
+        if (!contact.phone_number) {
+          failureCount++;
+          continue;
+        }
+
+        try {
+          const { error: sendError } = await supabase.functions.invoke("send-sms", {
+            body: {
+              to: contact.phone_number,
+              message: campaign.message_template.replace("{FirstName}", contact.full_name.split(" ")[0])
+            }
+          });
+
+          if (sendError) {
+            console.error(`Failed to send to ${contact.phone_number}:`, sendError);
+            failureCount++;
+          } else {
+            successCount++;
+          }
+
+          // Update progress
+          await supabase
+            .from("campaigns")
+            .update({ 
+              sent_count: successCount,
+              failed_count: failureCount
+            })
+            .eq("id", campaign.id);
+
+        } catch (error) {
+          console.error(`Error sending to ${contact.phone_number}:`, error);
+          failureCount++;
+        }
+      }
+
+      // Mark campaign as completed
+      await supabase
+        .from("campaigns")
+        .update({ 
+          status: "completed",
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", campaign.id);
+
+      toast.success(`Campaign sent! ${successCount} successful, ${failureCount} failed`);
+      loadCampaigns();
+
+    } catch (error: any) {
+      console.error("Error sending campaign:", error);
+      toast.error(error.message || "Failed to send campaign");
+      
+      // Revert status on error
+      await supabase
+        .from("campaigns")
+        .update({ status: "draft" })
+        .eq("id", campaign.id);
+    } finally {
+      setSendingCampaignId(null);
     }
   };
 
@@ -151,9 +251,22 @@ const Campaigns = () => {
                       Created {format(new Date(campaign.created_at), "MMM d, yyyy 'at' h:mm a")}
                     </CardDescription>
                   </div>
-                  <Badge variant={getStatusBadgeVariant(campaign.status)}>
-                    {campaign.status}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {campaign.status === "draft" && (
+                      <Button
+                        size="sm"
+                        onClick={(e) => handleSendCampaign(campaign, e)}
+                        disabled={sendingCampaignId === campaign.id}
+                        className="gap-1"
+                      >
+                        <Send className="h-3 w-3" />
+                        {sendingCampaignId === campaign.id ? "Sending..." : "Send Now"}
+                      </Button>
+                    )}
+                    <Badge variant={getStatusBadgeVariant(campaign.status)}>
+                      {campaign.status}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
