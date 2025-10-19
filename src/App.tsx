@@ -11,6 +11,7 @@ import ContactDetail from "./pages/ContactDetail";
 import Campaigns from "./pages/Campaigns";
 import CampaignBuilder from "./pages/CampaignBuilder";
 import Inbox from "./pages/Inbox";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="campaigns" element={<Campaigns />} />
             <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="inbox" element={<Inbox />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
