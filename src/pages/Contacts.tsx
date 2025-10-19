@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, RefreshCw, User, Mail, Phone, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { MondayBoardSettings } from "@/components/MondayBoardSettings";
 
 interface Contact {
   id: string;
@@ -33,9 +34,14 @@ const Contacts = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mondayBoardIds, setMondayBoardIds] = useState<string[]>([]);
 
   useEffect(() => {
     loadContacts();
+    const stored = localStorage.getItem("monday_board_ids");
+    if (stored) {
+      setMondayBoardIds(stored.split(",").map(id => id.trim()).filter(id => id.length > 0));
+    }
   }, []);
 
   useEffect(() => {
@@ -70,10 +76,15 @@ const Contacts = () => {
   };
 
   const handleSync = async () => {
+    if (mondayBoardIds.length === 0) {
+      toast.error("Please configure Monday board IDs first");
+      return;
+    }
+
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('sync-contacts', {
-        body: { boardIds: [] } // Empty array syncs all accessible boards
+        body: { boardIds: mondayBoardIds }
       });
 
       if (error) throw error;
@@ -125,10 +136,13 @@ const Contacts = () => {
           <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
           <p className="text-muted-foreground">Manage your customer relationships</p>
         </div>
-        <Button onClick={handleSync} disabled={syncing} className="gap-2">
-          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Sync from Monday'}
-        </Button>
+        <div className="flex gap-2">
+          <MondayBoardSettings onBoardsChanged={setMondayBoardIds} />
+          <Button onClick={handleSync} disabled={syncing} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync from Monday'}
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
