@@ -115,9 +115,117 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_activities: {
+        Row: {
+          activity_type: string
+          contact_id: string
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          activity_type: string
+          contact_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          activity_type?: string
+          contact_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          engagement_score: number | null
+          first_name: string | null
+          full_name: string
+          id: string
+          last_contact_date: string | null
+          last_name: string | null
+          lead_score: number | null
+          metadata: Json | null
+          monday_board_id: string | null
+          monday_board_name: string | null
+          monday_item_id: string | null
+          notes: string | null
+          phone_number: string | null
+          products_interested: string[] | null
+          products_owned: string[] | null
+          status: string | null
+          synced_at: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          engagement_score?: number | null
+          first_name?: string | null
+          full_name: string
+          id?: string
+          last_contact_date?: string | null
+          last_name?: string | null
+          lead_score?: number | null
+          metadata?: Json | null
+          monday_board_id?: string | null
+          monday_board_name?: string | null
+          monday_item_id?: string | null
+          notes?: string | null
+          phone_number?: string | null
+          products_interested?: string[] | null
+          products_owned?: string[] | null
+          status?: string | null
+          synced_at?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          engagement_score?: number | null
+          first_name?: string | null
+          full_name?: string
+          id?: string
+          last_contact_date?: string | null
+          last_name?: string | null
+          lead_score?: number | null
+          metadata?: Json | null
+          monday_board_id?: string | null
+          monday_board_name?: string | null
+          monday_item_id?: string | null
+          notes?: string | null
+          phone_number?: string | null
+          products_interested?: string[] | null
+          products_owned?: string[] | null
+          status?: string | null
+          synced_at?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversations: {
         Row: {
           assigned_agent: Database["public"]["Enums"]["agent_type"]
+          contact_id: string | null
           contact_name: string | null
           created_at: string
           id: string
@@ -129,6 +237,7 @@ export type Database = {
         }
         Insert: {
           assigned_agent?: Database["public"]["Enums"]["agent_type"]
+          contact_id?: string | null
           contact_name?: string | null
           created_at?: string
           id?: string
@@ -140,6 +249,7 @@ export type Database = {
         }
         Update: {
           assigned_agent?: Database["public"]["Enums"]["agent_type"]
+          contact_id?: string | null
           contact_name?: string | null
           created_at?: string
           id?: string
@@ -149,7 +259,15 @@ export type Database = {
           status?: Database["public"]["Enums"]["conversation_status"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
