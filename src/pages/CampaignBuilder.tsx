@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Send } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowLeft, ArrowRight, Send, User, Search } from "lucide-react";
 import { toast } from "sonner";
+
+interface Contact {
+  id: string;
+  full_name: string;
+  phone_number: string | null;
+  status: string | null;
+  email: string | null;
+}
 
 const CampaignBuilder = () => {
   const navigate = useNavigate();
@@ -18,11 +28,61 @@ const CampaignBuilder = () => {
   // Campaign data
   const [campaignName, setCampaignName] = useState("");
   const [messageTemplate, setMessageTemplate] = useState("");
-  const [estimatedContacts, setEstimatedContacts] = useState(0);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loadingContacts, setLoadingContacts] = useState(false);
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
+
+  const loadContacts = async () => {
+    setLoadingContacts(true);
+    try {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, full_name, phone_number, status, email")
+        .not("phone_number", "is", null)
+        .order("full_name");
+
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (error) {
+      console.error("Error loading contacts:", error);
+      toast.error("Failed to load contacts");
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const filteredContacts = contacts.filter(contact =>
+    contact.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.status?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleContact = (contactId: string) => {
+    const newSelected = new Set(selectedContactIds);
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId);
+    } else {
+      newSelected.add(contactId);
+    }
+    setSelectedContactIds(newSelected);
+  };
+
+  const toggleAllContacts = () => {
+    if (selectedContactIds.size === filteredContacts.length) {
+      setSelectedContactIds(new Set());
+    } else {
+      setSelectedContactIds(new Set(filteredContacts.map(c => c.id)));
+    }
+  };
 
   const handleCreateCampaign = async () => {
-    if (!campaignName || !messageTemplate) {
-      toast.error("Please fill in all required fields");
+    if (!campaignName || !messageTemplate || selectedContactIds.size === 0) {
+      toast.error("Please fill in all required fields and select contacts");
       return;
     }
 
@@ -35,9 +95,10 @@ const CampaignBuilder = () => {
         .insert({
           name: campaignName,
           message_template: messageTemplate,
-          total_contacts: estimatedContacts,
+          total_contacts: selectedContactIds.size,
           status: "draft",
           created_by: user.user?.id,
+          audience_filter: { contact_ids: Array.from(selectedContactIds) }
         })
         .select()
         .single();
@@ -57,7 +118,7 @@ const CampaignBuilder = () => {
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">{/* ... keep existing code */}
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -86,12 +147,12 @@ const CampaignBuilder = () => {
           <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Step 1: Campaign Details */}
+        {/* Step 1: Select Contacts */}
         {step === 1 && (
           <Card>
             <CardHeader>
-              <CardTitle>Campaign Details</CardTitle>
-              <CardDescription>Give your campaign a name and select your audience</CardDescription>
+              <CardTitle>Select Contacts</CardTitle>
+              <CardDescription>Choose who will receive this campaign</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -105,34 +166,99 @@ const CampaignBuilder = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contacts">Estimated Contacts</Label>
-                <Input
-                  id="contacts"
-                  type="number"
-                  placeholder="Enter number of contacts"
-                  value={estimatedContacts || ""}
-                  onChange={(e) => setEstimatedContacts(parseInt(e.target.value) || 0)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Estimated cost: ${(estimatedContacts * 0.0079).toFixed(2)}
-                </p>
+                <div className="flex items-center justify-between">
+                  <Label>Contacts ({selectedContactIds.size} selected)</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleAllContacts}
+                    disabled={loadingContacts}
+                  >
+                    {selectedContactIds.size === filteredContacts.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search contacts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+
+                <Card className="border-border/50">
+                  <ScrollArea className="h-[400px]">
+                    {loadingContacts ? (
+                      <div className="p-8 text-center text-muted-foreground">
+                        Loading contacts...
+                      </div>
+                    ) : filteredContacts.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <User className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                        <p className="text-muted-foreground">
+                          {contacts.length === 0
+                            ? "No contacts found. Sync from Monday.com to get started."
+                            : "No contacts match your search."}
+                        </p>
+                        {contacts.length === 0 && (
+                          <Button
+                            variant="outline"
+                            className="mt-4"
+                            onClick={() => navigate("/contacts")}
+                          >
+                            Go to Contacts
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border/50">
+                        {filteredContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                            onClick={() => toggleContact(contact.id)}
+                          >
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                checked={selectedContactIds.has(contact.id)}
+                                onCheckedChange={() => toggleContact(contact.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium">{contact.full_name}</p>
+                                <p className="text-sm text-muted-foreground">{contact.phone_number}</p>
+                                {contact.status && (
+                                  <span className="text-xs text-muted-foreground">{contact.status}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </Card>
               </div>
 
-              <div className="p-4 bg-muted/50 rounded-lg border border-border/50">
-                <h4 className="font-semibold mb-2">Audience Selection</h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  To filter contacts from Monday.com, you'll need to configure the Monday.com API key
-                  in your backend settings.
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  For now, you can manually enter the estimated number of contacts above.
-                </p>
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <div className="flex justify-between text-sm">
+                  <span>Selected contacts</span>
+                  <span className="font-semibold">{selectedContactIds.size}</span>
+                </div>
+                <div className="flex justify-between text-sm mt-1">
+                  <span>Estimated cost</span>
+                  <span className="font-semibold text-primary">
+                    ${(selectedContactIds.size * 0.0079).toFixed(2)}
+                  </span>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2">
                 <Button
                   onClick={() => setStep(2)}
-                  disabled={!campaignName}
+                  disabled={!campaignName || selectedContactIds.size === 0}
                 >
                   Next: Compose Message
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -205,6 +331,11 @@ const CampaignBuilder = () => {
                 </div>
 
                 <div>
+                  <h4 className="font-semibold mb-1">Selected Contacts</h4>
+                  <p className="text-muted-foreground">{selectedContactIds.size} contacts</p>
+                </div>
+
+                <div>
                   <h4 className="font-semibold mb-1">Message Template</h4>
                   <p className="text-muted-foreground">{messageTemplate}</p>
                 </div>
@@ -212,11 +343,11 @@ const CampaignBuilder = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h4 className="font-semibold mb-1">Total Contacts</h4>
-                    <p className="text-muted-foreground">{estimatedContacts}</p>
+                    <p className="text-muted-foreground">{selectedContactIds.size}</p>
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">Estimated Cost</h4>
-                    <p className="text-muted-foreground">${(estimatedContacts * 0.0079).toFixed(2)}</p>
+                    <p className="text-muted-foreground">${(selectedContactIds.size * 0.0079).toFixed(2)}</p>
                   </div>
                 </div>
               </div>

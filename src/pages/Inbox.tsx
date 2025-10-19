@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ interface Conversation {
   id: string;
   phone_number: string;
   contact_name: string | null;
+  contact_id: string | null;
   status: string;
   assigned_agent: string;
   last_message_at: string | null;
@@ -27,12 +29,14 @@ interface Message {
 }
 
 const Inbox = () => {
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [contactInfo, setContactInfo] = useState<any>(null);
 
   useEffect(() => {
     loadConversations();
@@ -92,9 +96,28 @@ const Inbox = () => {
     }
   };
 
-  const handleConversationClick = (conversation: Conversation) => {
+  const handleConversationClick = async (conversation: Conversation) => {
     setSelectedConversation(conversation);
     loadMessages(conversation.id);
+    
+    // Load contact info if linked
+    if (conversation.contact_id) {
+      try {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("*")
+          .eq("id", conversation.contact_id)
+          .single();
+        
+        if (error) throw error;
+        setContactInfo(data);
+      } catch (error) {
+        console.error("Error loading contact:", error);
+        setContactInfo(null);
+      }
+    } else {
+      setContactInfo(null);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -202,12 +225,40 @@ const Inbox = () => {
             <>
               {/* Message Header */}
               <div className="p-4 border-b border-border/50">
-                <h2 className="font-semibold">
-                  {selectedConversation.contact_name || selectedConversation.phone_number}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Agent: {selectedConversation.assigned_agent.replace("_", " ")}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold">
+                      {selectedConversation.contact_name || selectedConversation.phone_number}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Agent: {selectedConversation.assigned_agent.replace("_", " ")}
+                    </p>
+                  </div>
+                  {contactInfo && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/contacts/${contactInfo.id}`)}
+                    >
+                      View Profile
+                    </Button>
+                  )}
+                </div>
+                {contactInfo && (
+                  <div className="mt-3 pt-3 border-t border-border/50 space-y-1">
+                    {contactInfo.email && (
+                      <p className="text-xs text-muted-foreground">📧 {contactInfo.email}</p>
+                    )}
+                    {contactInfo.status && (
+                      <p className="text-xs text-muted-foreground">Status: {contactInfo.status}</p>
+                    )}
+                    {contactInfo.products_owned && contactInfo.products_owned.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Products: {contactInfo.products_owned.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Messages */}

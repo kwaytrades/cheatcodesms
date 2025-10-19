@@ -1,4 +1,4 @@
-import { BarChart3, MessageSquare, Send, LogOut, Zap } from "lucide-react";
+import { Users, BarChart3, MessageSquare, Send, LogOut, Zap } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 const navItems = [
   { title: "Analytics", url: "/", icon: BarChart3 },
+  { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Campaigns", url: "/campaigns", icon: Send },
   { title: "Inbox", url: "/inbox", icon: MessageSquare },
 ];

@@ -30,18 +30,27 @@ serve(async (req) => {
       body.toUpperCase().includes(keyword)
     );
 
+    // Find existing contact by phone number
+    const { data: existingContact } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('phone_number', from)
+      .maybeSingle();
+
     // Find or create conversation
     let { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('*')
       .eq('phone_number', from)
-      .single();
+      .maybeSingle();
 
     if (!conversation) {
       const { data: newConv, error: createError } = await supabase
         .from('conversations')
         .insert({
           phone_number: from,
+          contact_id: existingContact?.id || null,
+          contact_name: existingContact?.full_name || null,
           status: isOptOut ? 'opted_out' : 'active',
           last_message_at: new Date().toISOString(),
         })
@@ -50,10 +59,24 @@ serve(async (req) => {
 
       if (createError) throw createError;
       conversation = newConv;
-    } else if (isOptOut) {
+    } else {
+      // Update conversation with contact info if we found one
+      const updates: any = {
+        last_message_at: new Date().toISOString()
+      };
+      
+      if (existingContact && !conversation.contact_id) {
+        updates.contact_id = existingContact.id;
+        updates.contact_name = existingContact.full_name;
+      }
+      
+      if (isOptOut) {
+        updates.status = 'opted_out';
+      }
+      
       await supabase
         .from('conversations')
-        .update({ status: 'opted_out' })
+        .update(updates)
         .eq('id', conversation.id);
     }
 

@@ -8,6 +8,7 @@ interface Stats {
   totalMessages: number;
   activeConversations: number;
   responseRate: number;
+  totalContacts: number;
 }
 
 const Analytics = () => {
@@ -16,6 +17,7 @@ const Analytics = () => {
     totalMessages: 0,
     activeConversations: 0,
     responseRate: 0,
+    totalContacts: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -25,10 +27,11 @@ const Analytics = () => {
 
   const loadStats = async () => {
     try {
-      const [campaignsRes, messagesRes, conversationsRes] = await Promise.all([
+      const [campaignsRes, messagesRes, conversationsRes, contactsRes] = await Promise.all([
         supabase.from("campaigns").select("*", { count: "exact" }),
         supabase.from("messages").select("*", { count: "exact" }),
         supabase.from("conversations").select("*", { count: "exact" }).eq("status", "active"),
+        supabase.from("contacts").select("*", { count: "exact" }),
       ]);
 
       const totalOutbound = await supabase
@@ -51,6 +54,7 @@ const Analytics = () => {
         totalMessages: messagesRes.count || 0,
         activeConversations: conversationsRes.count || 0,
         responseRate,
+        totalContacts: contactsRes.count || 0,
       });
     } catch (error) {
       console.error("Error loading stats:", error);
@@ -61,25 +65,32 @@ const Analytics = () => {
 
   const statCards = [
     {
+      title: "Total Contacts",
+      value: stats.totalContacts,
+      icon: Users,
+      description: "Synced from Monday.com",
+      color: "text-primary",
+    },
+    {
       title: "Total Campaigns",
       value: stats.totalCampaigns,
       icon: Send,
       description: "Campaigns sent all time",
-      color: "text-primary",
+      color: "text-secondary",
     },
     {
       title: "Total Messages",
       value: stats.totalMessages,
       icon: MessageSquare,
       description: "Messages sent and received",
-      color: "text-secondary",
+      color: "text-warning",
     },
     {
       title: "Active Conversations",
       value: stats.activeConversations,
       icon: Users,
       description: "Ongoing customer chats",
-      color: "text-warning",
+      color: "text-secondary",
     },
     {
       title: "Response Rate",
@@ -95,7 +106,7 @@ const Analytics = () => {
       <div className="p-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-32 bg-muted rounded"></div>
             ))}
@@ -112,7 +123,7 @@ const Analytics = () => {
         <p className="text-muted-foreground">Monitor your SMS marketing performance</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
