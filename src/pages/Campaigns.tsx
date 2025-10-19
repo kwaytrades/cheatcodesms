@@ -279,71 +279,69 @@ const Campaigns = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {campaigns.map((campaign) => (
-            <Card 
+        <div className="border rounded-lg overflow-hidden bg-card">
+          {campaigns.map((campaign, index) => (
+            <div 
               key={campaign.id} 
-              className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
+              className={`flex items-center gap-4 px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+                index !== campaigns.length - 1 ? 'border-b' : ''
+              }`}
               onClick={() => navigate(`/campaigns/${campaign.id}`)}
             >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2">
-                      {getStatusIcon(campaign.status)}
-                      {campaign.name}
-                    </CardTitle>
-                    <CardDescription>
-                      Created {format(new Date(campaign.created_at), "MMM d, yyyy 'at' h:mm a")}
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {campaign.status === "draft" && (
-                      <Button
-                        size="sm"
-                        onClick={(e) => handleSendCampaign(campaign, e)}
-                        disabled={sendingCampaignId === campaign.id}
-                        className="gap-1"
-                      >
-                        <Send className="h-3 w-3" />
-                        {sendingCampaignId === campaign.id ? "Sending..." : "Send Now"}
-                      </Button>
-                    )}
-                    <Badge variant={getStatusBadgeVariant(campaign.status)}>
-                      {campaign.status}
-                    </Badge>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                {getStatusIcon(campaign.status)}
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold truncate">{campaign.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {format(new Date(campaign.created_at), "MMM d, yyyy 'at' h:mm a")}
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Total Contacts</p>
-                    <p className="font-semibold">{campaign.total_contacts}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Sent</p>
-                    <p className="font-semibold text-warning">{campaign.sent_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Delivered</p>
-                    <p className="font-semibold text-primary">{campaign.delivered_count}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Replies</p>
-                    <p className="font-semibold text-secondary">{campaign.reply_count}</p>
-                  </div>
-                  {campaign.failed_count > 0 && (
-                    <div>
-                      <p className="text-muted-foreground">Failed</p>
-                      <div className="font-semibold">
-                        <FailedMessagesDialog campaignId={campaign.id} failedCount={campaign.failed_count} />
-                      </div>
+              </div>
+
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-center">
+                  <div className="text-muted-foreground text-xs">Contacts</div>
+                  <div className="font-semibold">{campaign.total_contacts}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground text-xs">Sent</div>
+                  <div className="font-semibold text-warning">{campaign.sent_count}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground text-xs">Delivered</div>
+                  <div className="font-semibold text-primary">{campaign.delivered_count}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-muted-foreground text-xs">Replies</div>
+                  <div className="font-semibold text-secondary">{campaign.reply_count}</div>
+                </div>
+                {campaign.failed_count > 0 && (
+                  <div className="text-center">
+                    <div className="text-muted-foreground text-xs">Failed</div>
+                    <div className="font-semibold">
+                      <FailedMessagesDialog campaignId={campaign.id} failedCount={campaign.failed_count} />
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 ml-4">
+                <Badge variant={getStatusBadgeVariant(campaign.status)}>
+                  {campaign.status}
+                </Badge>
+                {campaign.status === "draft" && (
+                  <Button
+                    size="sm"
+                    onClick={(e) => handleSendCampaign(campaign, e)}
+                    disabled={sendingCampaignId === campaign.id}
+                    className="gap-1"
+                  >
+                    <Send className="h-3 w-3" />
+                    {sendingCampaignId === campaign.id ? "Sending..." : "Send"}
+                  </Button>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       )}

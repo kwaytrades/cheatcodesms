@@ -14,6 +14,7 @@ import { Search, RefreshCw, Plus, Trash2, Settings2, Mail, Phone } from "lucide-
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { MondayBoardSettings } from "@/components/MondayBoardSettings";
+import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 
 interface Contact {
   id: string;
@@ -284,6 +285,7 @@ const Contacts = () => {
             <p className="text-sm text-muted-foreground">Manage your customer relationships</p>
           </div>
           <div className="flex gap-2">
+            <ImportContactsDialog onImportComplete={loadContacts} />
             <MondayBoardSettings onBoardsChanged={setMondayBoardIds} />
             <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm">
               <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
