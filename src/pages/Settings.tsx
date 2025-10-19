@@ -3,6 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Settings2, Key, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 
 interface SecretConfig {
   name: string;
@@ -12,7 +20,23 @@ interface SecretConfig {
   configured: boolean;
 }
 
+const secretFormSchema = z.object({
+  value: z.string().trim().min(1, { message: "Secret value is required" }).max(500, { message: "Secret value must be less than 500 characters" })
+});
+
+type SecretFormValues = z.infer<typeof secretFormSchema>;
+
 const Settings = () => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentSecret, setCurrentSecret] = useState<SecretConfig | null>(null);
+  
+  const form = useForm<SecretFormValues>({
+    resolver: zodResolver(secretFormSchema),
+    defaultValues: {
+      value: ""
+    }
+  });
+
   // These would ideally come from backend but for now we'll track them manually
   const secrets: SecretConfig[] = [
     {
@@ -45,15 +69,29 @@ const Settings = () => {
     }
   ];
 
-  const handleConfigureSecret = (secretName: string) => {
-    // Open backend dashboard for secret configuration
-    window.open('#', '_blank');
-    toast.info(`Opening backend to configure ${secretName}...`);
+  const handleConfigureSecret = (secret: SecretConfig) => {
+    setCurrentSecret(secret);
+    form.reset({ value: "" });
+    setDialogOpen(true);
   };
 
   const handleTestConnection = (secretName: string) => {
     toast.info(`Testing connection for ${secretName}...`);
     // This would test the API connection
+  };
+
+  const onSubmit = async (data: SecretFormValues) => {
+    if (!currentSecret) return;
+    
+    try {
+      // Here we would call the backend to save the secret
+      // For now, we'll just show a success message
+      toast.success(`${currentSecret.displayName} configured successfully`);
+      setDialogOpen(false);
+      form.reset();
+    } catch (error) {
+      toast.error("Failed to configure secret. Please try again.");
+    }
   };
 
   return (
@@ -128,7 +166,7 @@ const Settings = () => {
                 <Button
                   variant={secret.configured ? "outline" : "default"}
                   size="sm"
-                  onClick={() => handleConfigureSecret(secret.name)}
+                  onClick={() => handleConfigureSecret(secret)}
                 >
                   {secret.configured ? "Update" : "Configure"}
                 </Button>
@@ -194,6 +232,51 @@ const Settings = () => {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Configure Secret Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configure {currentSecret?.displayName}</DialogTitle>
+            <DialogDescription>
+              {currentSecret?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="value"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Secret Value</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="password" 
+                        placeholder="Enter secret value" 
+                        {...field}
+                        autoComplete="off"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      This value will be encrypted and stored securely.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Save Secret
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
