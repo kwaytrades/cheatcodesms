@@ -3,10 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Search, RefreshCw, User, Mail, Phone, Tag } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Search, RefreshCw, Plus, Trash2, Settings2, Mail, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { MondayBoardSettings } from "@/components/MondayBoardSettings";
@@ -27,6 +31,27 @@ interface Contact {
   created_at: string;
 }
 
+type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'status' | 'lead_score' | 'products_interested' | 'tags' | 'last_contact_date' | 'engagement_score' | 'created_at';
+
+interface ColumnConfig {
+  key: ColumnKey;
+  label: string;
+  visible: boolean;
+}
+
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { key: 'full_name', label: 'Name', visible: true },
+  { key: 'email', label: 'Email', visible: true },
+  { key: 'phone_number', label: 'Phone', visible: true },
+  { key: 'status', label: 'Status', visible: true },
+  { key: 'lead_score', label: 'Lead Score', visible: false },
+  { key: 'products_interested', label: 'Products Interested', visible: true },
+  { key: 'tags', label: 'Tags', visible: false },
+  { key: 'last_contact_date', label: 'Last Contact', visible: true },
+  { key: 'engagement_score', label: 'Engagement', visible: false },
+  { key: 'created_at', label: 'Created', visible: false },
+];
+
 const Contacts = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -35,6 +60,15 @@ const Contacts = () => {
   const [syncing, setSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mondayBoardIds, setMondayBoardIds] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newContact, setNewContact] = useState({
+    full_name: '',
+    email: '',
+    phone_number: '',
+    status: 'Lead'
+  });
 
   useEffect(() => {
     loadContacts();
@@ -111,14 +145,126 @@ const Contacts = () => {
       .slice(0, 2);
   };
 
-  const getStatusColor = (status: string | null) => {
-    if (!status) return "outline";
-    const s = status.toLowerCase();
-    if (s.includes("lead") || s.includes("prospect")) return "default";
-    if (s.includes("customer") || s.includes("active")) return "default";
-    if (s.includes("closed") || s.includes("won")) return "default";
-    return "secondary";
+  const handleSelectAll = () => {
+    if (selectedContacts.size === filteredContacts.length) {
+      setSelectedContacts(new Set());
+    } else {
+      setSelectedContacts(new Set(filteredContacts.map(c => c.id)));
+    }
   };
+
+  const handleSelectContact = (id: string) => {
+    const newSelected = new Set(selectedContacts);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedContacts(newSelected);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedContacts.size === 0) return;
+    
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .in('id', Array.from(selectedContacts));
+
+      if (error) throw error;
+      
+      toast.success(`Deleted ${selectedContacts.size} contact(s)`);
+      setSelectedContacts(new Set());
+      await loadContacts();
+    } catch (error) {
+      console.error("Error deleting contacts:", error);
+      toast.error("Failed to delete contacts");
+    }
+  };
+
+  const handleAddContact = async () => {
+    if (!newContact.full_name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .insert([newContact]);
+
+      if (error) throw error;
+
+      toast.success("Contact added successfully");
+      setIsAddDialogOpen(false);
+      setNewContact({ full_name: '', email: '', phone_number: '', status: 'Lead' });
+      await loadContacts();
+    } catch (error) {
+      console.error("Error adding contact:", error);
+      toast.error("Failed to add contact");
+    }
+  };
+
+  const toggleColumn = (key: ColumnKey) => {
+    setColumns(columns.map(col => 
+      col.key === key ? { ...col, visible: !col.visible } : col
+    ));
+  };
+
+  const renderCellContent = (contact: Contact, columnKey: ColumnKey) => {
+    switch (columnKey) {
+      case 'full_name':
+        return <span className="font-medium">{contact.full_name}</span>;
+      case 'email':
+        return contact.email ? (
+          <div className="flex items-center gap-2">
+            <Mail className="h-3 w-3 text-muted-foreground" />
+            <span className="truncate">{contact.email}</span>
+          </div>
+        ) : '-';
+      case 'phone_number':
+        return contact.phone_number ? (
+          <div className="flex items-center gap-2">
+            <Phone className="h-3 w-3 text-muted-foreground" />
+            <span>{contact.phone_number}</span>
+          </div>
+        ) : '-';
+      case 'status':
+        return contact.status ? <Badge variant="outline">{contact.status}</Badge> : '-';
+      case 'lead_score':
+        return contact.lead_score ?? '-';
+      case 'products_interested':
+        return contact.products_interested && contact.products_interested.length > 0 ? (
+          <div className="flex gap-1 flex-wrap">
+            {contact.products_interested.slice(0, 2).map((product, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">{product}</Badge>
+            ))}
+            {contact.products_interested.length > 2 && (
+              <Badge variant="secondary" className="text-xs">+{contact.products_interested.length - 2}</Badge>
+            )}
+          </div>
+        ) : '-';
+      case 'tags':
+        return contact.tags && contact.tags.length > 0 ? (
+          <div className="flex gap-1 flex-wrap">
+            {contact.tags.map((tag, idx) => (
+              <Badge key={idx} variant="outline" className="text-xs">{tag}</Badge>
+            ))}
+          </div>
+        ) : '-';
+      case 'last_contact_date':
+        return contact.last_contact_date ? format(new Date(contact.last_contact_date), 'MMM d, yyyy') : '-';
+      case 'engagement_score':
+        return contact.engagement_score;
+      case 'created_at':
+        return format(new Date(contact.created_at), 'MMM d, yyyy');
+      default:
+        return '-';
+    }
+  };
+
+  const visibleColumns = columns.filter(col => col.visible);
 
   if (loading) {
     return (
@@ -129,151 +275,200 @@ const Contacts = () => {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-muted-foreground">Manage your customer relationships</p>
+      <div className="border-b bg-background p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
+            <p className="text-sm text-muted-foreground">Manage your customer relationships</p>
+          </div>
+          <div className="flex gap-2">
+            <MondayBoardSettings onBoardsChanged={setMondayBoardIds} />
+            <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm">
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <MondayBoardSettings onBoardsChanged={setMondayBoardIds} />
-          <Button onClick={handleSync} disabled={syncing} className="gap-2">
-            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync from Monday'}
-          </Button>
-        </div>
-      </div>
 
-      {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search contacts by name, email, or phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-      </div>
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search contacts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
+            
+            {selectedContacts.size > 0 && (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  {selectedContacts.size} selected
+                </span>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleDeleteSelected}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
+              </>
+            )}
+          </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Total Contacts</CardDescription>
-            <CardTitle className="text-3xl">{contacts.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Leads</CardDescription>
-            <CardTitle className="text-3xl">
-              {contacts.filter(c => c.status?.toLowerCase().includes('lead')).length}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>Customers</CardDescription>
-            <CardTitle className="text-3xl">
-              {contacts.filter(c => c.status?.toLowerCase().includes('customer')).length}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription>With Phone</CardDescription>
-            <CardTitle className="text-3xl">
-              {contacts.filter(c => c.phone_number).length}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
-      {/* Contacts List */}
-      {filteredContacts.length === 0 ? (
-        <Card className="border-dashed">
-          <CardHeader className="text-center">
-            <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <CardTitle>No contacts yet</CardTitle>
-            <CardDescription>
-              Click "Sync from Monday" to import your contacts from Monday.com
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredContacts.map((contact) => (
-            <Card
-              key={contact.id}
-              className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
-              onClick={() => navigate(`/contacts/${contact.id}`)}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                      {getInitials(contact.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h3 className="font-semibold text-lg truncate">{contact.full_name}</h3>
-                      {contact.status && (
-                        <Badge variant={getStatusColor(contact.status)} className="shrink-0">
-                          {contact.status}
-                        </Badge>
-                      )}
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Toggle columns</h4>
+                  {columns.map((column) => (
+                    <div key={column.key} className="flex items-center gap-2">
+                      <Checkbox
+                        id={column.key}
+                        checked={column.visible}
+                        onCheckedChange={() => toggleColumn(column.key)}
+                      />
+                      <label
+                        htmlFor={column.key}
+                        className="text-sm cursor-pointer flex-1"
+                      >
+                        {column.label}
+                      </label>
                     </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
 
-                    <div className="space-y-1 text-sm text-muted-foreground">
-                      {contact.email && (
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3 w-3" />
-                          <span className="truncate">{contact.email}</span>
-                        </div>
-                      )}
-                      {contact.phone_number && (
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-3 w-3" />
-                          <span>{contact.phone_number}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {contact.products_interested && contact.products_interested.length > 0 && (
-                      <div className="flex items-center gap-2 mt-3">
-                        <Tag className="h-3 w-3 text-muted-foreground" />
-                        <div className="flex gap-1 flex-wrap">
-                          {contact.products_interested.slice(0, 3).map((product, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {product}
-                            </Badge>
-                          ))}
-                          {contact.products_interested.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{contact.products_interested.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {contact.last_contact_date && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Last contact: {format(new Date(contact.last_contact_date), 'MMM d, yyyy')}
-                      </div>
-                    )}
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add Contact
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Contact</DialogTitle>
+                  <DialogDescription>
+                    Create a new contact manually
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name *</Label>
+                    <Input
+                      id="name"
+                      value={newContact.full_name}
+                      onChange={(e) => setNewContact({ ...newContact, full_name: e.target.value })}
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={newContact.phone_number}
+                      onChange={(e) => setNewContact({ ...newContact, phone_number: e.target.value })}
+                      placeholder="+1234567890"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Input
+                      id="status"
+                      value={newContact.status}
+                      onChange={(e) => setNewContact({ ...newContact, status: e.target.value })}
+                      placeholder="Lead"
+                    />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddContact}>Add Contact</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Table */}
+      <div className="flex-1 overflow-auto">
+        {loading ? (
+          <div className="p-8 text-center text-muted-foreground">
+            Loading contacts...
+          </div>
+        ) : filteredContacts.length === 0 ? (
+          <div className="p-8 text-center">
+            <div className="text-muted-foreground mb-2">No contacts found</div>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? 'Try adjusting your search' : 'Click "Sync from Monday" or "Add Contact" to get started'}
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedContacts.size === filteredContacts.length}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+                {visibleColumns.map((column) => (
+                  <TableHead key={column.key}>{column.label}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredContacts.map((contact) => (
+                <TableRow
+                  key={contact.id}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/contacts/${contact.id}`)}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedContacts.has(contact.id)}
+                      onCheckedChange={() => handleSelectContact(contact.id)}
+                    />
+                  </TableCell>
+                  {visibleColumns.map((column) => (
+                    <TableCell key={column.key}>
+                      {renderCellContent(contact, column.key)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   );
 };
