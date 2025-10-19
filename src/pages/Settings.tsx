@@ -29,6 +29,7 @@ type SecretFormValues = z.infer<typeof secretFormSchema>;
 const Settings = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentSecret, setCurrentSecret] = useState<SecretConfig | null>(null);
+  const [configuredSecrets, setConfiguredSecrets] = useState<Set<string>>(new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID"]));
   
   const form = useForm<SecretFormValues>({
     resolver: zodResolver(secretFormSchema),
@@ -44,28 +45,28 @@ const Settings = () => {
       displayName: "Monday.com API Key",
       description: "Required for syncing contacts from Monday.com boards",
       required: true,
-      configured: true // We know this exists from context
+      configured: configuredSecrets.has("MONDAY_API_KEY")
     },
     {
       name: "TWILIO_ACCOUNT_SID",
       displayName: "Twilio Account SID",
       description: "Your Twilio account identifier for SMS functionality",
       required: true,
-      configured: true
+      configured: configuredSecrets.has("TWILIO_ACCOUNT_SID")
     },
     {
       name: "TWILIO_AUTH_TOKEN",
       displayName: "Twilio Auth Token",
       description: "Authentication token for Twilio API access",
       required: true,
-      configured: false
+      configured: configuredSecrets.has("TWILIO_AUTH_TOKEN")
     },
     {
       name: "TWILIO_PHONE_NUMBER",
       displayName: "Twilio Phone Number",
       description: "The phone number to send SMS from (format: +1234567890)",
       required: true,
-      configured: false
+      configured: configuredSecrets.has("TWILIO_PHONE_NUMBER")
     }
   ];
 
@@ -85,7 +86,8 @@ const Settings = () => {
     
     try {
       // Here we would call the backend to save the secret
-      // For now, we'll just show a success message
+      // For now, we'll update local state and show success message
+      setConfiguredSecrets(prev => new Set(prev).add(currentSecret.name));
       toast.success(`${currentSecret.displayName} configured successfully`);
       setDialogOpen(false);
       form.reset();
