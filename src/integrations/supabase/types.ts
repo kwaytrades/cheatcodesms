@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           campaign_id: string
           created_at: string
+          error_message: string | null
           id: string
           monday_contact_id: string | null
           personalized_message: string
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           campaign_id: string
           created_at?: string
+          error_message?: string | null
           id?: string
           monday_contact_id?: string | null
           personalized_message: string
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           campaign_id?: string
           created_at?: string
+          error_message?: string | null
           id?: string
           monday_contact_id?: string | null
           personalized_message?: string

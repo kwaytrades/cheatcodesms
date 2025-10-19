@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Send, CheckCircle, XCircle, MessageSquare, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { FailedMessagesDialog } from "@/components/FailedMessagesDialog";
 
 interface Campaign {
   id: string;
@@ -91,32 +92,62 @@ const CampaignDetail = () => {
 
       toast.success(`Sending campaign to ${contacts.length} contacts...`);
 
-      // Send messages in background
+      // Send messages and track results
       let successCount = 0;
       let failureCount = 0;
 
       for (const contact of contacts) {
+        const personalizedMessage = campaign.message_template.replace(
+          "{FirstName}", 
+          contact.full_name.split(" ")[0]
+        );
+
         if (!contact.phone_number) {
+          // Record failed message - no phone number
+          await supabase.from("campaign_messages").insert({
+            campaign_id: campaign.id,
+            phone_number: "N/A",
+            personalized_message: personalizedMessage,
+            status: "failed",
+            error_message: "Contact has no phone number"
+          });
           failureCount++;
           continue;
         }
 
         try {
-          const { error: sendError } = await supabase.functions.invoke("send-sms", {
+          const { data: sendData, error: sendError } = await supabase.functions.invoke("send-sms", {
             body: {
               to: contact.phone_number,
-              message: campaign.message_template.replace("{FirstName}", contact.full_name.split(" ")[0])
+              message: personalizedMessage
             }
           });
 
-          if (sendError) {
-            console.error(`Failed to send to ${contact.phone_number}:`, sendError);
+          if (sendError || !sendData?.success) {
+            // Record failed message with error
+            await supabase.from("campaign_messages").insert({
+              campaign_id: campaign.id,
+              phone_number: contact.phone_number,
+              personalized_message: personalizedMessage,
+              status: "failed",
+              error_message: sendError?.message || sendData?.error || "Unknown error",
+              sent_at: new Date().toISOString()
+            });
             failureCount++;
           } else {
+            // Record successful message
+            await supabase.from("campaign_messages").insert({
+              campaign_id: campaign.id,
+              phone_number: contact.phone_number,
+              personalized_message: personalizedMessage,
+              status: "sent",
+              twilio_message_sid: sendData.messageSid,
+              sent_at: new Date().toISOString()
+            });
             successCount++;
           }
 
-          // Update progress
+          // Update campaign progress
           await supabase
             .from("campaigns")
             .update({ 
@@ -125,8 +156,18 @@ const CampaignDetail = () => {
             })
             .eq("id", campaign.id);
 
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error sending to ${contact.phone_number}:`, error);
+          
+          // Record failed message with exception
+          await supabase.from("campaign_messages").insert({
+            campaign_id: campaign.id,
+            phone_number: contact.phone_number,
+            personalized_message: personalizedMessage,
+            status: "failed",
+            error_message: error.message || "Exception occurred during send",
+            sent_at: new Date().toISOString()
+          });
           failureCount++;
         }
       }
@@ -140,7 +181,12 @@ const CampaignDetail = () => {
         })
         .eq("id", campaign.id);
 
-      toast.success(`Campaign sent! ${successCount} successful, ${failureCount} failed`);
+      if (failureCount > 0) {
+        toast.warning(`Campaign completed: ${successCount} sent, ${failureCount} failed`);
+      } else {
+        toast.success(`Campaign sent successfully to ${successCount} contacts!`);
+      }
+      
       loadCampaign();
 
     } catch (error: any) {
@@ -313,7 +359,7 @@ const CampaignDetail = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Failed Messages</span>
-              <span className="font-medium text-destructive">{campaign.failed_count}</span>
+              <FailedMessagesDialog campaignId={campaign.id} failedCount={campaign.failed_count} />
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Opt-outs</span>
