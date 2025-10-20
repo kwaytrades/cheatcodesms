@@ -399,7 +399,7 @@ const ManualInputForm = ({ onClose }: { onClose: () => void }) => {
 
         <div>
           <Label>Category</Label>
-          <Select value={category} onValueChange={setCategory}>
+          <Select value={category || undefined} onValueChange={setCategory}>
             <SelectTrigger className="mt-2">
               <SelectValue placeholder="Select..." />
             </SelectTrigger>

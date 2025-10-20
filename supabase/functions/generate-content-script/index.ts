@@ -121,7 +121,7 @@ ${include_broll ? '[B-roll: relevant visual]' : ''}
 Return ONLY the formatted script. Do not include any meta-commentary or explanations outside the script.`;
 
     // Call Lovable AI to generate script
-    const aiResponse = await fetch('https://api.lovable.app/v1/ai/chat', {
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${lovableApiKey}`,
