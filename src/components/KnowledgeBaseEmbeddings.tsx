@@ -18,14 +18,13 @@ export function KnowledgeBaseEmbeddings() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("knowledge_base")
-        .select("id, content");
+        .select("*");
       
       if (error) throw error;
       
       const total = data.length;
-      // We'll count documents that need embeddings after vector search is set up
-      const withEmbeddings = 0;
-      const withoutEmbeddings = total;
+      const withEmbeddings = data.filter((doc: any) => doc.embedding !== null).length;
+      const withoutEmbeddings = total - withEmbeddings;
       
       return { total, withEmbeddings, withoutEmbeddings };
     },
@@ -37,11 +36,14 @@ export function KnowledgeBaseEmbeddings() {
       setProgress(0);
 
       // Get all documents that need embeddings
-      const { data: documents, error } = await supabase
+      const { data: allDocs, error } = await supabase
         .from("knowledge_base")
-        .select("id, content");
-
+        .select("*");
+      
       if (error) throw error;
+      
+      const documents = allDocs?.filter((doc: any) => doc.embedding === null) || [];
+
       if (!documents || documents.length === 0) {
         throw new Error("No documents need embeddings");
       }
