@@ -1,15 +1,17 @@
 import { useRef, useEffect, useState } from "react";
 import ReactPlayer from "react-player";
 import { Canvas as FabricCanvas, Text as FabricText } from "fabric";
+import { Button } from "@/components/ui/button";
 import { VideoProject } from "@/pages/content-studio/VideoEditor";
 
 interface VideoEditorCanvasProps {
   project: VideoProject;
+  selectedClipId: string | null;
   onTimeUpdate: (time: number) => void;
   onPlayingChange: (playing: boolean) => void;
 }
 
-export const VideoEditorCanvas = ({ project, onTimeUpdate, onPlayingChange }: VideoEditorCanvasProps) => {
+export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPlayingChange }: VideoEditorCanvasProps) => {
   const playerRef = useRef<ReactPlayer>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
@@ -38,25 +40,29 @@ export const VideoEditorCanvas = ({ project, onTimeUpdate, onPlayingChange }: Vi
 
     fabricCanvas.clear();
 
-    // Add visible text layers
-    project.textLayers.forEach((layer) => {
-      if (project.currentTime >= layer.startTime && project.currentTime <= layer.endTime) {
-        const text = new FabricText(layer.text, {
-          left: (layer.position.x / 100) * fabricCanvas.width,
-          top: (layer.position.y / 100) * fabricCanvas.height,
-          fontSize: layer.style.fontSize,
-          fontFamily: layer.style.fontFamily,
-          fill: layer.style.color,
-          backgroundColor: layer.style.backgroundColor,
-          selectable: true,
-        });
+    // Get all text clips from all tracks
+    const textTrack = project.tracks.find(t => t.type === 'text');
+    if (textTrack) {
+      textTrack.clips
+        .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+        .forEach((clip) => {
+          if (clip.content?.text) {
+            const text = new FabricText(clip.content.text, {
+              left: (clip.content.position?.x || 50) * (fabricCanvas.width / 100),
+              top: (clip.content.position?.y || 50) * (fabricCanvas.height / 100),
+              fontSize: clip.content.fontSize || 32,
+              fontFamily: clip.content.fontFamily || 'Arial',
+              fill: clip.content.color || '#ffffff',
+              selectable: true,
+            });
 
-        fabricCanvas.add(text);
-      }
-    });
+            fabricCanvas.add(text);
+          }
+        });
+    }
 
     fabricCanvas.renderAll();
-  }, [fabricCanvas, project.textLayers, project.currentTime]);
+  }, [fabricCanvas, project.tracks, project.currentTime]);
 
   // Apply CSS filters to video
   const getFilterStyle = () => {
@@ -73,16 +79,40 @@ export const VideoEditorCanvas = ({ project, onTimeUpdate, onPlayingChange }: Vi
   };
 
   const handleProgress = ({ playedSeconds }: { playedSeconds: number }) => {
-    if (playedSeconds >= project.trimPoints.end) {
+    if (playedSeconds >= project.duration) {
       onPlayingChange(false);
-      playerRef.current?.seekTo(project.trimPoints.start);
+      playerRef.current?.seekTo(0);
     }
     onTimeUpdate(playedSeconds);
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl max-w-full max-h-full" style={{ aspectRatio: '16/9' }}>
+    <div className="relative w-full h-full flex flex-col items-center justify-center p-6">
+      {/* Playback Controls */}
+      <div className="flex items-center gap-3 mb-4">
+        <Button size="sm" variant="outline" onClick={() => onTimeUpdate(Math.max(0, project.currentTime - 5))}>
+          Skip -5s
+        </Button>
+        <Button onClick={() => onPlayingChange(!project.isPlaying)}>
+          {project.isPlaying ? 'Pause' : 'Play'}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onTimeUpdate(Math.min(project.duration, project.currentTime + 5))}>
+          Skip +5s
+        </Button>
+        <span className="text-sm tabular-nums ml-2">
+          {Math.floor(project.currentTime / 60)}:{Math.floor(project.currentTime % 60).toString().padStart(2, '0')} / {Math.floor(project.duration / 60)}:{Math.floor(project.duration % 60).toString().padStart(2, '0')}
+        </span>
+      </div>
+
+      {/* Video Preview */}
+      <div 
+        className="relative bg-black rounded-lg overflow-hidden shadow-2xl" 
+        style={{ 
+          width: '100%',
+          maxWidth: '900px',
+          aspectRatio: project.canvasSize.aspectRatio.replace(':', '/'),
+        }}
+      >
         <ReactPlayer
           ref={playerRef}
           url={project.sourceVideo}

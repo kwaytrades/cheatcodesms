@@ -2,16 +2,14 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Save, Download, Undo, Redo } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { VideoEditorCanvas } from "@/components/video-editor/VideoEditorCanvas";
-import { VideoTimeline } from "@/components/video-editor/VideoTimeline";
-import { TextOverlayPanel } from "@/components/video-editor/TextOverlayPanel";
-import { TrimControls } from "@/components/video-editor/TrimControls";
-import { FilterPanel } from "@/components/video-editor/FilterPanel";
+import { ToolsSidebar } from "@/components/video-editor/ToolsSidebar";
+import { MultiTrackTimeline } from "@/components/video-editor/MultiTrackTimeline";
+import { PropertiesPanel } from "@/components/video-editor/PropertiesPanel";
+import { CanvasResizeDialog } from "@/components/video-editor/CanvasResizeDialog";
 import { ExportDialog } from "@/components/video-editor/ExportDialog";
 
 export interface TextLayer {
@@ -26,7 +24,7 @@ export interface TextLayer {
     color: string;
     backgroundColor?: string;
   };
-  animation?: 'none' | 'fade' | 'slide';
+  animation?: 'none' | 'fade' | 'slide' | 'typewriter' | 'bounce';
 }
 
 export interface VideoFilters {
@@ -37,11 +35,37 @@ export interface VideoFilters {
   preset?: string;
 }
 
-export interface VideoClip {
+export type ClipType = 'video' | 'audio' | 'text' | 'sticker' | 'image';
+
+export interface TimelineClip {
   id: string;
+  type: ClipType;
+  trackId: string;
   start: number;
   end: number;
   enabled: boolean;
+  sourceUrl?: string;
+  thumbnail?: string;
+  content?: any;
+  volume?: number;
+  speed?: number;
+}
+
+export interface Track {
+  id: string;
+  type: ClipType;
+  name: string;
+  clips: TimelineClip[];
+  height: number;
+  locked?: boolean;
+  visible?: boolean;
+}
+
+export interface CanvasSize {
+  width: number;
+  height: number;
+  aspectRatio: string;
+  name: string;
 }
 
 export interface VideoProject {
@@ -50,12 +74,13 @@ export interface VideoProject {
   duration: number;
   currentTime: number;
   isPlaying: boolean;
-  trimPoints: { start: number; end: number };
-  clips: VideoClip[];
-  textLayers: TextLayer[];
+  tracks: Track[];
   filters: VideoFilters;
   volume: number;
   projectName: string;
+  canvasSize: CanvasSize;
+  zoomLevel: number;
+  timelineZoom: number;
 }
 
 const VideoEditor = () => {
@@ -67,14 +92,58 @@ const VideoEditor = () => {
     duration: videoData?.duration_seconds || 0,
     currentTime: 0,
     isPlaying: false,
-    trimPoints: { start: 0, end: videoData?.duration_seconds || 0 },
-    clips: [{
-      id: 'clip-1',
-      start: 0,
-      end: videoData?.duration_seconds || 0,
-      enabled: true,
-    }],
-    textLayers: [],
+    tracks: [
+      {
+        id: 'video-1',
+        type: 'video',
+        name: 'Video Track 1',
+        clips: [{
+          id: 'main-video',
+          type: 'video',
+          trackId: 'video-1',
+          start: 0,
+          end: videoData?.duration_seconds || 0,
+          enabled: true,
+          sourceUrl: '',
+          volume: 100,
+          speed: 1,
+        }],
+        height: 80,
+        visible: true,
+      },
+      {
+        id: 'video-2',
+        type: 'video',
+        name: 'Video Track 2 (Overlays)',
+        clips: [],
+        height: 60,
+        visible: true,
+      },
+      {
+        id: 'audio-1',
+        type: 'audio',
+        name: 'Audio Track 1',
+        clips: [],
+        height: 50,
+        visible: true,
+      },
+      {
+        id: 'text-1',
+        type: 'text',
+        name: 'Text Track',
+        clips: [],
+        height: 40,
+        visible: true,
+      },
+      {
+        id: 'sticker-1',
+        type: 'sticker',
+        name: 'Sticker Track',
+        clips: [],
+        height: 40,
+        visible: true,
+      },
+    ],
     filters: {
       brightness: 100,
       contrast: 100,
@@ -83,9 +152,21 @@ const VideoEditor = () => {
     },
     volume: 100,
     projectName: `Edit - ${videoData?.script_id || 'New Project'}`,
+    canvasSize: {
+      width: 1920,
+      height: 1080,
+      aspectRatio: '16:9',
+      name: 'YouTube (1080p)',
+    },
+    zoomLevel: 100,
+    timelineZoom: 1,
   });
 
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<string>('select');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [canvasDialogOpen, setCanvasDialogOpen] = useState(false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
 
@@ -114,7 +195,21 @@ const VideoEditor = () => {
           // Try using the URL directly as fallback
           setProject(prev => ({ ...prev, sourceVideo: videoData.video_url }));
         } else if (data?.signedUrl) {
-          setProject(prev => ({ ...prev, sourceVideo: data.signedUrl }));
+          setProject(prev => ({
+            ...prev,
+            sourceVideo: data.signedUrl,
+            tracks: prev.tracks.map(track => 
+              track.id === 'video-1' 
+                ? {
+                    ...track,
+                    clips: track.clips.map(clip => ({
+                      ...clip,
+                      sourceUrl: data.signedUrl,
+                    }))
+                  }
+                : track
+            ),
+          }));
         }
       } catch (error) {
         console.error('Error loading video:', error);
@@ -142,9 +237,9 @@ const VideoEditor = () => {
         source_video_id: videoData?.id || null,
         project_name: project.projectName,
         timeline_data: {
-          textLayers: project.textLayers,
+          tracks: project.tracks,
           filters: project.filters,
-          trimPoints: project.trimPoints,
+          canvasSize: project.canvasSize,
           volume: project.volume,
         } as any,
         duration_seconds: project.duration,
@@ -172,91 +267,18 @@ const VideoEditor = () => {
     setProject(prev => ({ ...prev, ...updates }));
   };
 
-  const splitClipAtTime = (time: number) => {
-    const clipToSplit = project.clips.find(
-      clip => clip.enabled && time > clip.start && time < clip.end
-    );
-
-    if (!clipToSplit) {
-      toast.error("Cannot split at this position");
-      return;
+  const getSelectedClip = () => {
+    if (!selectedClipId) return null;
+    for (const track of project.tracks) {
+      const clip = track.clips.find(c => c.id === selectedClipId);
+      if (clip) return { clip, track };
     }
-
-    const newClips = project.clips.flatMap(clip => {
-      if (clip.id === clipToSplit.id) {
-        return [
-          { ...clip, end: time },
-          {
-            id: `clip-${Date.now()}`,
-            start: time,
-            end: clip.end,
-            enabled: true,
-          }
-        ];
-      }
-      return clip;
-    });
-
-    updateProject({ clips: newClips });
-    toast.success("Clip split successfully");
-  };
-
-  const deleteClip = (clipId: string) => {
-    const updatedClips = project.clips.map(clip =>
-      clip.id === clipId ? { ...clip, enabled: false } : clip
-    );
-    updateProject({ clips: updatedClips });
-    toast.success("Clip removed");
-  };
-
-  const restoreClip = (clipId: string) => {
-    const updatedClips = project.clips.map(clip =>
-      clip.id === clipId ? { ...clip, enabled: true } : clip
-    );
-    updateProject({ clips: updatedClips });
-    toast.success("Clip restored");
-  };
-
-  const addTextLayer = () => {
-    const newLayer: TextLayer = {
-      id: `text-${Date.now()}`,
-      text: 'New Text',
-      startTime: project.currentTime,
-      endTime: Math.min(project.currentTime + 3, project.duration),
-      position: { x: 50, y: 50 },
-      style: {
-        fontSize: 32,
-        fontFamily: 'Arial',
-        color: '#ffffff',
-      },
-      animation: 'fade',
-    };
-
-    updateProject({
-      textLayers: [...project.textLayers, newLayer],
-    });
-
-    toast.success("Text layer added");
-  };
-
-  const updateTextLayer = (id: string, updates: Partial<TextLayer>) => {
-    updateProject({
-      textLayers: project.textLayers.map(layer =>
-        layer.id === id ? { ...layer, ...updates } : layer
-      ),
-    });
-  };
-
-  const deleteTextLayer = (id: string) => {
-    updateProject({
-      textLayers: project.textLayers.filter(layer => layer.id !== id),
-    });
-    toast.success("Text layer deleted");
+    return null;
   };
 
   if (isLoadingVideo) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading video...</p>
@@ -266,31 +288,39 @@ const VideoEditor = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background overflow-hidden">
-      {/* Top Toolbar */}
-      <div className="flex-none border-b border-border bg-card">
-        <div className="flex items-center justify-between p-3">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* Top Bar */}
+      <div className="flex-none border-b border-border bg-card px-4 py-2">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Input
               value={project.projectName}
               onChange={(e) => updateProject({ projectName: e.target.value })}
-              className="w-64"
+              className="w-64 h-8"
             />
-            <div className="flex gap-2">
-              <Button size="sm" variant="ghost" disabled>
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" disabled className="h-8 w-8 p-0">
                 <Undo className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" disabled>
+              <Button size="sm" variant="ghost" disabled className="h-8 w-8 p-0">
                 <Redo className="h-4 w-4" />
               </Button>
             </div>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setCanvasDialogOpen(true)}
+              className="h-8"
+            >
+              📐 {project.canvasSize.name}
+            </Button>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleSaveProject} disabled={isSaving} variant="outline">
+            <Button onClick={handleSaveProject} disabled={isSaving} variant="outline" size="sm" className="h-8">
               <Save className="h-4 w-4 mr-2" />
-              Save Project
+              Save
             </Button>
-            <Button onClick={() => setExportDialogOpen(true)}>
+            <Button onClick={() => setExportDialogOpen(true)} size="sm" className="h-8">
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
@@ -300,71 +330,58 @@ const VideoEditor = () => {
 
       {/* Main Editor Area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* Left Panel - Controls */}
-        <Card className="w-72 flex-none border-r rounded-none flex flex-col">
-          <Tabs defaultValue="clips" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="grid grid-cols-3 m-3 flex-none">
-              <TabsTrigger value="clips">Clips</TabsTrigger>
-              <TabsTrigger value="text">Text</TabsTrigger>
-              <TabsTrigger value="filters">Filters</TabsTrigger>
-            </TabsList>
-            
-            <div className="flex-1 overflow-auto p-3 min-h-0">
-              <TabsContent value="clips" className="mt-0 h-full">
-                <TrimControls
-                  project={project}
-                  onSplitAtTime={splitClipAtTime}
-                  onDeleteClip={deleteClip}
-                  onRestoreClip={restoreClip}
-                />
-              </TabsContent>
-
-              <TabsContent value="text" className="mt-0">
-                <TextOverlayPanel
-                  textLayers={project.textLayers}
-                  currentTime={project.currentTime}
-                  onAddLayer={addTextLayer}
-                  onUpdateLayer={updateTextLayer}
-                  onDeleteLayer={deleteTextLayer}
-                />
-              </TabsContent>
-
-              <TabsContent value="filters" className="mt-0">
-                <FilterPanel
-                  filters={project.filters}
-                  onFiltersChange={(filters) => updateProject({ filters })}
-                />
-              </TabsContent>
-            </div>
-          </Tabs>
-        </Card>
+        {/* Left Sidebar - Tools */}
+        <ToolsSidebar 
+          activeTool={activeTool}
+          onToolChange={setActiveTool}
+          project={project}
+          onProjectUpdate={updateProject}
+        />
 
         {/* Center - Video Preview */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 flex items-center justify-center bg-muted/20 p-4 min-h-0">
-            <VideoEditorCanvas
-              project={project}
-              onTimeUpdate={(currentTime) => updateProject({ currentTime })}
-              onPlayingChange={(isPlaying) => updateProject({ isPlaying })}
-            />
-          </div>
-
-          {/* Timeline */}
-          <div className="flex-none border-t border-border bg-card p-3">
-            <VideoTimeline
-              project={project}
-              onTimeChange={(currentTime) => updateProject({ currentTime })}
-              onPlayPause={() => updateProject({ isPlaying: !project.isPlaying })}
-            />
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 bg-muted/20">
+          <VideoEditorCanvas
+            project={project}
+            selectedClipId={selectedClipId}
+            onTimeUpdate={(currentTime) => updateProject({ currentTime })}
+            onPlayingChange={(isPlaying) => updateProject({ isPlaying })}
+          />
         </div>
+
+        {/* Right Panel - Properties */}
+        {selectedClipId && (
+          <PropertiesPanel
+            selectedClip={getSelectedClip()}
+            project={project}
+            onProjectUpdate={updateProject}
+            onClipDeselect={() => setSelectedClipId(null)}
+          />
+        )}
       </div>
 
-      {/* Export Dialog */}
+      {/* Bottom Timeline (40% of screen height) */}
+      <div className="flex-none border-t border-border bg-card" style={{ height: '40vh' }}>
+        <MultiTrackTimeline
+          project={project}
+          selectedClipId={selectedClipId}
+          activeTool={activeTool}
+          onProjectUpdate={updateProject}
+          onClipSelect={setSelectedClipId}
+        />
+      </div>
+
+      {/* Dialogs */}
       <ExportDialog
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         project={project}
+      />
+      
+      <CanvasResizeDialog
+        open={canvasDialogOpen}
+        onOpenChange={setCanvasDialogOpen}
+        currentCanvas={project.canvasSize}
+        onCanvasChange={(canvasSize) => updateProject({ canvasSize })}
       />
     </div>
   );
