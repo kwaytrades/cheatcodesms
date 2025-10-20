@@ -264,8 +264,10 @@ export const MultiTrackTimeline = ({
             </div>
           </div>
 
-          {/* Tracks */}
-          {project.tracks.map((track) => (
+          {/* Tracks - Only show tracks with clips or main video track */}
+          {project.tracks
+            .filter(track => track.id === 'video-1' || track.clips.length > 0)
+            .map((track) => (
             <div key={track.id} className="flex border-b border-border" style={{ height: track.height }}>
               {/* Track Label */}
               <div className="w-[150px] flex-none border-r border-border p-2 flex items-center bg-muted/30">

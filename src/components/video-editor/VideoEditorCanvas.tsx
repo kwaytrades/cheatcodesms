@@ -45,26 +45,39 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
   // Initialize fabric canvas for overlays - using useLayoutEffect to prevent DOM conflicts
   useLayoutEffect(() => {
+    // Only initialize once when component mounts
     if (!canvasRef.current || fabricCanvas) return;
     
     isMountedRef.current = true;
 
-    try {
-      const canvas = new FabricCanvas(canvasRef.current, {
-        width: 1280,
-        height: 720,
-        backgroundColor: 'transparent',
-        selection: false,
-      });
+    // Use requestAnimationFrame to ensure DOM is fully ready
+    const initCanvas = () => {
+      if (!canvasRef.current || !isMountedRef.current) return;
 
-      setFabricCanvas(canvas);
-      setIsCanvasReady(true);
-    } catch (error) {
-      console.error('Failed to initialize canvas:', error);
-    }
+      try {
+        const canvas = new FabricCanvas(canvasRef.current, {
+          width: project.canvasSize.width,
+          height: project.canvasSize.height,
+          backgroundColor: 'transparent',
+          selection: false,
+          renderOnAddRemove: false, // Prevent auto-rendering on changes
+        });
+
+        setFabricCanvas(canvas);
+        setIsCanvasReady(true);
+      } catch (error) {
+        console.error('Failed to initialize canvas:', error);
+      }
+    };
+
+    // Delay initialization to avoid React DOM conflicts
+    const rafId = requestAnimationFrame(initCanvas);
 
     return () => {
       isMountedRef.current = false;
+      cancelAnimationFrame(rafId);
+      
+      // Dispose canvas safely
       if (fabricCanvas) {
         try {
           fabricCanvas.dispose();
@@ -73,7 +86,22 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         }
       }
     };
-  }, []);
+  }, [project.canvasSize.width, project.canvasSize.height]);
+
+  // Update canvas dimensions when canvas size changes
+  useEffect(() => {
+    if (!fabricCanvas || !isMountedRef.current || !isCanvasReady) return;
+    
+    try {
+      fabricCanvas.setDimensions({
+        width: project.canvasSize.width,
+        height: project.canvasSize.height,
+      });
+      fabricCanvas.renderAll();
+    } catch (error) {
+      console.error('Error updating canvas dimensions:', error);
+    }
+  }, [fabricCanvas, isCanvasReady, project.canvasSize.width, project.canvasSize.height]);
 
   // Update text overlays and stickers based on current time - debounced for performance
   useEffect(() => {
@@ -327,6 +355,8 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         {/* Text and Sticker Canvas Overlay */}
         <canvas
           ref={canvasRef}
+          width={project.canvasSize.width}
+          height={project.canvasSize.height}
           className="absolute top-0 left-0 pointer-events-none w-full h-full"
           style={{ mixBlendMode: 'normal', zIndex: 10 }}
         />
