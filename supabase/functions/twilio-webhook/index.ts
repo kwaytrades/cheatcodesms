@@ -12,6 +12,16 @@ serve(async (req) => {
   }
 
   try {
+    // Helper function to escape XML special characters
+    const escapeXml = (text: string) => {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -207,10 +217,11 @@ serve(async (req) => {
         status: 'sent',
       });
 
+      const handoffMessage = 'Thanks for your message. A team member will get back to you shortly.';
       return new Response(
         `<?xml version="1.0" encoding="UTF-8"?>
         <Response>
-          <Message>Thanks for your message. A team member will get back to you shortly.</Message>
+          <Message>${escapeXml(handoffMessage)}</Message>
         </Response>`,
         { 
           headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
@@ -240,7 +251,7 @@ serve(async (req) => {
     return new Response(
       `<?xml version="1.0" encoding="UTF-8"?>
       <Response>
-        <Message>${aiMessage}</Message>
+        <Message>${escapeXml(aiMessage)}</Message>
       </Response>`,
       { 
         headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
