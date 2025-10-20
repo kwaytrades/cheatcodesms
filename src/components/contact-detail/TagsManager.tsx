@@ -7,7 +7,9 @@ interface TagsManagerProps {
   tags?: string[];
 }
 
-export const TagsManager = ({ tags = [] }: TagsManagerProps) => {
+export const TagsManager = ({ tags }: TagsManagerProps) => {
+  const tagList = tags || [];
+  
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -15,12 +17,12 @@ export const TagsManager = ({ tags = [] }: TagsManagerProps) => {
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex flex-wrap gap-1">
-          {tags.map((tag, i) => (
+          {tagList.map((tag, i) => (
             <Badge key={i} variant="secondary" className="text-xs">
               {tag}
             </Badge>
           ))}
-          {tags.length === 0 && (
+          {tagList.length === 0 && (
             <p className="text-sm text-muted-foreground">No tags yet</p>
           )}
         </div>
