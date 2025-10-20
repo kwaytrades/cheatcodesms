@@ -476,6 +476,141 @@ export type Database = {
         }
         Relationships: []
       }
+      content_folders: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          parent_folder_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          parent_folder_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          parent_folder_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_folders_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "content_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_scripts: {
+        Row: {
+          created_at: string | null
+          format: string
+          hook_style: string | null
+          id: string
+          length_seconds: number | null
+          metadata: Json | null
+          script_text: string
+          status: string | null
+          story_id: string | null
+          title: string
+          tone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          format: string
+          hook_style?: string | null
+          id?: string
+          length_seconds?: number | null
+          metadata?: Json | null
+          script_text: string
+          status?: string | null
+          story_id?: string | null
+          title: string
+          tone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          format?: string
+          hook_style?: string | null
+          id?: string
+          length_seconds?: number | null
+          metadata?: Json | null
+          script_text?: string
+          status?: string | null
+          story_id?: string | null
+          title?: string
+          tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_scripts_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "news_stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_videos: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number | null
+          file_size_bytes: number | null
+          id: string
+          is_final: boolean | null
+          script_id: string | null
+          take_number: number | null
+          thumbnail_url: string | null
+          user_id: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          is_final?: boolean | null
+          script_id?: string | null
+          take_number?: number | null
+          thumbnail_url?: string | null
+          user_id: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          id?: string
+          is_final?: boolean | null
+          script_id?: string | null
+          take_number?: number | null
+          thumbnail_url?: string | null
+          user_id?: string
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_videos_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "content_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           assigned_agent: Database["public"]["Enums"]["agent_type"]
@@ -599,6 +734,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      news_stories: {
+        Row: {
+          ai_analysis: Json | null
+          category: string | null
+          content: string
+          created_at: string | null
+          id: string
+          source: string
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          url: string | null
+          user_id: string
+          viral_score: number | null
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          category?: string | null
+          content: string
+          created_at?: string | null
+          id?: string
+          source: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string | null
+          url?: string | null
+          user_id: string
+          viral_score?: number | null
+        }
+        Update: {
+          ai_analysis?: Json | null
+          category?: string | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          source?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          url?: string | null
+          user_id?: string
+          viral_score?: number | null
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
