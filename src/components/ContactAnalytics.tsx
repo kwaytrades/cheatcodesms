@@ -32,6 +32,8 @@ interface ActiveCustomer {
   messagesReceived: number;
   lastActivity: string;
   engagementScore: number;
+  leadScore: number;
+  leadStatus: string;
 }
 
 interface PurchaseIntent {
@@ -202,6 +204,8 @@ export const ContactAnalytics = () => {
           messagesReceived: received,
           lastActivity: contact.last_contact_date || contact.updated_at || 'Never',
           engagementScore: contact.engagement_score || 0,
+          leadScore: contact.lead_score || 0,
+          leadStatus: contact.lead_status || 'cold',
         };
       }) || [];
 
@@ -503,7 +507,8 @@ export const ContactAnalytics = () => {
                     <TableHead className="text-center">Sent</TableHead>
                     <TableHead className="text-center">Received</TableHead>
                     <TableHead>Last Activity</TableHead>
-                    <TableHead className="text-right">Score</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Lead Score</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -524,10 +529,22 @@ export const ContactAnalytics = () => {
                         <TableCell className="text-muted-foreground text-sm">
                           {formatDate(customer.lastActivity)}
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={
+                              customer.leadStatus === 'ready_to_buy' ? 'default' :
+                              customer.leadStatus === 'hot' ? 'secondary' :
+                              customer.leadStatus === 'warm' ? 'outline' : 'secondary'
+                            }
+                            className="capitalize"
+                          >
+                            {customer.leadStatus.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Progress value={customer.engagementScore} className="w-16 h-2" />
-                            <span className="text-sm font-medium">{customer.engagementScore}</span>
+                            <Progress value={customer.leadScore} className="w-16 h-2" />
+                            <span className="text-sm font-medium">{customer.leadScore}</span>
                           </div>
                         </TableCell>
                       </TableRow>

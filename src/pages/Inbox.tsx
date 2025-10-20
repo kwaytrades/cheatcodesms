@@ -375,6 +375,7 @@ const Inbox = () => {
               contactId={contactInfo.id}
               onClose={() => setShowContactPanel(false)}
               showExpandButton={true}
+              hideSMSTab={true}
             />
           </ResizablePanel>
         </>

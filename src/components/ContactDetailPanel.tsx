@@ -14,6 +14,7 @@ interface ContactDetailPanelProps {
   contactId: string;
   onClose?: () => void;
   showExpandButton?: boolean;
+  hideSMSTab?: boolean;
 }
 
 interface Message {
@@ -25,7 +26,7 @@ interface Message {
   status: string;
 }
 
-export function ContactDetailPanel({ contactId, onClose, showExpandButton = false }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contactId, onClose, showExpandButton = false, hideSMSTab = false }: ContactDetailPanelProps) {
   const navigate = useNavigate();
   const [contact, setContact] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -336,13 +337,15 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
 
           {/* Communication History Tabs */}
           <Card>
-            <Tabs defaultValue="sms" className="w-full">
+            <Tabs defaultValue={hideSMSTab ? "email" : "sms"} className="w-full">
               <CardContent className="p-0">
                 <TabsList className="w-full rounded-none border-b">
-                  <TabsTrigger value="sms" className="flex-1">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    SMS/Chat
-                  </TabsTrigger>
+                  {!hideSMSTab && (
+                    <TabsTrigger value="sms" className="flex-1">
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      SMS/Chat
+                    </TabsTrigger>
+                  )}
                   <TabsTrigger value="email" className="flex-1">
                     <Mail className="h-4 w-4 mr-2" />
                     Email
@@ -354,7 +357,8 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
                 </TabsList>
 
                 {/* SMS/Chat Tab */}
-                <TabsContent value="sms" className="p-4 space-y-3 m-0">
+                {!hideSMSTab && (
+                  <TabsContent value="sms" className="p-4 space-y-3 m-0">
                   {messages.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       No messages yet
@@ -402,6 +406,7 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
                     </div>
                   )}
                 </TabsContent>
+                )}
 
                 {/* Email Tab */}
                 <TabsContent value="email" className="p-4 space-y-2 m-0">
