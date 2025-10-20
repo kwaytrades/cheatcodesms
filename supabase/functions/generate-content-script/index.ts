@@ -20,14 +20,16 @@ serve(async (req) => {
       include_cta = true,
       include_broll = true,
       include_timestamps = true,
-      style_guide
+      style_guide,
+      include_market_data = false,
+      market_symbols = ['SPY', 'QQQ', 'AAPL']
     } = await req.json();
     
     if (!article_text || article_text.trim().length === 0) {
       throw new Error('Article text is required');
     }
 
-    console.log('Generating script:', { format, length_seconds, tone, hook_style });
+    console.log('Generating script:', { format, length_seconds, tone, hook_style, include_market_data });
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
     if (!lovableApiKey) {
@@ -87,6 +89,38 @@ serve(async (req) => {
       'contrarian': 'Challenge conventional wisdom or popular opinion to create intrigue.'
     };
 
+    // Fetch live market data if requested
+    let marketDataSection = '';
+    if (include_market_data || (style_guide?.instructions && 
+        (style_guide.instructions.toLowerCase().includes('market data') || 
+         style_guide.instructions.toLowerCase().includes('live data')))) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL');
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+        
+        const marketResponse = await fetch(`${supabaseUrl}/functions/v1/fetch-market-data`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ symbols: market_symbols }),
+        });
+        
+        const marketResult = await marketResponse.json();
+        
+        if (marketResult.market_data && marketResult.market_data.quotes.length > 0) {
+          marketDataSection = `\n\nLIVE MARKET DATA (as of ${new Date().toLocaleString()}):
+${marketResult.market_data.summary}
+
+INSTRUCTION: Integrate this live market data naturally into the script to make the content more timely and relevant. Reference current prices and trends where appropriate.`;
+        }
+      } catch (error) {
+        console.error('Failed to fetch market data:', error);
+        // Continue without market data if fetch fails
+      }
+    }
+
     let styleGuideSection = '';
     if (style_guide && style_guide.instructions) {
       styleGuideSection = `\n\nBRAND STYLE GUIDE:
@@ -104,7 +138,7 @@ TONE:
 ${toneInstructions[tone]}
 
 HOOK STYLE:
-${hookTemplates[hook_style]}${styleGuideSection}
+${hookTemplates[hook_style]}${marketDataSection}${styleGuideSection}
 
 TARGET LENGTH: ${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)
 

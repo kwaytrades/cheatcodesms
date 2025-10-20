@@ -34,6 +34,7 @@ const ScriptGenerator = () => {
   const [includeCTA, setIncludeCTA] = useState(true);
   const [includeBroll, setIncludeBroll] = useState(true);
   const [includeTimestamps, setIncludeTimestamps] = useState(true);
+  const [includeMarketData, setIncludeMarketData] = useState(false);
   const [generatedScript, setGeneratedScript] = useState('');
   const [wordCount, setWordCount] = useState(0);
   const [readTime, setReadTime] = useState(0);
@@ -75,6 +76,8 @@ const ScriptGenerator = () => {
           include_cta: includeCTA,
           include_broll: includeBroll,
           include_timestamps: includeTimestamps,
+          include_market_data: includeMarketData,
+          market_symbols: ['SPY', 'QQQ', 'AAPL'],
           style_guide: styleGuide
         }
       });
@@ -117,6 +120,8 @@ const ScriptGenerator = () => {
           include_cta: includeCTA,
           include_broll: includeBroll,
           include_timestamps: includeTimestamps,
+          include_market_data: includeMarketData,
+          market_symbols: ['SPY', 'QQQ', 'AAPL'],
           style_guide: styleGuide
         }
       });
@@ -310,6 +315,15 @@ const ScriptGenerator = () => {
                     <span className="text-sm">Timestamps</span>
                   </label>
                 )}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeMarketData}
+                    onChange={(e) => setIncludeMarketData(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm">Live market data (SPY, QQQ, AAPL)</span>
+                </label>
               </div>
             </div>
           </div>

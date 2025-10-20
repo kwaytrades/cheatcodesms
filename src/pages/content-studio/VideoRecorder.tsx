@@ -182,8 +182,8 @@ const VideoRecorder = () => {
 
       if (recordedChunks.length === 0) throw new Error('No video to upload');
 
-      const blob = new Blob(recordedChunks, { type: 'video/webm' });
-      const fileName = `video-${Date.now()}.webm`;
+      const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+      const fileName = `video-${Date.now()}.mp4`;
       const filePath = `${user.id}/${fileName}`;
 
       // Upload to Supabase Storage

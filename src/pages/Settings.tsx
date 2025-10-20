@@ -45,6 +45,20 @@ const Settings = () => {
   // These would ideally come from backend but for now we'll track them manually
   const secrets: SecretConfig[] = [
     {
+      name: "ALPHA_VANTAGE_API_KEY",
+      displayName: "Alpha Vantage API Key",
+      description: "Stock market data API for real-time quotes and financial data",
+      required: false,
+      configured: configuredSecrets.has("ALPHA_VANTAGE_API_KEY")
+    },
+    {
+      name: "FINNHUB_API_KEY",
+      displayName: "Finnhub API Key",
+      description: "Alternative stock market data provider for live market data",
+      required: false,
+      configured: configuredSecrets.has("FINNHUB_API_KEY")
+    },
+    {
       name: "MONDAY_API_KEY",
       displayName: "Monday.com API Key",
       description: "Required for syncing contacts from Monday.com boards",

@@ -173,7 +173,7 @@ const ContentLibrary = () => {
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `video-${video.id}.webm`;
+      link.download = `video-${video.id}.mp4`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
