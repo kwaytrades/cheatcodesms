@@ -19,36 +19,48 @@ export type Database = {
           campaign_id: string
           created_at: string
           error_message: string | null
+          html_body: string | null
           id: string
           monday_contact_id: string | null
           personalized_message: string
           phone_number: string
+          plain_text_body: string | null
           sent_at: string | null
           status: Database["public"]["Enums"]["campaign_message_status"]
+          subject: string | null
+          to_email: string | null
           twilio_message_sid: string | null
         }
         Insert: {
           campaign_id: string
           created_at?: string
           error_message?: string | null
+          html_body?: string | null
           id?: string
           monday_contact_id?: string | null
           personalized_message: string
           phone_number: string
+          plain_text_body?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["campaign_message_status"]
+          subject?: string | null
+          to_email?: string | null
           twilio_message_sid?: string | null
         }
         Update: {
           campaign_id?: string
           created_at?: string
           error_message?: string | null
+          html_body?: string | null
           id?: string
           monday_contact_id?: string | null
           personalized_message?: string
           phone_number?: string
+          plain_text_body?: string | null
           sent_at?: string | null
           status?: Database["public"]["Enums"]["campaign_message_status"]
+          subject?: string | null
+          to_email?: string | null
           twilio_message_sid?: string | null
         }
         Relationships: [
@@ -64,55 +76,76 @@ export type Database = {
       campaigns: {
         Row: {
           audience_filter: Json | null
+          channel: string
           completed_at: string | null
           created_at: string
           created_by: string | null
           delivered_count: number | null
           failed_count: number | null
+          from_email: string | null
+          from_name: string | null
+          html_template: string | null
           id: string
           message_template: string
           name: string
           opt_out_count: number | null
+          plain_text_template: string | null
           reply_count: number | null
+          reply_to: string | null
           scheduled_time: string | null
           sent_count: number | null
           status: Database["public"]["Enums"]["campaign_status"]
+          subject: string | null
           total_contacts: number | null
           updated_at: string
         }
         Insert: {
           audience_filter?: Json | null
+          channel?: string
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           delivered_count?: number | null
           failed_count?: number | null
+          from_email?: string | null
+          from_name?: string | null
+          html_template?: string | null
           id?: string
           message_template: string
           name: string
           opt_out_count?: number | null
+          plain_text_template?: string | null
           reply_count?: number | null
+          reply_to?: string | null
           scheduled_time?: string | null
           sent_count?: number | null
           status?: Database["public"]["Enums"]["campaign_status"]
+          subject?: string | null
           total_contacts?: number | null
           updated_at?: string
         }
         Update: {
           audience_filter?: Json | null
+          channel?: string
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           delivered_count?: number | null
           failed_count?: number | null
+          from_email?: string | null
+          from_name?: string | null
+          html_template?: string | null
           id?: string
           message_template?: string
           name?: string
           opt_out_count?: number | null
+          plain_text_template?: string | null
           reply_count?: number | null
+          reply_to?: string | null
           scheduled_time?: string | null
           sent_count?: number | null
           status?: Database["public"]["Enums"]["campaign_status"]
+          subject?: string | null
           total_contacts?: number | null
           updated_at?: string
         }
@@ -283,6 +316,7 @@ export type Database = {
           category: string
           content: string | null
           created_at: string
+          embedding: string | null
           file_path: string | null
           file_type: string | null
           id: string
@@ -293,6 +327,7 @@ export type Database = {
           category: string
           content?: string | null
           created_at?: string
+          embedding?: string | null
           file_path?: string | null
           file_type?: string | null
           id?: string
@@ -303,6 +338,7 @@ export type Database = {
           category?: string
           content?: string | null
           created_at?: string
+          embedding?: string | null
           file_path?: string | null
           file_type?: string | null
           id?: string
@@ -378,7 +414,113 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: unknown
+      }
+      match_documents: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          category: string
+          content: string
+          file_path: string
+          id: string
+          similarity: number
+          title: string
+        }[]
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
     }
     Enums: {
       agent_type: "sales_ai" | "cs_ai" | "human_team"
