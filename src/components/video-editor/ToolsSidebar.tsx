@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Scissors, Film, Image, Music, Type, Smile, Palette } from "lucide-react";
 import { VideoProject, TimelineClip } from "@/pages/content-studio/VideoEditor";
@@ -5,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { StickerPickerDialog } from "./StickerPickerDialog";
 
 interface ToolsSidebarProps {
   activeTool: string;
@@ -24,6 +26,8 @@ const tools = [
 ];
 
 export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdate }: ToolsSidebarProps) => {
+  const [stickerDialogOpen, setStickerDialogOpen] = useState(false);
+
   const handleAddClip = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -144,12 +148,9 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
     }
   };
 
-  const handleAddSticker = () => {
+  const handleAddSticker = (emoji: string) => {
     const stickerTrack = project.tracks.find(t => t.id === 'sticker-1');
     if (stickerTrack) {
-      const emojis = ['😂', '🔥', '💯', '👀', '❤️', '✨', '🎉', '👍'];
-      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-      
       const newClip: TimelineClip = {
         id: `sticker-${Date.now()}`,
         type: 'sticker',
@@ -158,7 +159,7 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
         end: project.currentTime + 2,
         enabled: true,
         content: {
-          emoji: randomEmoji,
+          emoji: emoji,
           scale: 100,
           rotation: 0,
           position: { x: 50, y: 50 },
@@ -169,7 +170,7 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
         t.id === 'sticker-1' ? { ...t, clips: [...t.clips, newClip] } : t
       );
       onProjectUpdate({ tracks: updatedTracks });
-      toast.success(`Sticker ${randomEmoji} added`);
+      toast.success(`Sticker ${emoji} added`);
     }
   };
 
@@ -191,7 +192,7 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
         handleAddText();
         break;
       case 'add-sticker':
-        handleAddSticker();
+        setStickerDialogOpen(true);
         break;
     }
   };
@@ -267,6 +268,12 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
           </>
         )}
       </ScrollArea>
+
+      <StickerPickerDialog
+        open={stickerDialogOpen}
+        onOpenChange={setStickerDialogOpen}
+        onSelect={handleAddSticker}
+      />
     </div>
   );
 };

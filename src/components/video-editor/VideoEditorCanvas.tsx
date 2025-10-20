@@ -36,9 +36,14 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
   // Update text overlays and stickers based on current time
   useEffect(() => {
-    if (!fabricCanvas) return;
+    if (!fabricCanvas || !fabricCanvas.getContext()) return;
 
-    fabricCanvas.clear();
+    try {
+      fabricCanvas.clear();
+    } catch (error) {
+      console.error('Error clearing canvas:', error);
+      return;
+    }
 
     // Get all text clips from text track
     const textTrack = project.tracks.find(t => t.type === 'text');
@@ -81,7 +86,11 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         });
     }
 
-    fabricCanvas.renderAll();
+    try {
+      fabricCanvas.renderAll();
+    } catch (error) {
+      console.error('Error rendering canvas:', error);
+    }
   }, [fabricCanvas, project.tracks, project.currentTime]);
 
   // Apply CSS filters to video
@@ -133,6 +142,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           aspectRatio: project.canvasSize.aspectRatio.replace(':', '/'),
         }}
       >
+        {/* Main Video */}
         <ReactPlayer
           ref={playerRef}
           url={project.sourceVideo}
@@ -150,11 +160,54 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           controls={false}
         />
         
-        {/* Overlay canvas */}
+        {/* Image and Video Overlays */}
+        {project.tracks
+          .find(t => t.id === 'video-2')
+          ?.clips.filter(clip => 
+            clip.enabled && 
+            project.currentTime >= clip.start && 
+            project.currentTime <= clip.end
+          )
+          .map(clip => (
+            <div
+              key={clip.id}
+              className="absolute"
+              style={{
+                top: '10%',
+                right: '10%',
+                width: '30%',
+                height: '30%',
+                zIndex: 5,
+              }}
+            >
+              {clip.type === 'image' && clip.sourceUrl && (
+                <img 
+                  src={clip.sourceUrl} 
+                  alt="Overlay" 
+                  className="w-full h-full object-contain"
+                />
+              )}
+              {clip.type === 'video' && clip.sourceUrl && (
+                <ReactPlayer
+                  url={clip.sourceUrl}
+                  playing={project.isPlaying}
+                  volume={(clip.volume || 100) / 100}
+                  width="100%"
+                  height="100%"
+                  style={{ objectFit: 'contain' }}
+                  progressInterval={50}
+                  controls={false}
+                />
+              )}
+            </div>
+          ))
+        }
+        
+        {/* Text and Sticker Canvas Overlay */}
         <canvas
           ref={canvasRef}
           className="absolute top-0 left-0 pointer-events-none w-full h-full"
-          style={{ mixBlendMode: 'normal' }}
+          style={{ mixBlendMode: 'normal', zIndex: 10 }}
         />
       </div>
     </div>

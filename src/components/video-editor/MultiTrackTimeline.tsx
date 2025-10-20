@@ -40,29 +40,37 @@ export const MultiTrackTimeline = ({
     onProjectUpdate({ currentTime: newTime });
   };
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>, trackId: string) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = (x / timelineWidth) * project.duration;
     
     if (activeTool === 'split') {
-      handleSplitAtTime(time);
+      handleSplitAtTime(time, trackId);
     } else {
       onProjectUpdate({ currentTime: time });
     }
   };
 
-  const handleSplitAtTime = (time: number) => {
-    let splitOccurred = false;
-    
-    const updatedTracks = project.tracks.map(track => {
-      const clipToSplit = track.clips.find(
-        clip => clip.enabled && time > clip.start && time < clip.end
-      );
+  const handleSplitAtTime = (time: number, trackId: string) => {
+    const track = project.tracks.find(t => t.id === trackId);
+    if (!track) {
+      toast.error("Track not found");
+      return;
+    }
 
-      if (clipToSplit) {
-        splitOccurred = true;
-        const newClips = track.clips.flatMap(clip => {
+    const clipToSplit = track.clips.find(
+      clip => clip.enabled && time > clip.start && time < clip.end
+    );
+
+    if (!clipToSplit) {
+      toast.error("No clip at this position to split");
+      return;
+    }
+
+    const updatedTracks = project.tracks.map(t => {
+      if (t.id === trackId) {
+        const newClips = t.clips.flatMap(clip => {
           if (clip.id === clipToSplit.id) {
             return [
               { ...clip, end: time },
@@ -75,17 +83,13 @@ export const MultiTrackTimeline = ({
           }
           return clip;
         });
-        return { ...track, clips: newClips };
+        return { ...t, clips: newClips };
       }
-      return track;
+      return t;
     });
 
-    if (splitOccurred) {
-      onProjectUpdate({ tracks: updatedTracks });
-      toast.success("Clip split successfully");
-    } else {
-      toast.error("No clip at this position to split");
-    }
+    onProjectUpdate({ tracks: updatedTracks });
+    toast.success("Clip split successfully");
   };
 
   const handleClipClick = (clipId: string, e: React.MouseEvent) => {
@@ -203,7 +207,7 @@ export const MultiTrackTimeline = ({
               <div 
                 className="relative flex-1 bg-muted/10 hover:bg-muted/20 cursor-pointer"
                 style={{ width: timelineWidth }}
-                onClick={handleTimelineClick}
+                onClick={(e) => handleTimelineClick(e, track.id)}
               >
                 {track.clips
                   .filter(clip => clip.enabled)
