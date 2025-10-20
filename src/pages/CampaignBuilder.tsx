@@ -13,6 +13,7 @@ import { ArrowLeft, ArrowRight, Send, User, Search, MessageSquare, Mail, Code } 
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
+import { AIPersonalizationEngine } from "@/components/AIPersonalizationEngine";
 
 interface Contact {
   id: string;
@@ -330,6 +331,14 @@ const CampaignBuilder = () => {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Step 1.5: AI Personalization (shown after selecting contacts) */}
+        {step === 1 && selectedContactIds.size > 0 && (
+          <AIPersonalizationEngine
+            contacts={contacts.filter(c => selectedContactIds.has(c.id))}
+            onPersonalizedMessage={(message) => setMessageTemplate(message)}
+          />
         )}
 
         {/* Step 2: Message Template */}

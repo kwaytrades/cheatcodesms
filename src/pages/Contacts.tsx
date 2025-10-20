@@ -14,6 +14,8 @@ import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
 import { SegmentsSidebar } from "@/components/SegmentsSidebar";
 import { BulkActionsToolbar } from "@/components/BulkActionsToolbar";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { ContactDetailPanel } from "@/components/ContactDetailPanel";
 
 interface Contact {
   id: string;
@@ -78,6 +80,8 @@ const Contacts = () => {
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [showSegments, setShowSegments] = useState(true);
 
   useEffect(() => {
     loadContacts();
@@ -355,23 +359,41 @@ const Contacts = () => {
   }
 
   return (
-    <div className="flex h-full">
-      {/* Segments Sidebar */}
-      <SegmentsSidebar 
-        onSegmentSelect={(segment) => {
-          setSelectedSegment(segment);
-          if (segment) setFilters([]);
-        }}
-        selectedSegmentId={selectedSegment?.id || null}
-      />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="border-b bg-background p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
+    <ResizablePanelGroup direction="horizontal" className="h-full">
+      {showSegments && (
+        <>
+          <ResizablePanel defaultSize={15} minSize={12} maxSize={20}>
+            <SegmentsSidebar 
+              onSegmentSelect={(segment) => {
+                setSelectedSegment(segment);
+                if (segment) setFilters([]);
+              }}
+              selectedSegmentId={selectedSegment?.id || null}
+              onToggle={() => setShowSegments(false)}
+            />
+          </ResizablePanel>
+          <ResizableHandle />
+        </>
+      )}
+      
+      <ResizablePanel defaultSize={selectedContactId ? 60 : 85}>
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Header */}
+          <div className="border-b bg-background p-4">
+            <div className="flex items-center justify-between mb-4">
+              {!showSegments && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowSegments(true)}
+                  className="mr-2"
+                >
+                  <Filter className="h-4 w-4 mr-2" />
+                  Show Segments
+                </Button>
+              )}
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
               <p className="text-sm text-muted-foreground">
                 {selectedSegment ? selectedSegment.name : 'All contacts'} • {filteredContacts.length} total
               </p>
@@ -477,7 +499,11 @@ const Contacts = () => {
                 <TableRow 
                   key={contact.id} 
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/contacts/${contact.id}`)}
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                      setSelectedContactId(contact.id);
+                    }
+                  }}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox
@@ -502,9 +528,22 @@ const Contacts = () => {
             </TableBody>
           </Table>
         </div>
-      </div>
-    </div>
-  );
-};
+          </div>
+        </ResizablePanel>
 
-export default Contacts;
+        {selectedContactId && (
+          <>
+            <ResizableHandle />
+            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+              <ContactDetailPanel 
+                contactId={selectedContactId}
+                onClose={() => setSelectedContactId(null)}
+              />
+            </ResizablePanel>
+          </>
+        )}
+      </ResizablePanelGroup>
+    );
+  };
+
+  export default Contacts;

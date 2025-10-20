@@ -1,4 +1,4 @@
-import { Users, BarChart3, MessageSquare, Send, LogOut, Zap, Settings } from "lucide-react";
+import { Users, BarChart3, MessageSquare, Send, LogOut, Zap, Settings, Sparkles } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -20,6 +20,7 @@ const navItems = [
   { title: "Analytics", url: "/", icon: BarChart3 },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Campaigns", url: "/campaigns", icon: Send },
+  { title: "Automation", url: "/automation", icon: Sparkles },
   { title: "Inbox", url: "/inbox", icon: MessageSquare },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

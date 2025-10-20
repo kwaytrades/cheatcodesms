@@ -14,6 +14,7 @@ import CampaignDetail from "./pages/CampaignDetail";
 import Inbox from "./pages/Inbox";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import AutomationTriggers from "./pages/AutomationTriggers";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="campaigns/:id" element={<CampaignDetail />} />
             <Route path="inbox" element={<Inbox />} />
+            <Route path="automation" element={<AutomationTriggers />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />

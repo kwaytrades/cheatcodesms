@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, Sparkles, TrendingUp, Clock, AlertCircle, DollarSign, Star } from "lucide-react";
+import { Users, Sparkles, TrendingUp, Clock, AlertCircle, DollarSign, Star, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 interface Segment {
@@ -17,6 +17,7 @@ interface Segment {
 interface SegmentsSidebarProps {
   onSegmentSelect: (segment: Segment | null) => void;
   selectedSegmentId: string | null;
+  onToggle?: () => void;
 }
 
 const QUICK_SEGMENTS = [
@@ -28,7 +29,7 @@ const QUICK_SEGMENTS = [
   { id: 'high-spenders', name: 'High Spenders', icon: DollarSign, description: 'Spent $500+' },
 ];
 
-export function SegmentsSidebar({ onSegmentSelect, selectedSegmentId }: SegmentsSidebarProps) {
+export function SegmentsSidebar({ onSegmentSelect, selectedSegmentId, onToggle }: SegmentsSidebarProps) {
   const [savedSegments, setSavedSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,9 +118,14 @@ export function SegmentsSidebar({ onSegmentSelect, selectedSegmentId }: Segments
   };
 
   return (
-    <div className="w-60 border-r bg-card flex flex-col h-full">
-      <div className="p-4 border-b">
+    <div className="border-r bg-card flex flex-col h-full">
+      <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold text-sm">Segments</h3>
+        {onToggle && (
+          <Button variant="ghost" size="sm" onClick={onToggle}>
+            <Filter className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1">
