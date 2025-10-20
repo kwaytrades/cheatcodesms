@@ -66,9 +66,9 @@ All colors MUST be HSL.
     --status-vip: 270 50% 60%;
     --status-churned: 0 0% 50%;
     
-    /* Lead Score Gradient Colors (Blue → Red) */
+    /* Lead Score Gradient Colors (Blue → Yellow → Orange → Red) */
     --score-cold: 210 100% 50%;
-    --score-cool: 180 100% 41%;
+    --score-cool: 210 100% 55%;
     --score-warm: 38 100% 62%;
     --score-hot: 355 72% 58%;
     
@@ -130,6 +130,10 @@ All colors MUST be HSL.
     box-shadow: 0 0 20px hsl(var(--purple) / 0.3);
   }
   
+  .glow-orange {
+    box-shadow: 0 0 20px hsl(var(--warning) / 0.3);
+  }
+  
   .glow-red {
     box-shadow: 0 0 20px hsl(var(--destructive) / 0.3);
   }
@@ -177,14 +181,16 @@ All colors MUST be HSL.
     color: hsl(var(--warning));
   }
   
-  /* Score gradient (blue → teal → orange → red) */
+  /* Score gradient (blue → yellow → orange → red) */
   .score-gradient {
     background: linear-gradient(
       to right,
-      hsl(var(--score-cold)) 0%,
-      hsl(var(--score-cool)) 35%,
-      hsl(var(--score-warm)) 65%,
-      hsl(var(--score-hot)) 100%
+      hsl(210, 100%, 50%) 0%,
+      hsl(210, 100%, 50%) 40%,
+      hsl(200, 100%, 55%) 50%,
+      hsl(45, 100%, 60%) 60%,
+      hsl(38, 100%, 62%) 75%,
+      hsl(355, 72%, 58%) 100%
     );
   }
 }

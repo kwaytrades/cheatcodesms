@@ -61,9 +61,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 
 const STATUS_COLORS: Record<string, string> = {
   'new': 'bg-info/10 text-info border-info/20',
-  'cold': 'bg-status-cold/10 text-status-cold border-status-cold/20',
-  'warm': 'bg-status-warm/10 text-status-warm border-status-warm/20',
-  'hot': 'bg-status-hot/10 text-status-hot border-status-hot/20',
+  'cold': 'bg-info/20 text-info border-info/30',
+  'warm': 'bg-warning/20 text-warning border-warning/30',
+  'hot': 'bg-destructive/20 text-destructive border-destructive/30',
   'customer': 'bg-status-customer/10 text-status-customer border-status-customer/20',
   'vip': 'bg-status-vip/10 text-status-vip border-status-vip/20',
   'churned': 'bg-status-churned/10 text-status-churned border-status-churned/20',
