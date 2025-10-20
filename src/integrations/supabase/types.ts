@@ -348,12 +348,14 @@ export type Database = {
           customer_profile: Json | null
           email: string | null
           engagement_score: number | null
+          engagement_velocity: number | null
           first_name: string | null
           full_name: string
           goals: string[] | null
           id: string
           last_contact_date: string | null
           last_name: string | null
+          last_score_update: string | null
           lead_score: number | null
           lead_source: string | null
           lead_status: string | null
@@ -369,6 +371,7 @@ export type Database = {
           products_owned: string[] | null
           referrer: string | null
           risk_tolerance: string | null
+          score_trend: string | null
           sentiment: string | null
           status: string | null
           subscription_status: string | null
@@ -390,12 +393,14 @@ export type Database = {
           customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
+          engagement_velocity?: number | null
           first_name?: string | null
           full_name: string
           goals?: string[] | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
+          last_score_update?: string | null
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
@@ -411,6 +416,7 @@ export type Database = {
           products_owned?: string[] | null
           referrer?: string | null
           risk_tolerance?: string | null
+          score_trend?: string | null
           sentiment?: string | null
           status?: string | null
           subscription_status?: string | null
@@ -432,12 +438,14 @@ export type Database = {
           customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
+          engagement_velocity?: number | null
           first_name?: string | null
           full_name?: string
           goals?: string[] | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
+          last_score_update?: string | null
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
@@ -453,6 +461,7 @@ export type Database = {
           products_owned?: string[] | null
           referrer?: string | null
           risk_tolerance?: string | null
+          score_trend?: string | null
           sentiment?: string | null
           status?: string | null
           subscription_status?: string | null
