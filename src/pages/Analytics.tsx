@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Send, MessageSquare, Users, TrendingUp, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from "recharts";
+import { ContactAnalytics } from "@/components/ContactAnalytics";
 
 interface Stats {
   totalCampaigns: number;
@@ -188,10 +190,17 @@ const Analytics = () => {
     <div className="p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
-        <p className="text-muted-foreground">Monitor your SMS marketing performance</p>
+        <p className="text-muted-foreground">Monitor your marketing and customer performance</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <Tabs defaultValue="campaigns" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="campaigns">Campaign Analytics</TabsTrigger>
+          <TabsTrigger value="contacts">Contact Analytics</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="campaigns" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -370,6 +379,12 @@ const Analytics = () => {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="contacts">
+          <ContactAnalytics />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
