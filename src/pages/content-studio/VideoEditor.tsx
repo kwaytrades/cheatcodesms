@@ -97,17 +97,7 @@ const VideoEditor = () => {
         id: 'video-1',
         type: 'video',
         name: 'Video Track 1',
-        clips: [{
-          id: 'main-video',
-          type: 'video',
-          trackId: 'video-1',
-          start: 0,
-          end: videoData?.duration_seconds || 0,
-          enabled: true,
-          sourceUrl: '',
-          volume: 100,
-          speed: 1,
-        }],
+        clips: [],
         height: 80,
         visible: true,
       },
@@ -199,13 +189,20 @@ const VideoEditor = () => {
             ...prev,
             sourceVideo: data.signedUrl,
             tracks: prev.tracks.map(track => 
-              track.id === 'video-1' 
+              track.id === 'video-1' && track.clips.length === 0
                 ? {
                     ...track,
-                    clips: track.clips.map(clip => ({
-                      ...clip,
+                    clips: [{
+                      id: 'main-video',
+                      type: 'video' as const,
+                      trackId: 'video-1',
+                      start: 0,
+                      end: prev.duration,
+                      enabled: true,
                       sourceUrl: data.signedUrl,
-                    }))
+                      volume: 100,
+                      speed: 1,
+                    }]
                   }
                 : track
             ),

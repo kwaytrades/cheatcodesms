@@ -43,10 +43,10 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
     return nextClips[0] || null;
   };
 
-  // Initialize fabric canvas for overlays - using useLayoutEffect to prevent DOM conflicts
+  // Initialize fabric canvas for overlays - ONLY ONCE on mount
   useLayoutEffect(() => {
     // Only initialize once when component mounts
-    if (!canvasRef.current || fabricCanvas) return;
+    if (fabricCanvas) return;
     
     isMountedRef.current = true;
 
@@ -56,11 +56,11 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
       try {
         const canvas = new FabricCanvas(canvasRef.current, {
-          width: project.canvasSize.width,
-          height: project.canvasSize.height,
+          width: 1920,
+          height: 1080,
           backgroundColor: 'transparent',
           selection: false,
-          renderOnAddRemove: false, // Prevent auto-rendering on changes
+          renderOnAddRemove: false,
         });
 
         setFabricCanvas(canvas);
@@ -70,14 +70,12 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
       }
     };
 
-    // Delay initialization to avoid React DOM conflicts
     const rafId = requestAnimationFrame(initCanvas);
 
     return () => {
       isMountedRef.current = false;
       cancelAnimationFrame(rafId);
       
-      // Dispose canvas safely
       if (fabricCanvas) {
         try {
           fabricCanvas.dispose();
@@ -86,17 +84,30 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         }
       }
     };
-  }, [project.canvasSize.width, project.canvasSize.height]);
+  }, []); // Empty deps - only run once
 
-  // Update canvas dimensions when canvas size changes
+  // Update canvas dimensions when canvas size changes (without reinitializing)
   useEffect(() => {
     if (!fabricCanvas || !isMountedRef.current || !isCanvasReady) return;
     
     try {
+      const scaleX = project.canvasSize.width / (fabricCanvas.width || 1920);
+      const scaleY = project.canvasSize.height / (fabricCanvas.height || 1080);
+      
       fabricCanvas.setDimensions({
         width: project.canvasSize.width,
         height: project.canvasSize.height,
       });
+      
+      // Scale all objects proportionally
+      fabricCanvas.getObjects().forEach((obj) => {
+        obj.scaleX = (obj.scaleX || 1) * scaleX;
+        obj.scaleY = (obj.scaleY || 1) * scaleY;
+        obj.left = (obj.left || 0) * scaleX;
+        obj.top = (obj.top || 0) * scaleY;
+        obj.setCoords();
+      });
+      
       fabricCanvas.renderAll();
     } catch (error) {
       console.error('Error updating canvas dimensions:', error);
@@ -210,6 +221,18 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
   };
 
   const handleProgress = ({ playedSeconds }: { playedSeconds: number }) => {
+    const videoTrack = project.tracks.find(t => t.id === 'video-1');
+    
+    // If no video track or no clips, play normally
+    if (!videoTrack || videoTrack.clips.length === 0) {
+      if (playedSeconds >= project.duration) {
+        onPlayingChange(false);
+        playerRef.current?.seekTo(0);
+      }
+      onTimeUpdate(playedSeconds);
+      return;
+    }
+
     // Check if we're in an enabled clip segment
     const activeClip = getActiveVideoClip(playedSeconds);
     
