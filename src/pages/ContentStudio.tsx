@@ -20,7 +20,7 @@ const ContentStudio = () => {
           </div>
           
           <Tabs value={currentTab} className="w-full">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4">
+            <TabsList className="grid w-full max-w-3xl grid-cols-5">
               <TabsTrigger value="news" asChild>
                 <Link to="/content-studio/news" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
@@ -43,6 +43,12 @@ const ContentStudio = () => {
                 <Link to="/content-studio/library" className="flex items-center gap-2">
                   <FolderOpen className="h-4 w-4" />
                   Content Library
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="settings" asChild>
+                <Link to="/content-studio/settings" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Style Guides
                 </Link>
               </TabsTrigger>
             </TabsList>

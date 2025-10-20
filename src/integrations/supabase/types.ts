@@ -944,6 +944,51 @@ export type Database = {
         }
         Relationships: []
       }
+      style_guides: {
+        Row: {
+          additional_notes: string | null
+          brand_voice: string | null
+          content_instructions: string | null
+          created_at: string | null
+          cta_templates: string | null
+          format: string
+          hook_guidelines: string | null
+          id: string
+          is_active: boolean | null
+          tone_preferences: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          additional_notes?: string | null
+          brand_voice?: string | null
+          content_instructions?: string | null
+          created_at?: string | null
+          cta_templates?: string | null
+          format: string
+          hook_guidelines?: string | null
+          id?: string
+          is_active?: boolean | null
+          tone_preferences?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          additional_notes?: string | null
+          brand_voice?: string | null
+          content_instructions?: string | null
+          created_at?: string | null
+          cta_templates?: string | null
+          format?: string
+          hook_guidelines?: string | null
+          id?: string
+          is_active?: boolean | null
+          tone_preferences?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

@@ -326,6 +326,7 @@ const VideoRecorder = () => {
                 <Webcam
                   ref={webcamRef}
                   audio={true}
+                  muted={true}
                   videoConstraints={{
                     deviceId: selectedCamera,
                     width: 1920,
@@ -431,6 +432,8 @@ const VideoRecorder = () => {
                   controls
                   width="100%"
                   height="100%"
+                  volume={1}
+                  muted={false}
                 />
               </div>
               <div className="mt-3 space-y-2">
@@ -459,12 +462,12 @@ const VideoRecorder = () => {
                   {uploadVideo.isPending ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading...
+                      Uploading to Library...
                     </>
                   ) : (
                     <>
                       <Check className="h-4 w-4 mr-2" />
-                      Keep This Take
+                      Upload to Content Library
                     </>
                   )}
                 </Button>

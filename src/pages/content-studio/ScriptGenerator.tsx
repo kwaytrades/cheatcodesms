@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +40,25 @@ const ScriptGenerator = () => {
 
   const selectedFormat = FORMATS.find(f => f.value === format);
 
+  // Fetch style guide for current format
+  const { data: styleGuide } = useQuery({
+    queryKey: ['style-guide', format],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data } = await supabase
+        .from('style_guides')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('format', format)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      return data;
+    },
+  });
+
   const generateScript = useMutation({
     mutationFn: async () => {
       if (!articleText.trim()) {
@@ -55,7 +74,8 @@ const ScriptGenerator = () => {
           hook_style: hookStyle,
           include_cta: includeCTA,
           include_broll: includeBroll,
-          include_timestamps: includeTimestamps
+          include_timestamps: includeTimestamps,
+          style_guide: styleGuide
         }
       });
 
@@ -96,7 +116,8 @@ const ScriptGenerator = () => {
           hook_style: hookStyle,
           include_cta: includeCTA,
           include_broll: includeBroll,
-          include_timestamps: includeTimestamps
+          include_timestamps: includeTimestamps,
+          style_guide: styleGuide
         }
       });
 

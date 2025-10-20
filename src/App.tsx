@@ -20,6 +20,7 @@ import NewsDiscovery from "./pages/content-studio/NewsDiscovery";
 import ScriptGenerator from "./pages/content-studio/ScriptGenerator";
 import VideoRecorder from "./pages/content-studio/VideoRecorder";
 import ContentLibrary from "./pages/content-studio/ContentLibrary";
+import StyleGuides from "./pages/content-studio/StyleGuides";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="scripts" element={<ScriptGenerator />} />
               <Route path="recorder" element={<VideoRecorder />} />
               <Route path="library" element={<ContentLibrary />} />
+              <Route path="settings" element={<StyleGuides />} />
             </Route>
             <Route path="settings" element={<Settings />} />
           </Route>

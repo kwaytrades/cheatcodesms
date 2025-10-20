@@ -19,7 +19,8 @@ serve(async (req) => {
       hook_style = 'question',
       include_cta = true,
       include_broll = true,
-      include_timestamps = true
+      include_timestamps = true,
+      style_guide
     } = await req.json();
     
     if (!article_text || article_text.trim().length === 0) {
@@ -86,6 +87,14 @@ serve(async (req) => {
       'contrarian': 'Challenge conventional wisdom or popular opinion to create intrigue.'
     };
 
+    let styleGuideSection = '';
+    if (style_guide) {
+      styleGuideSection = `\n\nBRAND STYLE GUIDE:
+${style_guide.brand_voice ? `Brand Voice: ${style_guide.brand_voice}\n` : ''}${style_guide.content_instructions ? `Content Instructions: ${style_guide.content_instructions}\n` : ''}${style_guide.tone_preferences ? `Tone Preferences: ${style_guide.tone_preferences}\n` : ''}${style_guide.hook_guidelines ? `Hook Guidelines: ${style_guide.hook_guidelines}\n` : ''}${style_guide.cta_templates ? `CTA Templates: ${style_guide.cta_templates}\n` : ''}${style_guide.additional_notes ? `Additional Notes: ${style_guide.additional_notes}` : ''}
+
+IMPORTANT: Follow the brand style guide above closely. It overrides general guidelines where specified.`;
+    }
+
     const systemPrompt = `You are an expert video script writer for trading/finance content creators. Generate engaging, well-structured scripts optimized for the platform and format.
 
 FORMAT GUIDELINES:
@@ -95,7 +104,7 @@ TONE:
 ${toneInstructions[tone]}
 
 HOOK STYLE:
-${hookTemplates[hook_style]}
+${hookTemplates[hook_style]}${styleGuideSection}
 
 TARGET LENGTH: ${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)
 
