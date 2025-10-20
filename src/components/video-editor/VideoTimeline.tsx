@@ -68,21 +68,28 @@ export const VideoTimeline = ({ project, onTimeChange, onPlayPause }: VideoTimel
           className="w-full"
         />
 
-        {/* Trim Points Visualization */}
-        <div className="relative h-8 bg-muted/20 rounded">
-          <div
-            className="absolute h-full bg-primary/20 border-l-2 border-r-2 border-primary"
-            style={{
-              left: `${(project.trimPoints.start / project.duration) * 100}%`,
-              width: `${((project.trimPoints.end - project.trimPoints.start) / project.duration) * 100}%`,
-            }}
-          />
+        {/* Clips & Text Layers Visualization */}
+        <div className="relative h-12 bg-muted/20 rounded">
+          {/* Clip segments */}
+          {project.clips
+            .filter(clip => clip.enabled)
+            .map((clip) => (
+              <div
+                key={clip.id}
+                className="absolute h-6 bg-primary/30 border border-primary rounded top-0"
+                style={{
+                  left: `${(clip.start / project.duration) * 100}%`,
+                  width: `${((clip.end - clip.start) / project.duration) * 100}%`,
+                }}
+                title={`Clip: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`}
+              />
+            ))}
           
           {/* Text Layer Markers */}
           {project.textLayers.map((layer) => (
             <div
               key={layer.id}
-              className="absolute h-2 bg-secondary rounded-full top-1"
+              className="absolute h-3 bg-secondary rounded-full top-7"
               style={{
                 left: `${(layer.startTime / project.duration) * 100}%`,
                 width: `${((layer.endTime - layer.startTime) / project.duration) * 100}%`,
@@ -93,7 +100,7 @@ export const VideoTimeline = ({ project, onTimeChange, onPlayPause }: VideoTimel
 
           {/* Current Time Marker */}
           <div
-            className="absolute w-0.5 h-full bg-destructive"
+            className="absolute w-0.5 h-full bg-destructive z-10"
             style={{
               left: `${(project.currentTime / project.duration) * 100}%`,
             }}

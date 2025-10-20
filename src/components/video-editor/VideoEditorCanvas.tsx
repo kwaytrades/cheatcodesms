@@ -81,24 +81,29 @@ export const VideoEditorCanvas = ({ project, onTimeUpdate, onPlayingChange }: Vi
   };
 
   return (
-    <div className="relative max-w-full max-h-full">
-      <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl">
+    <div className="relative w-full h-full flex items-center justify-center">
+      <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl max-w-full max-h-full" style={{ aspectRatio: '16/9' }}>
         <ReactPlayer
           ref={playerRef}
           url={project.sourceVideo}
           playing={project.isPlaying}
           volume={project.volume / 100}
           onProgress={handleProgress}
-          width="1280px"
-          height="720px"
-          style={getFilterStyle()}
+          width="100%"
+          height="100%"
+          style={{
+            ...getFilterStyle(),
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
           progressInterval={50}
+          controls={false}
         />
         
         {/* Overlay canvas */}
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 pointer-events-none"
+          className="absolute top-0 left-0 pointer-events-none w-full h-full"
           style={{ mixBlendMode: 'normal' }}
         />
       </div>

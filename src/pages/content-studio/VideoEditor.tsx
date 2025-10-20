@@ -37,6 +37,13 @@ export interface VideoFilters {
   preset?: string;
 }
 
+export interface VideoClip {
+  id: string;
+  start: number;
+  end: number;
+  enabled: boolean;
+}
+
 export interface VideoProject {
   id?: string;
   sourceVideo: string;
@@ -44,6 +51,7 @@ export interface VideoProject {
   currentTime: number;
   isPlaying: boolean;
   trimPoints: { start: number; end: number };
+  clips: VideoClip[];
   textLayers: TextLayer[];
   filters: VideoFilters;
   volume: number;
@@ -55,11 +63,17 @@ const VideoEditor = () => {
   const videoData = location.state?.video;
 
   const [project, setProject] = useState<VideoProject>({
-    sourceVideo: videoData?.video_url || "",
+    sourceVideo: "",
     duration: videoData?.duration_seconds || 0,
     currentTime: 0,
     isPlaying: false,
     trimPoints: { start: 0, end: videoData?.duration_seconds || 0 },
+    clips: [{
+      id: 'clip-1',
+      start: 0,
+      end: videoData?.duration_seconds || 0,
+      enabled: true,
+    }],
     textLayers: [],
     filters: {
       brightness: 100,
@@ -73,11 +87,44 @@ const VideoEditor = () => {
 
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(true);
 
+  // Load video with signed URL
   useEffect(() => {
-    if (!videoData?.video_url) {
-      toast.error("No video source provided");
-    }
+    const loadVideo = async () => {
+      if (!videoData?.video_url) {
+        toast.error("No video source provided");
+        setIsLoadingVideo(false);
+        return;
+      }
+
+      try {
+        // Extract the path from the full URL or use as-is if it's already a path
+        const storagePath = videoData.video_url.includes('content-videos/') 
+          ? videoData.video_url.split('content-videos/')[1]
+          : videoData.video_url;
+
+        // Get signed URL for private videos
+        const { data, error } = await supabase.storage
+          .from('content-videos')
+          .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+        if (error) {
+          console.error('Error getting signed URL:', error);
+          // Try using the URL directly as fallback
+          setProject(prev => ({ ...prev, sourceVideo: videoData.video_url }));
+        } else if (data?.signedUrl) {
+          setProject(prev => ({ ...prev, sourceVideo: data.signedUrl }));
+        }
+      } catch (error) {
+        console.error('Error loading video:', error);
+        toast.error("Failed to load video");
+      } finally {
+        setIsLoadingVideo(false);
+      }
+    };
+
+    loadVideo();
   }, [videoData]);
 
   const handleSaveProject = async () => {
@@ -125,6 +172,51 @@ const VideoEditor = () => {
     setProject(prev => ({ ...prev, ...updates }));
   };
 
+  const splitClipAtTime = (time: number) => {
+    const clipToSplit = project.clips.find(
+      clip => clip.enabled && time > clip.start && time < clip.end
+    );
+
+    if (!clipToSplit) {
+      toast.error("Cannot split at this position");
+      return;
+    }
+
+    const newClips = project.clips.flatMap(clip => {
+      if (clip.id === clipToSplit.id) {
+        return [
+          { ...clip, end: time },
+          {
+            id: `clip-${Date.now()}`,
+            start: time,
+            end: clip.end,
+            enabled: true,
+          }
+        ];
+      }
+      return clip;
+    });
+
+    updateProject({ clips: newClips });
+    toast.success("Clip split successfully");
+  };
+
+  const deleteClip = (clipId: string) => {
+    const updatedClips = project.clips.map(clip =>
+      clip.id === clipId ? { ...clip, enabled: false } : clip
+    );
+    updateProject({ clips: updatedClips });
+    toast.success("Clip removed");
+  };
+
+  const restoreClip = (clipId: string) => {
+    const updatedClips = project.clips.map(clip =>
+      clip.id === clipId ? { ...clip, enabled: true } : clip
+    );
+    updateProject({ clips: updatedClips });
+    toast.success("Clip restored");
+  };
+
   const addTextLayer = () => {
     const newLayer: TextLayer = {
       id: `text-${Date.now()}`,
@@ -162,11 +254,22 @@ const VideoEditor = () => {
     toast.success("Text layer deleted");
   };
 
+  if (isLoadingVideo) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading video...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* Top Toolbar */}
       <div className="flex-none border-b border-border bg-card">
-        <div className="flex items-center justify-between p-4">
+        <div className="flex items-center justify-between p-3">
           <div className="flex items-center gap-4">
             <Input
               value={project.projectName}
@@ -196,22 +299,23 @@ const VideoEditor = () => {
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         {/* Left Panel - Controls */}
-        <Card className="w-80 flex-none border-r rounded-none">
-          <Tabs defaultValue="text" className="h-full flex flex-col">
-            <TabsList className="grid grid-cols-3 m-4">
-              <TabsTrigger value="trim">Trim</TabsTrigger>
+        <Card className="w-72 flex-none border-r rounded-none flex flex-col">
+          <Tabs defaultValue="clips" className="flex-1 flex flex-col min-h-0">
+            <TabsList className="grid grid-cols-3 m-3 flex-none">
+              <TabsTrigger value="clips">Clips</TabsTrigger>
               <TabsTrigger value="text">Text</TabsTrigger>
               <TabsTrigger value="filters">Filters</TabsTrigger>
             </TabsList>
             
-            <div className="flex-1 overflow-auto p-4">
-              <TabsContent value="trim" className="mt-0">
+            <div className="flex-1 overflow-auto p-3 min-h-0">
+              <TabsContent value="clips" className="mt-0 h-full">
                 <TrimControls
-                  trimPoints={project.trimPoints}
-                  duration={project.duration}
-                  onTrimChange={(trimPoints) => updateProject({ trimPoints })}
+                  project={project}
+                  onSplitAtTime={splitClipAtTime}
+                  onDeleteClip={deleteClip}
+                  onRestoreClip={restoreClip}
                 />
               </TabsContent>
 
@@ -236,8 +340,8 @@ const VideoEditor = () => {
         </Card>
 
         {/* Center - Video Preview */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 flex items-center justify-center bg-muted/20 p-8">
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex items-center justify-center bg-muted/20 p-4 min-h-0">
             <VideoEditorCanvas
               project={project}
               onTimeUpdate={(currentTime) => updateProject({ currentTime })}
@@ -246,7 +350,7 @@ const VideoEditor = () => {
           </div>
 
           {/* Timeline */}
-          <div className="flex-none border-t border-border bg-card p-4">
+          <div className="flex-none border-t border-border bg-card p-3">
             <VideoTimeline
               project={project}
               onTimeChange={(currentTime) => updateProject({ currentTime })}
