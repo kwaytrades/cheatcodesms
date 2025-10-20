@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from "react";
 import ReactPlayer from "react-player";
 import { Canvas as FabricCanvas, Text as FabricText } from "fabric";
-import { Button } from "@/components/ui/button";
 import { VideoProject } from "@/pages/content-studio/VideoEditor";
+import { Button } from "@/components/ui/button";
 
 interface VideoEditorCanvasProps {
   project: VideoProject;
