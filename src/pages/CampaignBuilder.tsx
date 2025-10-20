@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, ArrowRight, Send, User, Search, MessageSquare, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, Send, User, Search, MessageSquare, Mail, Code } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmailTemplateEditor } from "@/components/EmailTemplateEditor";
 
 interface Contact {
   id: string;
@@ -34,6 +35,8 @@ const CampaignBuilder = () => {
   const [fromEmail, setFromEmail] = useState("");
   const [fromName, setFromName] = useState("");
   const [htmlTemplate, setHtmlTemplate] = useState("");
+  const [emailDesignJson, setEmailDesignJson] = useState<any>(null);
+  const [useVisualEditor, setUseVisualEditor] = useState(true);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -374,17 +377,42 @@ const CampaignBuilder = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="htmlTemplate">Email Content (HTML) *</Label>
-                    <Textarea
-                      id="htmlTemplate"
-                      placeholder="<h1>Hello {FirstName}!</h1><p>Your email content...</p>"
-                      value={htmlTemplate}
-                      onChange={(e) => setHtmlTemplate(e.target.value)}
-                      rows={10}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Use HTML for rich formatting. Available merge fields: {"{FirstName}"}
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Email Content *</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setUseVisualEditor(!useVisualEditor)}
+                      >
+                        <Code className="h-4 w-4 mr-2" />
+                        {useVisualEditor ? "Switch to Code" : "Switch to Visual"}
+                      </Button>
+                    </div>
+
+                    {useVisualEditor ? (
+                      <EmailTemplateEditor
+                        onExportHtml={(html, design) => {
+                          setHtmlTemplate(html);
+                          setEmailDesignJson(design);
+                          toast.success("Email template saved!");
+                        }}
+                        initialDesign={emailDesignJson}
+                      />
+                    ) : (
+                      <>
+                        <Textarea
+                          id="htmlTemplate"
+                          placeholder="<h1>Hello {{FirstName}}!</h1><p>Your email content...</p>"
+                          value={htmlTemplate}
+                          onChange={(e) => setHtmlTemplate(e.target.value)}
+                          rows={15}
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Use HTML for rich formatting. Available merge tags: {'{{FirstName}}'}, {'{{LastName}}'}, {'{{Email}}'}, {'{{Phone}}'}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </>
               )}
