@@ -165,17 +165,19 @@ const ContentLibrary = () => {
     try {
       const { data, error } = await supabase.storage
         .from('content-videos')
-        .createSignedUrl(video.video_url, 60); // 1 minute is enough for download
+        .download(video.video_url);
       
       if (error) throw error;
 
-      // Create download link
+      // Create blob URL and trigger download
+      const url = URL.createObjectURL(data);
       const link = document.createElement('a');
-      link.href = data.signedUrl;
+      link.href = url;
       link.download = `video-${video.id}.webm`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
       toast.success('Video download started');
     } catch (error) {
