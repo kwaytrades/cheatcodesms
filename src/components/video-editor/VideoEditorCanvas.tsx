@@ -225,7 +225,7 @@ export const VideoEditorCanvas = ({
     return () => cancelAnimationFrame(rafId);
   }, [fabricCanvas, isCanvasReady, project.canvasSize.width, project.canvasSize.height]);
 
-  // Update text overlays, stickers, and interactive image/video overlays based on current time
+  // Update canvas overlays only when tracks change, not on every time update
   useEffect(() => {
     if (!isMountedRef.current || !isCanvasReady || !fabricCanvas) return;
     
@@ -234,169 +234,171 @@ export const VideoEditorCanvas = ({
       clearTimeout(updateTimeoutRef.current);
     }
 
-    // Debounce canvas updates to prevent rapid re-renders
+    // Debounce canvas updates
     updateTimeoutRef.current = setTimeout(() => {
-      // Double-check canvas is still valid
+      if (!isMountedRef.current || !fabricCanvas) return;
+
       try {
-        const ctx = fabricCanvas.getContext();
-        if (!ctx || !isMountedRef.current) return;
-      } catch (error) {
-        console.error('Canvas context not available:', error);
-        return;
-      }
+        // Clear existing objects
+        fabricCanvas.clear();
+        interactiveObjectsRef.current.clear();
 
-      // Use requestAnimationFrame to batch updates
-      requestAnimationFrame(() => {
-        if (!isMountedRef.current || !fabricCanvas) return;
+        // Get all clips that should be visible at current time
+        const visibleClips = project.tracks.flatMap(track => 
+          track.clips.filter(clip => 
+            clip.enabled && 
+            project.currentTime >= clip.start && 
+            project.currentTime <= clip.end
+          ).map(clip => ({ ...clip, trackType: track.type, trackId: track.id }))
+        );
 
-        try {
-          fabricCanvas.clear();
-          interactiveObjectsRef.current.clear();
+        // Add text overlays (non-interactive)
+        visibleClips
+          .filter(clip => clip.trackType === 'text' && clip.content?.text)
+          .forEach((clip) => {
+            const text = new FabricText(clip.content.text, {
+              left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+              top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+              fontSize: clip.content.fontSize || 32,
+              fontFamily: clip.content.fontFamily || 'Arial',
+              fill: clip.content.color || '#ffffff',
+              selectable: false,
+            });
+            fabricCanvas.add(text);
+          });
 
-          // Get all text clips from text track
-          const textTrack = project.tracks.find(t => t.type === 'text');
-          if (textTrack) {
-            textTrack.clips
-              .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-              .forEach((clip) => {
-                if (clip.content?.text && isMountedRef.current) {
-                  try {
-                    const text = new FabricText(clip.content.text, {
-                      left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
-                      top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
-                      fontSize: clip.content.fontSize || 32,
-                      fontFamily: clip.content.fontFamily || 'Arial',
-                      fill: clip.content.color || '#ffffff',
-                      selectable: false,
-                    });
+        // Add stickers (non-interactive)
+        visibleClips
+          .filter(clip => clip.trackType === 'sticker' && clip.content?.emoji)
+          .forEach((clip) => {
+            const emoji = new FabricText(clip.content.emoji, {
+              left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+              top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+              fontSize: 60 * ((clip.content.scale || 100) / 100),
+              angle: clip.content.rotation || 0,
+              selectable: false,
+            });
+            fabricCanvas.add(emoji);
+          });
 
-                    fabricCanvas.add(text);
-                  } catch (err) {
-                    console.error('Error adding text:', err);
-                  }
-                }
+        // Add interactive image overlays
+        const imagePromises = visibleClips
+          .filter(clip => clip.type === 'image' && clip.sourceUrl)
+          .map(async (clip) => {
+            const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+            
+            try {
+              const img = await FabricImage.fromURL(clip.sourceUrl!, {
+                crossOrigin: 'anonymous'
               });
-          }
 
-          // Get all sticker clips from sticker track
-          const stickerTrack = project.tracks.find(t => t.type === 'sticker');
-          if (stickerTrack) {
-            stickerTrack.clips
-              .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-              .forEach((clip) => {
-                if (clip.content?.emoji && isMountedRef.current) {
-                  try {
-                    const emoji = new FabricText(clip.content.emoji, {
-                      left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
-                      top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
-                      fontSize: 60 * ((clip.content.scale || 100) / 100),
-                      angle: clip.content.rotation || 0,
-                      selectable: false,
-                    });
+              if (!isMountedRef.current || !fabricCanvas) return;
 
-                    fabricCanvas.add(emoji);
-                  } catch (err) {
-                    console.error('Error adding sticker:', err);
-                  }
-                }
+              const canvasWidth = fabricCanvas.width!;
+              const canvasHeight = fabricCanvas.height!;
+              
+              const targetWidth = (position.width / 100) * canvasWidth;
+              const targetHeight = (position.height / 100) * canvasHeight;
+              
+              img.set({
+                left: (position.x / 100) * canvasWidth,
+                top: (position.y / 100) * canvasHeight,
+                scaleX: targetWidth / img.width!,
+                scaleY: targetHeight / img.height!,
+                selectable: true,
+                hasControls: true,
+                hasBorders: true,
+                lockRotation: false,
+                borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                borderScaleFactor: 2,
+                cornerColor: '#3b82f6',
+                cornerStrokeColor: '#ffffff',
+                transparentCorners: false,
               });
-          }
 
-          // Render interactive image and video overlays on canvas
-          project.tracks
-            .filter(t => t.type === 'image' || (t.type === 'video' && t.id !== 'video-1'))
-            .forEach(track => {
-              track.clips
-                .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-                .forEach((clip) => {
-                  if (clip.type === 'image' && clip.sourceUrl && isMountedRef.current) {
-                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
-                    
-                    FabricImage.fromURL(clip.sourceUrl, {
-                      crossOrigin: 'anonymous'
-                    }).then((img) => {
-                      if (!isMountedRef.current || !fabricCanvas) return;
+              (img as any).data = { clipId: clip.id };
+              
+              fabricCanvas.add(img);
+              interactiveObjectsRef.current.set(clip.id, img);
+            } catch (err) {
+              console.error('Error loading image:', err);
+            }
+          });
 
-                      const canvasWidth = fabricCanvas.width!;
-                      const canvasHeight = fabricCanvas.height!;
-                      
-                      const targetWidth = (position.width / 100) * canvasWidth;
-                      const targetHeight = (position.height / 100) * canvasHeight;
-                      
-                      img.set({
-                        left: (position.x / 100) * canvasWidth,
-                        top: (position.y / 100) * canvasHeight,
-                        scaleX: targetWidth / img.width!,
-                        scaleY: targetHeight / img.height!,
-                        selectable: true,
-                        hasControls: true,
-                        hasBorders: true,
-                        lockRotation: false,
-                        borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                        borderScaleFactor: 2,
-                        cornerColor: '#3b82f6',
-                        cornerStrokeColor: '#ffffff',
-                        transparentCorners: false,
-                      });
-
-                      (img as any).data = { clipId: clip.id };
-                      
-                      fabricCanvas.add(img);
-                      interactiveObjectsRef.current.set(clip.id, img);
-                      fabricCanvas.renderAll();
-                    }).catch(err => {
-                      console.error('Error loading image:', err);
-                    });
-                  } else if (clip.type === 'video' && isMountedRef.current) {
-                    // For video overlays, add a transparent rectangle as interaction placeholder
-                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
-                    
-                    const rect = new FabricRect({
-                      left: (position.x / 100) * fabricCanvas.width!,
-                      top: (position.y / 100) * fabricCanvas.height!,
-                      width: (position.width / 100) * fabricCanvas.width!,
-                      height: (position.height / 100) * fabricCanvas.height!,
-                      fill: 'rgba(59, 130, 246, 0.1)',
-                      stroke: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                      strokeWidth: 2,
-                      selectable: true,
-                      hasControls: true,
-                      hasBorders: true,
-                      lockRotation: false,
-                      borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                      borderScaleFactor: 2,
-                      cornerColor: '#3b82f6',
-                      cornerStrokeColor: '#ffffff',
-                      transparentCorners: false,
-                    });
-
-                    (rect as any).data = { clipId: clip.id };
-                    
-                    fabricCanvas.add(rect);
-                    interactiveObjectsRef.current.set(clip.id, rect);
-                  }
-                });
+        // Add interactive video overlay rectangles (placeholders)
+        visibleClips
+          .filter(clip => clip.type === 'video' && clip.trackId !== 'video-1')
+          .forEach((clip) => {
+            const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+            
+            const rect = new FabricRect({
+              left: (position.x / 100) * fabricCanvas.width!,
+              top: (position.y / 100) * fabricCanvas.height!,
+              width: (position.width / 100) * fabricCanvas.width!,
+              height: (position.height / 100) * fabricCanvas.height!,
+              fill: 'rgba(59, 130, 246, 0.1)',
+              stroke: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+              strokeWidth: 2,
+              selectable: true,
+              hasControls: true,
+              hasBorders: true,
+              lockRotation: false,
+              borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+              borderScaleFactor: 2,
+              cornerColor: '#3b82f6',
+              cornerStrokeColor: '#ffffff',
+              transparentCorners: false,
             });
 
-          if (isMountedRef.current) {
-            fabricCanvas.renderAll();
-          }
+            (rect as any).data = { clipId: clip.id };
+            
+            fabricCanvas.add(rect);
+            interactiveObjectsRef.current.set(clip.id, rect);
+          });
 
-          if (isMountedRef.current) {
+        // Wait for all images to load, then render
+        Promise.all(imagePromises).then(() => {
+          if (isMountedRef.current && fabricCanvas) {
             fabricCanvas.renderAll();
           }
-        } catch (error) {
-          console.error('Error updating canvas:', error);
-        }
-      });
-    }, 50); // 50ms debounce
+        });
+
+      } catch (error) {
+        console.error('Error updating canvas:', error);
+      }
+    }, 100);
 
     return () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [fabricCanvas, isCanvasReady, project.tracks, project.currentTime, selectedClipId]);
+  }, [fabricCanvas, isCanvasReady, JSON.stringify(project.tracks), selectedClipId]);
+
+  // Separate effect to handle visibility during playback without clearing canvas
+  useEffect(() => {
+    if (!fabricCanvas || !isCanvasReady) return;
+
+    // Update visibility of existing objects based on time
+    fabricCanvas.getObjects().forEach((obj: any) => {
+      if (!obj.data?.clipId) return;
+
+      // Find the clip for this object
+      const clip = project.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === obj.data.clipId);
+
+      if (clip) {
+        const shouldBeVisible = clip.enabled && 
+          project.currentTime >= clip.start && 
+          project.currentTime <= clip.end;
+        
+        obj.visible = shouldBeVisible;
+      }
+    });
+
+    fabricCanvas.renderAll();
+  }, [fabricCanvas, isCanvasReady, project.currentTime]);
 
   // Apply CSS filters to video
   const getFilterStyle = () => {
