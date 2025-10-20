@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { query, category } = await req.json();
@@ -26,11 +26,11 @@ serve(async (req) => {
     // Try vector search first if we have a query
     if (query) {
       try {
-        // Generate embedding for the search query
-        const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+        // Generate embedding for the search query using OpenAI
+        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
+            'Authorization': `Bearer ${openaiApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
