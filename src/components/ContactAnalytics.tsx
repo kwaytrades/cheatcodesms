@@ -533,12 +533,17 @@ export const ContactAnalytics = () => {
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge 
-                            variant={
-                              customer.leadStatus === 'ready_to_buy' ? 'default' :
-                              customer.leadStatus === 'hot' ? 'secondary' :
-                              customer.leadStatus === 'warm' ? 'outline' : 'secondary'
+                            className={
+                              customer.leadStatus === 'hot' 
+                                ? 'bg-destructive/20 text-destructive border-destructive/30' 
+                                : customer.leadStatus === 'warm'
+                                ? 'bg-warning/20 text-warning border-warning/30'
+                                : customer.leadStatus === 'cold'
+                                ? 'bg-info/20 text-info border-info/30'
+                                : customer.leadStatus === 'ready_to_buy'
+                                ? 'bg-primary/20 text-primary border-primary/30'
+                                : 'bg-muted text-muted-foreground'
                             }
-                            className="capitalize"
                           >
                             {customer.leadStatus.replace('_', ' ')}
                           </Badge>

@@ -181,16 +181,19 @@ All colors MUST be HSL.
     color: hsl(var(--warning));
   }
   
-  /* Score gradient (blue → yellow → orange → red) */
+  /* Score gradient (blue → green → yellow → orange → red) smooth blend */
   .score-gradient {
     background: linear-gradient(
       to right,
       hsl(210, 100%, 50%) 0%,
-      hsl(210, 100%, 50%) 40%,
-      hsl(200, 100%, 55%) 50%,
-      hsl(45, 100%, 60%) 60%,
-      hsl(38, 100%, 62%) 75%,
-      hsl(355, 72%, 58%) 100%
+      hsl(200, 100%, 50%) 20%,
+      hsl(180, 80%, 45%) 35%,
+      hsl(150, 70%, 45%) 50%,
+      hsl(60, 100%, 50%) 60%,
+      hsl(45, 100%, 55%) 70%,
+      hsl(30, 100%, 55%) 80%,
+      hsl(10, 90%, 60%) 90%,
+      hsl(355, 85%, 60%) 100%
     );
   }
 }
