@@ -1,7 +1,7 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import ReactPlayer from "react-player";
 import { Canvas as FabricCanvas, Text as FabricText } from "fabric";
-import { VideoProject } from "@/pages/content-studio/VideoEditor";
+import { VideoProject, TimelineClip } from "@/pages/content-studio/VideoEditor";
 import { Button } from "@/components/ui/button";
 
 interface VideoEditorCanvasProps {
@@ -14,99 +14,158 @@ interface VideoEditorCanvasProps {
 export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPlayingChange }: VideoEditorCanvasProps) => {
   const playerRef = useRef<ReactPlayer>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isMountedRef = useRef(false);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
+  const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize fabric canvas for overlays
-  useEffect(() => {
-    if (!canvasRef.current) return;
+  // Get active video clip from video-1 track to determine what should be playing
+  const getActiveVideoClip = (time: number): TimelineClip | null => {
+    const videoTrack = project.tracks.find(t => t.id === 'video-1');
+    if (!videoTrack) return null;
+    
+    return videoTrack.clips.find(c => 
+      c.enabled && 
+      time >= c.start && 
+      time < c.end
+    ) || null;
+  };
 
-    const canvas = new FabricCanvas(canvasRef.current, {
-      width: 1280,
-      height: 720,
-      backgroundColor: 'transparent',
-      selection: false,
-    });
+  // Find next enabled clip after current time
+  const findNextEnabledClip = (time: number): TimelineClip | null => {
+    const videoTrack = project.tracks.find(t => t.id === 'video-1');
+    if (!videoTrack) return null;
+    
+    const nextClips = videoTrack.clips
+      .filter(c => c.enabled && c.start > time)
+      .sort((a, b) => a.start - b.start);
+    
+    return nextClips[0] || null;
+  };
 
-    setFabricCanvas(canvas);
+  // Initialize fabric canvas for overlays - using useLayoutEffect to prevent DOM conflicts
+  useLayoutEffect(() => {
+    if (!canvasRef.current || fabricCanvas) return;
+    
+    isMountedRef.current = true;
+
+    try {
+      const canvas = new FabricCanvas(canvasRef.current, {
+        width: 1280,
+        height: 720,
+        backgroundColor: 'transparent',
+        selection: false,
+      });
+
+      setFabricCanvas(canvas);
+      setIsCanvasReady(true);
+    } catch (error) {
+      console.error('Failed to initialize canvas:', error);
+    }
 
     return () => {
-      canvas.dispose();
+      isMountedRef.current = false;
+      if (fabricCanvas) {
+        try {
+          fabricCanvas.dispose();
+        } catch (error) {
+          console.error('Error disposing canvas:', error);
+        }
+      }
     };
   }, []);
 
-  // Update text overlays and stickers based on current time
+  // Update text overlays and stickers based on current time - debounced for performance
   useEffect(() => {
-    if (!fabricCanvas) return;
+    if (!isMountedRef.current || !isCanvasReady || !fabricCanvas) return;
     
-    // Check if canvas is ready with a valid context
-    try {
-      const ctx = fabricCanvas.getContext();
-      if (!ctx) return;
-    } catch (error) {
-      console.error('Canvas context not available:', error);
-      return;
+    // Clear any pending updates
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
     }
 
-    // Use requestAnimationFrame to batch updates
-    requestAnimationFrame(() => {
+    // Debounce canvas updates to prevent rapid re-renders
+    updateTimeoutRef.current = setTimeout(() => {
+      // Double-check canvas is still valid
       try {
-        fabricCanvas.clear();
-
-        // Get all text clips from text track
-        const textTrack = project.tracks.find(t => t.type === 'text');
-        if (textTrack) {
-          textTrack.clips
-            .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-            .forEach((clip) => {
-              if (clip.content?.text) {
-                try {
-                  const text = new FabricText(clip.content.text, {
-                    left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
-                    top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
-                    fontSize: clip.content.fontSize || 32,
-                    fontFamily: clip.content.fontFamily || 'Arial',
-                    fill: clip.content.color || '#ffffff',
-                    selectable: false,
-                  });
-
-                  fabricCanvas.add(text);
-                } catch (err) {
-                  console.error('Error adding text:', err);
-                }
-              }
-            });
-        }
-
-        // Get all sticker clips from sticker track
-        const stickerTrack = project.tracks.find(t => t.type === 'sticker');
-        if (stickerTrack) {
-          stickerTrack.clips
-            .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-            .forEach((clip) => {
-              if (clip.content?.emoji) {
-                try {
-                  const emoji = new FabricText(clip.content.emoji, {
-                    left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
-                    top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
-                    fontSize: 60 * ((clip.content.scale || 100) / 100),
-                    angle: clip.content.rotation || 0,
-                    selectable: false,
-                  });
-
-                  fabricCanvas.add(emoji);
-                } catch (err) {
-                  console.error('Error adding sticker:', err);
-                }
-              }
-            });
-        }
-
-        fabricCanvas.renderAll();
+        const ctx = fabricCanvas.getContext();
+        if (!ctx || !isMountedRef.current) return;
       } catch (error) {
-        console.error('Error updating canvas:', error);
+        console.error('Canvas context not available:', error);
+        return;
       }
-    });
-  }, [fabricCanvas, project.tracks, project.currentTime]);
+
+      // Use requestAnimationFrame to batch updates
+      requestAnimationFrame(() => {
+        if (!isMountedRef.current || !fabricCanvas) return;
+
+        try {
+          fabricCanvas.clear();
+
+          // Get all text clips from text track
+          const textTrack = project.tracks.find(t => t.type === 'text');
+          if (textTrack) {
+            textTrack.clips
+              .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+              .forEach((clip) => {
+                if (clip.content?.text && isMountedRef.current) {
+                  try {
+                    const text = new FabricText(clip.content.text, {
+                      left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+                      top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+                      fontSize: clip.content.fontSize || 32,
+                      fontFamily: clip.content.fontFamily || 'Arial',
+                      fill: clip.content.color || '#ffffff',
+                      selectable: false,
+                    });
+
+                    fabricCanvas.add(text);
+                  } catch (err) {
+                    console.error('Error adding text:', err);
+                  }
+                }
+              });
+          }
+
+          // Get all sticker clips from sticker track
+          const stickerTrack = project.tracks.find(t => t.type === 'sticker');
+          if (stickerTrack) {
+            stickerTrack.clips
+              .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+              .forEach((clip) => {
+                if (clip.content?.emoji && isMountedRef.current) {
+                  try {
+                    const emoji = new FabricText(clip.content.emoji, {
+                      left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+                      top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+                      fontSize: 60 * ((clip.content.scale || 100) / 100),
+                      angle: clip.content.rotation || 0,
+                      selectable: false,
+                    });
+
+                    fabricCanvas.add(emoji);
+                  } catch (err) {
+                    console.error('Error adding sticker:', err);
+                  }
+                }
+              });
+          }
+
+          if (isMountedRef.current) {
+            fabricCanvas.renderAll();
+          }
+        } catch (error) {
+          console.error('Error updating canvas:', error);
+        }
+      });
+    }, 50); // 50ms debounce
+
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [fabricCanvas, isCanvasReady, project.tracks, project.currentTime]);
 
   // Apply CSS filters to video
   const getFilterStyle = () => {
@@ -123,6 +182,39 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
   };
 
   const handleProgress = ({ playedSeconds }: { playedSeconds: number }) => {
+    // Check if we're in an enabled clip segment
+    const activeClip = getActiveVideoClip(playedSeconds);
+    
+    if (!activeClip) {
+      // We're in a disabled/deleted section, skip to next enabled clip
+      const nextClip = findNextEnabledClip(playedSeconds);
+      if (nextClip) {
+        playerRef.current?.seekTo(nextClip.start);
+        onTimeUpdate(nextClip.start);
+      } else {
+        // No more clips, stop playback
+        onPlayingChange(false);
+        playerRef.current?.seekTo(0);
+        onTimeUpdate(0);
+      }
+      return;
+    }
+
+    // Check if we've reached the end of current clip
+    if (playedSeconds >= activeClip.end) {
+      const nextClip = findNextEnabledClip(playedSeconds);
+      if (nextClip) {
+        playerRef.current?.seekTo(nextClip.start);
+        onTimeUpdate(nextClip.start);
+      } else {
+        onPlayingChange(false);
+        playerRef.current?.seekTo(0);
+        onTimeUpdate(0);
+      }
+      return;
+    }
+
+    // Normal playback within active clip
     if (playedSeconds >= project.duration) {
       onPlayingChange(false);
       playerRef.current?.seekTo(0);
@@ -188,7 +280,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
             
             return (
               <div
-                key={clip.id}
+                key={`overlay-${clip.id}`}
                 className="absolute"
                 style={{
                   top: `${position.y}%`,
@@ -200,13 +292,19 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
               >
                 {clip.type === 'image' && clip.sourceUrl && (
                   <img 
+                    key={`img-${clip.id}`}
                     src={clip.sourceUrl} 
                     alt="Overlay" 
                     className="w-full h-full object-contain rounded-lg shadow-lg"
+                    onError={(e) => {
+                      console.error('Image failed to load:', clip.sourceUrl);
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
                 )}
                 {clip.type === 'video' && clip.sourceUrl && (
                   <ReactPlayer
+                    key={`video-${clip.id}`}
                     url={clip.sourceUrl}
                     playing={project.isPlaying}
                     volume={(clip.volume || 100) / 100}
@@ -216,6 +314,9 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
                     progressInterval={50}
                     controls={false}
                     className="rounded-lg shadow-lg"
+                    onError={(error) => {
+                      console.error('Video overlay failed to load:', error);
+                    }}
                   />
                 )}
               </div>

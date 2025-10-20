@@ -35,28 +35,39 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const url = URL.createObjectURL(file);
-        const videoTrack = project.tracks.find(t => t.id === 'video-2');
-        if (videoTrack) {
-          const newClip: TimelineClip = {
-            id: `clip-${Date.now()}`,
-            type: 'video',
-            trackId: 'video-2',
-            start: project.currentTime,
-            end: project.currentTime + 5,
-            enabled: true,
-            sourceUrl: url,
-            volume: 100,
-            speed: 1,
-            content: {
-              position: { x: 70, y: 10, width: 25, height: 25 }
-            }
-          };
-          const updatedTracks = project.tracks.map(t =>
-            t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
-          );
-          onProjectUpdate({ tracks: updatedTracks });
-          toast.success("Video clip added");
+        try {
+          const loadingToast = toast.loading("Adding video overlay...");
+          
+          const url = URL.createObjectURL(file);
+          const videoTrack = project.tracks.find(t => t.id === 'video-2');
+          
+          if (videoTrack) {
+            const newClip: TimelineClip = {
+              id: `clip-${Date.now()}`,
+              type: 'video',
+              trackId: 'video-2',
+              start: project.currentTime,
+              end: project.currentTime + 5,
+              enabled: true,
+              sourceUrl: url,
+              volume: 100,
+              speed: 1,
+              content: {
+                position: { x: 70, y: 10, width: 25, height: 25 }
+              }
+            };
+            
+            const updatedTracks = project.tracks.map(t =>
+              t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
+            );
+            
+            onProjectUpdate({ tracks: updatedTracks });
+            toast.dismiss(loadingToast);
+            toast.success("Video clip added");
+          }
+        } catch (error) {
+          toast.error("Failed to add video clip");
+          console.error('Error adding video clip:', error);
         }
       }
     };
@@ -70,26 +81,37 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const url = URL.createObjectURL(file);
-        const videoTrack = project.tracks.find(t => t.id === 'video-2');
-        if (videoTrack) {
-          const newClip: TimelineClip = {
-            id: `image-${Date.now()}`,
-            type: 'image',
-            trackId: 'video-2',
-            start: project.currentTime,
-            end: project.currentTime + 3,
-            enabled: true,
-            sourceUrl: url,
-            content: {
-              position: { x: 70, y: 10, width: 25, height: 25 }
-            }
-          };
-          const updatedTracks = project.tracks.map(t =>
-            t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
-          );
-          onProjectUpdate({ tracks: updatedTracks });
-          toast.success("Image added");
+        try {
+          const loadingToast = toast.loading("Adding image...");
+          
+          const url = URL.createObjectURL(file);
+          const videoTrack = project.tracks.find(t => t.id === 'video-2');
+          
+          if (videoTrack) {
+            const newClip: TimelineClip = {
+              id: `image-${Date.now()}`,
+              type: 'image',
+              trackId: 'video-2',
+              start: project.currentTime,
+              end: project.currentTime + 3,
+              enabled: true,
+              sourceUrl: url,
+              content: {
+                position: { x: 70, y: 10, width: 25, height: 25 }
+              }
+            };
+            
+            const updatedTracks = project.tracks.map(t =>
+              t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
+            );
+            
+            onProjectUpdate({ tracks: updatedTracks });
+            toast.dismiss(loadingToast);
+            toast.success("Image added");
+          }
+        } catch (error) {
+          toast.error("Failed to add image");
+          console.error('Error adding image:', error);
         }
       }
     };

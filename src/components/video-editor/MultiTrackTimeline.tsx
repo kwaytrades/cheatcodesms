@@ -23,6 +23,9 @@ export const MultiTrackTimeline = ({
   const timelineRef = useRef<HTMLDivElement>(null);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(100);
   const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
+  const [isDraggingClip, setIsDraggingClip] = useState(false);
+  const [draggedClip, setDraggedClip] = useState<{ clip: TimelineClip; trackId: string } | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
   const timelineWidth = project.duration * pixelsPerSecond;
 
   const formatTime = (seconds: number) => {
@@ -107,6 +110,21 @@ export const MultiTrackTimeline = ({
     onClipSelect(clipId);
   };
 
+  const handleClipMouseDown = (clip: TimelineClip, trackId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!timelineRef.current) return;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left - 150; // Subtract label width
+    const clipStartX = clip.start * pixelsPerSecond;
+    
+    setDragOffset(clickX - clipStartX);
+    setDraggedClip({ clip, trackId });
+    setIsDraggingClip(true);
+    onClipSelect(clip.id);
+  };
+
   const handleZoom = (direction: 'in' | 'out') => {
     setPixelsPerSecond(prev => {
       const newValue = direction === 'in' ? prev * 1.2 : prev / 1.2;
@@ -121,19 +139,49 @@ export const MultiTrackTimeline = ({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingPlayhead || !timelineRef.current) return;
+      if (isDraggingPlayhead && timelineRef.current) {
+        const rect = timelineRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left - 150; // Subtract label width
+        const time = Math.max(0, Math.min(project.duration, (x / timelineWidth) * project.duration));
+        onProjectUpdate({ currentTime: time });
+      }
 
-      const rect = timelineRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left - 150; // Subtract label width
-      const time = Math.max(0, Math.min(project.duration, (x / timelineWidth) * project.duration));
-      onProjectUpdate({ currentTime: time });
+      if (isDraggingClip && draggedClip && timelineRef.current) {
+        const rect = timelineRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left - 150 - dragOffset;
+        const newStart = Math.max(0, mouseX / pixelsPerSecond);
+        const duration = draggedClip.clip.end - draggedClip.clip.start;
+        const newEnd = Math.min(project.duration, newStart + duration);
+
+        // Update clip position in real-time
+        const updatedTracks = project.tracks.map(t => {
+          if (t.id === draggedClip.trackId) {
+            return {
+              ...t,
+              clips: t.clips.map(c => 
+                c.id === draggedClip.clip.id 
+                  ? { ...c, start: newStart, end: newEnd }
+                  : c
+              )
+            };
+          }
+          return t;
+        });
+
+        onProjectUpdate({ tracks: updatedTracks });
+      }
     };
 
     const handleMouseUp = () => {
+      if (isDraggingClip && draggedClip) {
+        toast.success("Clip repositioned");
+      }
       setIsDraggingPlayhead(false);
+      setIsDraggingClip(false);
+      setDraggedClip(null);
     };
 
-    if (isDraggingPlayhead) {
+    if (isDraggingPlayhead || isDraggingClip) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     }
@@ -142,7 +190,7 @@ export const MultiTrackTimeline = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDraggingPlayhead, timelineWidth, project.duration, onProjectUpdate]);
+  }, [isDraggingPlayhead, isDraggingClip, draggedClip, dragOffset, timelineWidth, pixelsPerSecond, project.duration, project.tracks, onProjectUpdate]);
 
   const getClipColor = (type: string) => {
     switch (type) {
@@ -237,15 +285,17 @@ export const MultiTrackTimeline = ({
                       key={clip.id}
                       className={`absolute top-1 bottom-1 rounded border-2 ${
                         selectedClipId === clip.id ? 'border-primary' : 'border-transparent'
-                      } ${getClipColor(clip.type)} hover:opacity-90 cursor-pointer overflow-hidden`}
+                      } ${getClipColor(clip.type)} hover:opacity-90 cursor-move overflow-hidden transition-opacity`}
                       style={{
                         left: clip.start * pixelsPerSecond,
                         width: (clip.end - clip.start) * pixelsPerSecond,
+                        opacity: isDraggingClip && draggedClip?.clip.id === clip.id ? 0.5 : 1,
                       }}
                       onClick={(e) => handleClipClick(clip.id, e)}
-                      title={`${clip.type}: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`}
+                      onMouseDown={(e) => handleClipMouseDown(clip, track.id, e)}
+                      title={`${clip.type}: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s (drag to move)`}
                     >
-                      <div className="px-2 py-1 text-xs text-white font-medium truncate">
+                      <div className="px-2 py-1 text-xs text-white font-medium truncate pointer-events-none">
                         {clip.type === 'text' && clip.content?.text ? clip.content.text : clip.type}
                       </div>
                     </div>
