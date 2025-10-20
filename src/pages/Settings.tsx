@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings2, Key, CheckCircle2, XCircle } from "lucide-react";
+import { Settings2, Key, CheckCircle2, XCircle, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +11,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { KnowledgeBase } from "@/components/KnowledgeBase";
 
 interface SecretConfig {
   name: string;
@@ -108,13 +110,23 @@ const Settings = () => {
             Settings
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage your integrations and API credentials
+            Manage your integrations, API credentials, and knowledge base
           </p>
         </div>
       </div>
 
-      {/* API Keys & Secrets */}
-      <Card>
+      <Tabs defaultValue="integrations" className="w-full">
+        <TabsList>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="knowledge">
+            <BookOpen className="h-4 w-4 mr-2" />
+            Knowledge Base
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="integrations" className="space-y-6">
+          {/* API Keys & Secrets */}
+          <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Key className="h-5 w-5" />
@@ -217,25 +229,31 @@ const Settings = () => {
         </CardContent>
       </Card>
 
-      {/* Backend Access */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Backend Management</CardTitle>
-          <CardDescription>
-            Access your database, edge functions, and secrets management
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Configure API keys, view database tables, and manage edge functions through the backend dashboard.
-          </p>
-          <Button variant="default" className="w-full" onClick={() => {
-            toast.success("Opening backend dashboard...");
-          }}>
-            Open Backend Dashboard
-          </Button>
-        </CardContent>
-      </Card>
+          {/* Backend Access */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Backend Management</CardTitle>
+              <CardDescription>
+                Access your database, edge functions, and secrets management
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Configure API keys, view database tables, and manage edge functions through the backend dashboard.
+              </p>
+              <Button variant="default" className="w-full" onClick={() => {
+                toast.success("Opening backend dashboard...");
+              }}>
+                Open Backend Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="knowledge">
+          <KnowledgeBase />
+        </TabsContent>
+      </Tabs>
 
       {/* Configure Secret Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

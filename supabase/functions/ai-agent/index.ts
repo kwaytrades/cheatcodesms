@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,8 +75,31 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    // Initialize Supabase client to fetch knowledge base
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch relevant knowledge base documents
+    const { data: knowledgeBase } = await supabase
+      .from('knowledge_base')
+      .select('title, category, content')
+      .order('created_at', { ascending: false });
+
+    // Build knowledge base context
+    let knowledgeContext = '';
+    if (knowledgeBase && knowledgeBase.length > 0) {
+      knowledgeContext = '\n\nKNOWLEDGE BASE (Reference this information when relevant):\n';
+      knowledgeBase.forEach((doc: any) => {
+        if (doc.content) {
+          knowledgeContext += `\n[${doc.category}] ${doc.title}:\n${doc.content}\n`;
+        }
+      });
+    }
+
     // Select system prompt based on agent type
-    const systemPrompt = agentType === 'sales_ai' ? SALES_AGENT_PROMPT : CS_AGENT_PROMPT;
+    const basePrompt = agentType === 'sales_ai' ? SALES_AGENT_PROMPT : CS_AGENT_PROMPT;
+    const systemPrompt = basePrompt + knowledgeContext;
 
     // Build conversation context
     const messages = [
