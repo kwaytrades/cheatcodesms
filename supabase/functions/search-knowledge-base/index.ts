@@ -50,7 +50,7 @@ serve(async (req) => {
       }
     }
 
-    const { data: results, error } = await searchQuery.limit(5);
+    const { data: results, error } = await searchQuery.limit(10);
 
     if (error) {
       console.error('Knowledge base search error:', error);
@@ -63,7 +63,7 @@ serve(async (req) => {
     const formattedResults = results?.map(doc => ({
       title: doc.title,
       category: doc.category,
-      content: doc.content?.substring(0, 500), // Limit to 500 chars per doc
+      content: doc.content?.substring(0, 1000), // Limit to 1000 chars per doc
     })) || [];
 
     return new Response(
