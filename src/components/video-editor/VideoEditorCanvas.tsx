@@ -46,36 +46,40 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
   // Initialize fabric canvas for overlays - ONLY ONCE on mount
   useLayoutEffect(() => {
     // Only initialize once when component mounts
-    if (fabricCanvas) return;
+    if (fabricCanvas || !canvasRef.current) return;
     
     isMountedRef.current = true;
 
-    // Use requestAnimationFrame to ensure DOM is fully ready
-    const initCanvas = () => {
-      if (!canvasRef.current || !isMountedRef.current) return;
+    // Use double requestAnimationFrame to ensure React has fully committed the DOM
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!canvasRef.current || !isMountedRef.current || fabricCanvas) return;
 
-      try {
-        const canvas = new FabricCanvas(canvasRef.current, {
-          width: 1920,
-          height: 1080,
-          backgroundColor: 'transparent',
-          selection: false,
-          renderOnAddRemove: false,
-        });
+        try {
+          const canvas = new FabricCanvas(canvasRef.current, {
+            width: 1920,
+            height: 1080,
+            backgroundColor: 'transparent',
+            selection: false,
+            renderOnAddRemove: false,
+          });
 
-        setFabricCanvas(canvas);
-        setIsCanvasReady(true);
-      } catch (error) {
-        console.error('Failed to initialize canvas:', error);
-      }
-    };
-
-    const rafId = requestAnimationFrame(initCanvas);
+          setFabricCanvas(canvas);
+          setIsCanvasReady(true);
+        } catch (error) {
+          console.error('Failed to initialize canvas:', error);
+        }
+      });
+    });
 
     return () => {
       isMountedRef.current = false;
-      cancelAnimationFrame(rafId);
-      
+    };
+  }, []); // Empty deps - only run once
+  
+  // Cleanup canvas on unmount
+  useEffect(() => {
+    return () => {
       if (fabricCanvas) {
         try {
           fabricCanvas.dispose();
@@ -84,7 +88,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         }
       }
     };
-  }, []); // Empty deps - only run once
+  }, [fabricCanvas]);
 
   // Update canvas dimensions when canvas size changes (without reinitializing)
   useEffect(() => {
@@ -377,6 +381,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         
         {/* Text and Sticker Canvas Overlay */}
         <canvas
+          key="fabric-canvas"
           ref={canvasRef}
           width={project.canvasSize.width}
           height={project.canvasSize.height}
