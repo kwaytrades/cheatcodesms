@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Search, Bot, User } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { ContactDetailPanel } from "@/components/ContactDetailPanel";
 
 interface Conversation {
   id: string;
@@ -37,6 +39,7 @@ const Inbox = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [contactInfo, setContactInfo] = useState<any>(null);
+  const [showContactPanel, setShowContactPanel] = useState(false);
 
   useEffect(() => {
     loadConversations();
@@ -132,12 +135,15 @@ const Inbox = () => {
         
         if (error) throw error;
         setContactInfo(data);
+        setShowContactPanel(true);
       } catch (error) {
         console.error("Error loading contact:", error);
         setContactInfo(null);
+        setShowContactPanel(false);
       }
     } else {
       setContactInfo(null);
+      setShowContactPanel(false);
     }
   };
 
@@ -193,8 +199,10 @@ const Inbox = () => {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Conversations List */}
-        <div className="w-80 border-r border-border/50 flex flex-col">
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          {/* Conversations List */}
+          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+            <div className="h-full border-r border-border/50 flex flex-col">
           <div className="p-4 border-b border-border/50">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -236,14 +244,18 @@ const Inbox = () => {
                       </p>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </div>
+    </ResizablePanel>
 
-        {/* Messages Area */}
-        <div className="flex-1 flex flex-col">
+    <ResizableHandle />
+
+    {/* Messages Area */}
+    <ResizablePanel defaultSize={showContactPanel ? 50 : 80}>
+      <div className="h-full flex flex-col">
           {selectedConversation ? (
             <>
               {/* Message Header */}
@@ -251,7 +263,11 @@ const Inbox = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <button
-                      onClick={() => contactInfo && navigate(`/contacts/${contactInfo.id}`)}
+                      onClick={() => {
+                        if (contactInfo) {
+                          setShowContactPanel(true);
+                        }
+                      }}
                       disabled={!contactInfo}
                       className={`text-left ${contactInfo ? 'hover:underline cursor-pointer' : 'cursor-default'}`}
                     >
@@ -270,9 +286,9 @@ const Inbox = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate(`/contacts/${contactInfo.id}`)}
+                      onClick={() => setShowContactPanel(!showContactPanel)}
                     >
-                      View Profile
+                      {showContactPanel ? 'Hide' : 'Show'} Profile
                     </Button>
                   )}
                 </div>
@@ -348,6 +364,22 @@ const Inbox = () => {
             </div>
           )}
         </div>
+      </ResizablePanel>
+
+      {/* Contact Detail Sidebar */}
+      {showContactPanel && contactInfo && (
+        <>
+          <ResizableHandle />
+          <ResizablePanel defaultSize={30} minSize={25} maxSize={40}>
+            <ContactDetailPanel 
+              contactId={contactInfo.id}
+              onClose={() => setShowContactPanel(false)}
+              showExpandButton={true}
+            />
+          </ResizablePanel>
+        </>
+      )}
+    </ResizablePanelGroup>
       </div>
     </div>
   );

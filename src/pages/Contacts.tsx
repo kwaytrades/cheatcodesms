@@ -80,7 +80,6 @@ const Contacts = () => {
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [selectedSegment, setSelectedSegment] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [showSegments, setShowSegments] = useState(true);
 
   useEffect(() => {
@@ -376,7 +375,7 @@ const Contacts = () => {
         </>
       )}
       
-      <ResizablePanel defaultSize={selectedContactId ? 60 : 85}>
+      <ResizablePanel defaultSize={85}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Header */}
           <div className="border-b bg-background p-4">
@@ -501,7 +500,7 @@ const Contacts = () => {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) {
-                      setSelectedContactId(contact.id);
+                      navigate(`/contacts/${contact.id}`);
                     }
                   }}
                 >
@@ -530,18 +529,6 @@ const Contacts = () => {
         </div>
           </div>
         </ResizablePanel>
-
-        {selectedContactId && (
-          <>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-              <ContactDetailPanel 
-                contactId={selectedContactId}
-                onClose={() => setSelectedContactId(null)}
-              />
-            </ResizablePanel>
-          </>
-        )}
       </ResizablePanelGroup>
     );
   };

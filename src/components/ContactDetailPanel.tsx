@@ -5,18 +5,22 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, Mail, Phone, DollarSign, TrendingUp, Calendar, Tag, ShoppingBag } from "lucide-react";
+import { X, Mail, Phone, DollarSign, TrendingUp, Calendar, Tag, ShoppingBag, Maximize2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface ContactDetailPanelProps {
   contactId: string;
-  onClose: () => void;
+  onClose?: () => void;
+  showExpandButton?: boolean;
 }
 
-export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelProps) {
+export function ContactDetailPanel({ contactId, onClose, showExpandButton = false }: ContactDetailPanelProps) {
+  const navigate = useNavigate();
   const [contact, setContact] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
+  const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,6 +62,17 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
       if (purchasesError) throw purchasesError;
       setPurchases(purchasesData || []);
 
+      // Load AI messages
+      const { data: aiMessagesData, error: aiMessagesError } = await supabase
+        .from('ai_messages')
+        .select('*')
+        .eq('contact_id', contactId)
+        .order('sent_at', { ascending: false })
+        .limit(5);
+
+      if (aiMessagesError) throw aiMessagesError;
+      setAiMessages(aiMessagesData || []);
+
     } catch (error) {
       console.error('Error loading contact details:', error);
       toast.error('Failed to load contact details');
@@ -86,9 +101,23 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
     <div className="h-full flex flex-col border-l bg-card">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-semibold">Contact Details</h3>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-2">
+          {showExpandButton && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => navigate(`/contacts/${contactId}`)}
+              title="Open in full screen"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          )}
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1">
@@ -196,11 +225,49 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
             </Card>
           )}
 
+          {/* AI Profile Notes */}
+          {contact.ai_profile && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <CardTitle className="text-sm">AI Profile Analysis</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {Object.entries(contact.ai_profile).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
+                    <span className="ml-2 font-medium">{String(value)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Customer Profile */}
+          {contact.customer_profile && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Customer Profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {Object.entries(contact.customer_profile).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
+                    <span className="ml-2 font-medium">{String(value)}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Tabs */}
           <Tabs defaultValue="activity" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="activity">Activity</TabsTrigger>
               <TabsTrigger value="purchases">Purchases</TabsTrigger>
+              <TabsTrigger value="ai">AI Messages</TabsTrigger>
             </TabsList>
 
             <TabsContent value="activity" className="space-y-2">
@@ -251,6 +318,42 @@ export function ContactDetailPanel({ contactId, onClose }: ContactDetailPanelPro
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(purchase.purchase_date).toLocaleDateString()}
                           </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="ai" className="space-y-2">
+              {aiMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No AI messages yet
+                </p>
+              ) : (
+                aiMessages.map((message) => (
+                  <Card key={message.id}>
+                    <CardContent className="pt-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant={message.channel === 'email' ? 'default' : 'secondary'}>
+                            {message.channel}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(message.sent_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {message.subject && (
+                          <p className="text-sm font-medium">{message.subject}</p>
+                        )}
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {message.message_body}
+                        </p>
+                        <div className="flex gap-2 text-xs">
+                          {message.opened && <Badge variant="outline">Opened</Badge>}
+                          {message.replied && <Badge variant="outline">Replied</Badge>}
+                          {message.converted && <Badge variant="outline">Converted</Badge>}
                         </div>
                       </div>
                     </CardContent>
