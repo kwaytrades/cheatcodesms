@@ -7,6 +7,168 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function handleNextBestAction(supabase: any, contactId: string, context: any, apiKey: string) {
+  const contact = context?.contact;
+  const purchases = context?.purchases || [];
+  const recentMessages = context?.recentMessages || [];
+
+  // Build context for AI
+  let contextText = `CONTACT INFORMATION:
+- Name: ${contact?.full_name || 'Unknown'}
+- Lead Score: ${contact?.lead_score || 0}/100
+- Engagement Score: ${contact?.engagement_score || 0}/100
+- Total Spent: $${contact?.total_spent || 0}
+- Lead Status: ${contact?.lead_status || 'new'}
+- Products Interested: ${contact?.products_interested?.join(', ') || 'None identified'}
+- Products Owned: ${contact?.products_owned?.join(', ') || 'None'}
+
+RECENT PURCHASES (${purchases.length}):
+${purchases.map((p: any) => `- ${p.products?.name}: $${p.amount} on ${new Date(p.purchase_date).toLocaleDateString()}`).join('\n') || 'No purchases yet'}
+
+RECENT CONVERSATION CONTEXT (${recentMessages.length} messages):
+${recentMessages.slice(0, 10).map((m: any) => `${m.sender === 'customer' ? 'Customer' : 'Agent'}: ${m.body}`).join('\n') || 'No recent messages'}`;
+
+  // Extract product interests from messages
+  const messageText = recentMessages.map((m: any) => m.body).join(' ');
+  const productMentions = extractProductInterests(messageText);
+  
+  if (productMentions.length > 0) {
+    contextText += `\n\nDETECTED PRODUCT INTERESTS FROM CONVERSATION: ${productMentions.join(', ')}`;
+    
+    // Update contact with detected interests
+    const currentInterests = contact?.products_interested || [];
+    const updatedInterests = [...new Set([...currentInterests, ...productMentions])];
+    
+    await supabase
+      .from('contacts')
+      .update({ products_interested: updatedInterests })
+      .eq('id', contactId);
+    
+    console.log('Updated product interests:', updatedInterests);
+  }
+
+  const prompt = `Based on this customer context, suggest the SINGLE most effective next action to take with this customer. Be specific and actionable.
+
+${contextText}
+
+Provide:
+1. A specific action (e.g., "Send SMS offering 20% discount on [specific product]")
+2. Why this action is recommended
+3. Confidence level (0-100)
+
+Format your response as:
+ACTION: [specific action]
+REASON: [why this is the best action]
+CONFIDENCE: [number 0-100]`;
+
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 300,
+    }),
+  });
+
+  if (!aiResponse.ok) {
+    throw new Error('AI request failed');
+  }
+
+  const data = await aiResponse.json();
+  const responseText = data.choices[0]?.message?.content || '';
+
+  // Parse the response
+  const actionMatch = responseText.match(/ACTION:\s*(.+?)(?:\n|$)/i);
+  const confidenceMatch = responseText.match(/CONFIDENCE:\s*(\d+)/i);
+
+  const suggestion = actionMatch ? actionMatch[1].trim() : responseText.split('\n')[0];
+  const confidence = confidenceMatch ? parseInt(confidenceMatch[1]) : 70;
+
+  return new Response(
+    JSON.stringify({ suggestion, confidence }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+async function handleGenerateMessage(supabase: any, contactId: string, context: any, apiKey: string) {
+  const contact = context?.contact;
+  const recentMessages = context?.recentMessages || [];
+
+  const conversationContext = recentMessages.slice(0, 5)
+    .map((m: any) => `${m.sender === 'customer' ? 'Customer' : 'Agent'}: ${m.body}`)
+    .join('\n');
+
+  const prompt = `You are a professional sales agent. Based on this conversation context, draft a helpful follow-up message to the customer.
+
+CUSTOMER: ${contact?.full_name}
+RECENT CONVERSATION:
+${conversationContext}
+
+Write a friendly, professional message (2-3 sentences) that:
+- Continues the conversation naturally
+- Addresses their interests
+- Encourages engagement
+
+Just provide the message text, nothing else.`;
+
+  const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.8,
+      max_tokens: 150,
+    }),
+  });
+
+  if (!aiResponse.ok) {
+    throw new Error('AI request failed');
+  }
+
+  const data = await aiResponse.json();
+  const message = data.choices[0]?.message?.content || '';
+
+  return new Response(
+    JSON.stringify({ message: message.trim() }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
+
+function extractProductInterests(text: string): string[] {
+  const products: string[] = [];
+  const lowerText = text.toLowerCase();
+  
+  // Common financial/trading products
+  const productKeywords = {
+    'textbook': ['textbook', 'text book', 'course book'],
+    'trading course': ['trading course', 'course', 'training', 'education'],
+    'signals': ['signals', 'signal', 'alerts', 'trading signals'],
+    'mentorship': ['mentorship', 'mentor', 'coaching', 'personal training'],
+    'forex': ['forex', 'fx', 'foreign exchange'],
+    'stocks': ['stocks', 'equities', 'shares'],
+    'options': ['options', 'option trading'],
+    'crypto': ['crypto', 'cryptocurrency', 'bitcoin', 'ethereum'],
+    'futures': ['futures', 'futures trading'],
+  };
+
+  for (const [product, keywords] of Object.entries(productKeywords)) {
+    if (keywords.some(keyword => lowerText.includes(keyword))) {
+      products.push(product);
+    }
+  }
+
+  return [...new Set(products)]; // Remove duplicates
+}
+
 const SALES_AGENT_PROMPT = `You are a professional sales AI agent for a financial services company. You specialize in helping customers understand our products and services.
 
 CRITICAL: You will receive RELEVANT KNOWLEDGE BASE INFO below. This is the ONLY source of truth about our products, services, pricing, and offerings. NEVER make up or assume information about products not mentioned in the knowledge base. If asked about something not in the knowledge base, acknowledge you don't have that information.
@@ -88,7 +250,7 @@ serve(async (req) => {
   }
 
   try {
-    const { conversationId, agentType, incomingMessage, history } = await req.json();
+    const { conversationId, agentType, incomingMessage, history, type, contactId, context } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -98,8 +260,19 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Get conversation and contact information
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Handle next_best_action request type
+    if (type === 'next_best_action' && contactId) {
+      return await handleNextBestAction(supabase, contactId, context, LOVABLE_API_KEY);
+    }
+
+    // Handle generate_message request type
+    if (type === 'generate_message' && contactId) {
+      return await handleGenerateMessage(supabase, contactId, context, LOVABLE_API_KEY);
+    }
+
+    // Get conversation and contact information
     const { data: conversation } = await supabase
       .from('conversations')
       .select('contact_id, contact_name')
