@@ -432,10 +432,12 @@ export const ContactAnalytics = () => {
 
       {/* Top Row - Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-border/50 hover:border-primary/50 transition-colors">
+        <Card className="border-border/50 hover:glow-green transition-all accent-left-green">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+            <div className="icon-bg-green p-2 rounded-lg">
+              <Users className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">{metrics.totalContacts}</div>
@@ -446,13 +448,15 @@ export const ContactAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 hover:border-primary/50 transition-colors">
+        <Card className="border-border/50 hover:glow-blue transition-all accent-left-blue">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-            <Activity className="h-4 w-4 text-chart-2" />
+            <div className="icon-bg-blue p-2 rounded-lg">
+              <Activity className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-chart-2">{metrics.activeCustomers}</div>
+            <div className="text-3xl font-bold text-info">{metrics.activeCustomers}</div>
             <div className="flex items-center gap-1 mt-1">
               <ArrowUp className="h-3 w-3 text-chart-1" />
               <span className="text-xs text-muted-foreground">{metrics.activePercentage}% of total</span>
@@ -460,33 +464,31 @@ export const ContactAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 hover:border-primary/50 transition-colors">
+        <Card className="border-border/50 hover:glow-orange transition-all accent-left-orange">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-warning" />
+            <div className="icon-bg-orange p-2 rounded-lg">
+              <TrendingUp className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-warning">{metrics.engagementRate}%</div>
-            <Progress value={metrics.engagementRate} className="mt-2" />
+            <Progress value={metrics.engagementRate} className="mt-2" useGradient />
           </CardContent>
         </Card>
 
-        <Card className="border-border/50 hover:border-primary/50 transition-colors">
+        <Card className="border-border/50 hover:glow-purple transition-all accent-left-purple">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sentiment Score</CardTitle>
-            <Gauge className="h-4 w-4" style={{ color: getSentimentColor(metrics.sentimentScore) }} />
+            <div className="icon-bg-purple p-2 rounded-lg">
+              <Gauge className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold" style={{ color: getSentimentColor(metrics.sentimentScore) }}>
               {metrics.sentimentScore}
             </div>
-            <Progress 
-              value={metrics.sentimentScore} 
-              className="mt-2"
-              style={{ 
-                background: `linear-gradient(to right, hsl(var(--destructive)), hsl(var(--warning)), hsl(var(--chart-1)))`
-              }}
-            />
+            <Progress value={metrics.sentimentScore} className="mt-2" useGradient />
           </CardContent>
         </Card>
       </div>
@@ -543,7 +545,7 @@ export const ContactAnalytics = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Progress value={customer.leadScore} className="w-16 h-2" />
+                            <Progress value={customer.leadScore} className="w-16 h-2" useGradient />
                             <span className="text-sm font-medium">{customer.leadScore}</span>
                           </div>
                         </TableCell>
@@ -562,7 +564,7 @@ export const ContactAnalytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2 border-border/50">
+        <Card className="lg:col-span-2 border-border/50 accent-left-purple">
           <CardHeader>
             <CardTitle>Purchase Intent Funnel</CardTitle>
             <CardDescription>Customer readiness to buy</CardDescription>
@@ -584,9 +586,7 @@ export const ContactAnalytics = () => {
                   <Progress 
                     value={stage.percentage} 
                     className="h-3"
-                    style={{ 
-                      opacity: 1 - (index * 0.2)
-                    }}
+                    useGradient
                   />
                 </div>
               ))}

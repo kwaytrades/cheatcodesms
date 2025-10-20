@@ -24,13 +24,6 @@ export const KeyMetrics = ({
     return 'text-score-cold';
   };
 
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-score-hot';
-    if (score >= 51) return 'bg-score-warm';
-    if (score >= 21) return 'bg-score-cool';
-    return 'bg-score-cold';
-  };
-
   const getStatusColor = (status: string) => {
     const statusMap: Record<string, string> = {
       'cold': 'bg-status-cold/10 text-status-cold border-status-cold/20',
@@ -75,7 +68,7 @@ export const KeyMetrics = ({
             <span className="text-muted-foreground">Score</span>
             <span className={`font-bold ${getScoreColor(leadScore)}`}>{leadScore}/100</span>
           </div>
-          <Progress value={leadScore} className="h-2" indicatorClassName={getScoreBgColor(leadScore)} />
+          <Progress value={leadScore} className="h-2" useGradient />
         </div>
         
         <div>
