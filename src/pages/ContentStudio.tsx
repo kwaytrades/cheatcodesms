@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Wand2, Video, FolderOpen } from "lucide-react";
+import { FileText, Wand2, Video, FolderOpen, Scissors } from "lucide-react";
 
 const ContentStudio = () => {
   const location = useLocation();
@@ -20,7 +20,7 @@ const ContentStudio = () => {
           </div>
           
           <Tabs value={currentTab} className="w-full">
-            <TabsList className="grid w-full max-w-3xl grid-cols-5">
+            <TabsList className="grid w-full max-w-4xl grid-cols-6">
               <TabsTrigger value="news" asChild>
                 <Link to="/content-studio/news" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
@@ -43,6 +43,12 @@ const ContentStudio = () => {
                 <Link to="/content-studio/library" className="flex items-center gap-2">
                   <FolderOpen className="h-4 w-4" />
                   Content Library
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="editor" asChild>
+                <Link to="/content-studio/editor" className="flex items-center gap-2">
+                  <Scissors className="h-4 w-4" />
+                  Video Editor
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="settings" asChild>

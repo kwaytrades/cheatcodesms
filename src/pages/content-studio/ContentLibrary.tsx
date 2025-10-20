@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download } from "lucide-react";
+import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import ReactPlayer from "react-player";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ const STATUSES = {
 
 const ContentLibrary = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterFormat, setFilterFormat] = useState<string>('all');
@@ -315,6 +317,14 @@ const ContentLibrary = () => {
                             <Button
                               size="sm"
                               variant="outline"
+                              onClick={() => navigate('/content-studio/editor', { state: { video: item.data } })}
+                              title="Edit video"
+                            >
+                              <Scissors className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={() => handleExportVideo(item.data)}
                             >
                               <Download className="h-3 w-3" />
@@ -379,6 +389,14 @@ const ContentLibrary = () => {
                               onClick={() => handlePlayVideo(item.data)}
                             >
                               <Video className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate('/content-studio/editor', { state: { video: item.data } })}
+                              title="Edit video"
+                            >
+                              <Scissors className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"
