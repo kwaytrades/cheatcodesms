@@ -168,21 +168,25 @@ serve(async (req) => {
                           agentType === 'cs_ai' ? 'ai_cs' : 'human_team';
 
     // Call AI agent to generate response
-    const aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-agent`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
-      },
-      body: JSON.stringify({
+    console.log('Calling AI agent with:', { conversationId: conversation.id, agentType });
+    
+    const aiResponse = await supabase.functions.invoke('ai-agent', {
+      body: {
         conversationId: conversation.id,
         agentType: agentType,
         incomingMessage: body,
         history: recentMessages?.reverse() || [],
-      }),
+      },
     });
 
-    const { response: aiMessage, needsHandoff } = await aiResponse.json();
+    console.log('AI agent response:', aiResponse);
+
+    if (aiResponse.error) {
+      console.error('AI agent error:', aiResponse.error);
+      throw aiResponse.error;
+    }
+
+    const { response: aiMessage, needsHandoff } = aiResponse.data || {};
 
     if (needsHandoff) {
       // Mark conversation for human review
