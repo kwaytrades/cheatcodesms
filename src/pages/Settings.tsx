@@ -71,6 +71,27 @@ const Settings = () => {
       description: "The phone number to send SMS from (format: +1234567890)",
       required: true,
       configured: configuredSecrets.has("TWILIO_PHONE_NUMBER")
+    },
+    {
+      name: "AWS_ACCESS_KEY_ID",
+      displayName: "AWS Access Key ID",
+      description: "Your AWS IAM access key for SES email sending",
+      required: true,
+      configured: configuredSecrets.has("AWS_ACCESS_KEY_ID")
+    },
+    {
+      name: "AWS_SECRET_ACCESS_KEY",
+      displayName: "AWS Secret Access Key",
+      description: "Your AWS IAM secret access key for SES authentication",
+      required: true,
+      configured: configuredSecrets.has("AWS_SECRET_ACCESS_KEY")
+    },
+    {
+      name: "AWS_REGION",
+      displayName: "AWS Region",
+      description: "AWS region for SES (e.g., us-east-1, us-west-2)",
+      required: true,
+      configured: configuredSecrets.has("AWS_REGION")
     }
   ];
 
@@ -225,6 +246,21 @@ const Settings = () => {
               </div>
             </div>
             <Badge variant="default">Active</Badge>
+          </div>
+
+          <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <span className="text-lg font-bold text-orange-500">A</span>
+              </div>
+              <div>
+                <h4 className="font-medium">AWS SES</h4>
+                <p className="text-sm text-muted-foreground">Email Campaigns</p>
+              </div>
+            </div>
+            <Badge variant={configuredSecrets.has("AWS_ACCESS_KEY_ID") ? "default" : "secondary"}>
+              {configuredSecrets.has("AWS_ACCESS_KEY_ID") ? "Active" : "Not Configured"}
+            </Badge>
           </div>
         </CardContent>
       </Card>
