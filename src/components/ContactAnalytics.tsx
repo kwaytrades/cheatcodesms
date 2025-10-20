@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, TrendingUp, Activity, Gauge, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Users, TrendingUp, Activity, Gauge, ArrowUp, ArrowDown, X, RefreshCw } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface ContactMetrics {
   totalContacts: number;
@@ -86,10 +87,37 @@ export const ContactAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [selectedStage, setSelectedStage] = useState<CustomersByStage | null>(null);
   const [allContacts, setAllContacts] = useState<any[]>([]);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     loadContactAnalytics();
   }, []);
+
+  const handleSyncLeadScores = async () => {
+    setSyncing(true);
+    toast.info("Starting lead score sync...", { description: "This may take a few moments" });
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-lead-scores');
+      
+      if (error) throw error;
+      
+      toast.success("Lead scores synced successfully!", {
+        description: `Updated ${data.updated} contacts${data.errors > 0 ? `, ${data.errors} errors` : ''}`
+      });
+      
+      // Reload analytics after sync
+      await loadContactAnalytics();
+      
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast.error("Failed to sync lead scores", {
+        description: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const loadContactAnalytics = async () => {
     try {
@@ -381,6 +409,23 @@ export const ContactAnalytics = () => {
       </Dialog>
 
       <div className="space-y-6">
+      {/* Header with Sync Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Contact Analytics</h2>
+          <p className="text-muted-foreground">AI-powered insights from your customer conversations</p>
+        </div>
+        <Button
+          onClick={handleSyncLeadScores}
+          disabled={syncing}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Syncing...' : 'Sync Lead Scores'}
+        </Button>
+      </div>
+
       {/* Top Row - Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-border/50 hover:border-primary/50 transition-colors">
