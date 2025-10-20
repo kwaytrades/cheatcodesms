@@ -218,16 +218,18 @@ const Inbox = () => {
                     }`}
                   >
                     <div className="flex items-start justify-between mb-1">
-                      <p className="font-semibold">
-                        {conv.contact_name || conv.phone_number}
-                      </p>
-                      <Badge variant="outline" className="text-xs">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate">
+                          {conv.contact_name || conv.phone_number}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {conv.phone_number}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs ml-2">
                         {conv.status}
                       </Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {conv.phone_number}
-                    </p>
                     {conv.last_message_at && (
                       <p className="text-xs text-muted-foreground mt-1">
                         {format(new Date(conv.last_message_at), "MMM d, h:mm a")}
@@ -248,10 +250,19 @@ const Inbox = () => {
               <div className="p-4 border-b border-border/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="font-semibold">
-                      {selectedConversation.contact_name || selectedConversation.phone_number}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
+                    <button
+                      onClick={() => contactInfo && navigate(`/contacts/${contactInfo.id}`)}
+                      disabled={!contactInfo}
+                      className={`text-left ${contactInfo ? 'hover:underline cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <h2 className="font-semibold">
+                        {selectedConversation.contact_name || selectedConversation.phone_number}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedConversation.phone_number}
+                      </p>
+                    </button>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Agent: {selectedConversation.assigned_agent.replace("_", " ")}
                     </p>
                   </div>
