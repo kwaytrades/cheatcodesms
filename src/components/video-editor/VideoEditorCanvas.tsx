@@ -90,32 +90,48 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
     };
   }, [fabricCanvas]);
 
-  // Update canvas dimensions when canvas size changes (without reinitializing)
+  // Update canvas dimensions imperatively when canvas size changes
   useEffect(() => {
     if (!fabricCanvas || !isMountedRef.current || !isCanvasReady) return;
     
-    try {
-      const scaleX = project.canvasSize.width / (fabricCanvas.width || 1920);
-      const scaleY = project.canvasSize.height / (fabricCanvas.height || 1080);
+    // Use requestAnimationFrame to defer dimension updates
+    const rafId = requestAnimationFrame(() => {
+      if (!fabricCanvas || !isMountedRef.current) return;
       
-      fabricCanvas.setDimensions({
-        width: project.canvasSize.width,
-        height: project.canvasSize.height,
-      });
-      
-      // Scale all objects proportionally
-      fabricCanvas.getObjects().forEach((obj) => {
-        obj.scaleX = (obj.scaleX || 1) * scaleX;
-        obj.scaleY = (obj.scaleY || 1) * scaleY;
-        obj.left = (obj.left || 0) * scaleX;
-        obj.top = (obj.top || 0) * scaleY;
-        obj.setCoords();
-      });
-      
-      fabricCanvas.renderAll();
-    } catch (error) {
-      console.error('Error updating canvas dimensions:', error);
-    }
+      try {
+        const currentWidth = fabricCanvas.width || 1920;
+        const currentHeight = fabricCanvas.height || 1080;
+        const scaleX = project.canvasSize.width / currentWidth;
+        const scaleY = project.canvasSize.height / currentHeight;
+        
+        // Update canvas dimensions
+        fabricCanvas.setDimensions({
+          width: project.canvasSize.width,
+          height: project.canvasSize.height,
+        });
+        
+        // Update the underlying canvas element dimensions
+        if (canvasRef.current) {
+          canvasRef.current.width = project.canvasSize.width;
+          canvasRef.current.height = project.canvasSize.height;
+        }
+        
+        // Scale all objects proportionally
+        fabricCanvas.getObjects().forEach((obj) => {
+          obj.scaleX = (obj.scaleX || 1) * scaleX;
+          obj.scaleY = (obj.scaleY || 1) * scaleY;
+          obj.left = (obj.left || 0) * scaleX;
+          obj.top = (obj.top || 0) * scaleY;
+          obj.setCoords();
+        });
+        
+        fabricCanvas.renderAll();
+      } catch (error) {
+        console.error('Error updating canvas dimensions:', error);
+      }
+    });
+    
+    return () => cancelAnimationFrame(rafId);
   }, [fabricCanvas, isCanvasReady, project.canvasSize.width, project.canvasSize.height]);
 
   // Update text overlays and stickers based on current time - debounced for performance
@@ -381,10 +397,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         
         {/* Text and Sticker Canvas Overlay */}
         <canvas
-          key="fabric-canvas"
           ref={canvasRef}
-          width={project.canvasSize.width}
-          height={project.canvasSize.height}
           className="absolute top-0 left-0 pointer-events-none w-full h-full"
           style={{ mixBlendMode: 'normal', zIndex: 10 }}
         />
