@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, RefreshCw, Plus, Trash2, Settings2, Mail, Phone } from "lucide-react";
+import { Search, RefreshCw, Plus, Trash2, Settings2, Mail, Phone, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { MondayBoardSettings } from "@/components/MondayBoardSettings";
@@ -59,6 +59,8 @@ const Contacts = () => {
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncingToMonday, setSyncingToMonday] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mondayBoardIds, setMondayBoardIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
@@ -134,6 +136,118 @@ const Contacts = () => {
       }
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncToMonday = async () => {
+    if (selectedContacts.size === 0) {
+      toast.error("Please select contacts to sync");
+      return;
+    }
+
+    setSyncingToMonday(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-to-monday', {
+        body: { contactIds: Array.from(selectedContacts) }
+      });
+
+      if (error) throw error;
+
+      toast.success(`Synced ${data.successCount} of ${data.total} contacts to Monday.com`);
+      if (data.failCount > 0) {
+        toast.error(`${data.failCount} contacts failed to sync`);
+      }
+      setSelectedContacts(new Set());
+    } catch (error: any) {
+      if (error.message?.includes('MONDAY_API_KEY')) {
+        toast.error("Monday.com API key not configured");
+      } else {
+        toast.error("Failed to sync to Monday.com");
+      }
+    } finally {
+      setSyncingToMonday(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      // Fetch all contacts with complete data
+      const { data: allContacts, error } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Prepare CSV headers
+      const headers = [
+        'Full Name', 'First Name', 'Last Name', 'Email', 'Phone Number',
+        'Status', 'Lead Score', 'Engagement Score',
+        'Products Interested', 'Products Owned', 'Tags',
+        'AI Interests', 'AI Complaints', 'AI Preferences', 'AI Important Notes',
+        'Customer Income Level', 'Customer Interest Level',
+        'Last Contact Date', 'Created At', 'Synced At',
+        'Monday Item ID', 'Monday Board ID', 'Monday Board Name',
+        'Notes'
+      ];
+
+      // Convert contacts to CSV rows
+      const rows = allContacts?.map((contact: any) => {
+        const aiProfile = contact.ai_profile || {};
+        const customerProfile = contact.customer_profile || {};
+
+        return [
+          contact.full_name || '',
+          contact.first_name || '',
+          contact.last_name || '',
+          contact.email || '',
+          contact.phone_number || '',
+          contact.status || '',
+          contact.lead_score ?? '',
+          contact.engagement_score ?? '',
+          Array.isArray(contact.products_interested) ? contact.products_interested.join(', ') : '',
+          Array.isArray(contact.products_owned) ? contact.products_owned.join(', ') : '',
+          Array.isArray(contact.tags) ? contact.tags.join(', ') : '',
+          Array.isArray(aiProfile.interests) ? aiProfile.interests.join(', ') : '',
+          Array.isArray(aiProfile.complaints) ? aiProfile.complaints.join(' | ') : '',
+          aiProfile.preferences ? JSON.stringify(aiProfile.preferences) : '',
+          Array.isArray(aiProfile.important_notes) ? aiProfile.important_notes.join(' | ') : '',
+          customerProfile.income_level || '',
+          customerProfile.interest_level || '',
+          contact.last_contact_date || '',
+          contact.created_at || '',
+          contact.synced_at || '',
+          contact.monday_item_id || '',
+          contact.monday_board_id || '',
+          contact.monday_board_name || '',
+          contact.notes || ''
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`); // Escape quotes
+      }) || [];
+
+      // Combine headers and rows
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `contacts_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success(`Exported ${allContacts?.length || 0} contacts to CSV`);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      toast.error("Failed to export contacts");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -312,6 +426,16 @@ const Contacts = () => {
                   {selectedContacts.size} selected
                 </span>
                 <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSyncToMonday}
+                  disabled={syncingToMonday}
+                  className="gap-2"
+                >
+                  <Upload className={`h-4 w-4 ${syncingToMonday ? 'animate-pulse' : ''}`} />
+                  Sync to Monday
+                </Button>
+                <Button 
                   variant="destructive" 
                   size="sm" 
                   onClick={handleDeleteSelected}
@@ -325,6 +449,17 @@ const Contacts = () => {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportCSV}
+              disabled={exporting}
+              className="gap-2"
+            >
+              <Download className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
+              Export CSV
+            </Button>
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
