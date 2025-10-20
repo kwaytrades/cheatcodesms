@@ -155,7 +155,9 @@ export type Database = {
       }
       contacts: {
         Row: {
+          ai_profile: Json | null
           created_at: string
+          customer_profile: Json | null
           email: string | null
           engagement_score: number | null
           first_name: string | null
@@ -178,7 +180,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_profile?: Json | null
           created_at?: string
+          customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
           first_name?: string | null
@@ -201,7 +205,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_profile?: Json | null
           created_at?: string
+          customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
           first_name?: string | null

@@ -27,6 +27,18 @@ interface Contact {
   engagement_score: number;
   created_at: string;
   monday_board_name: string | null;
+  customer_profile: {
+    income?: string;
+    interest_level?: string;
+    trading_preferences?: string;
+    [key: string]: any;
+  } | null;
+  ai_profile: {
+    complaints?: string[];
+    interests?: string[];
+    preferences?: { [key: string]: string };
+    important_notes?: string[];
+  } | null;
 }
 
 interface Message {
@@ -67,7 +79,7 @@ const ContactDetail = () => {
         .single();
 
       if (contactError) throw contactError;
-      setContact(contactData);
+      setContact(contactData as Contact);
 
       // Load conversations
       const { data: convData, error: convError } = await supabase
@@ -232,11 +244,12 @@ const ContactDetail = () => {
         {/* Right Column - Activity & Messages */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="messages" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="messages">
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Messages ({messages.length})
               </TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="notes">Notes</TabsTrigger>
             </TabsList>
 
@@ -284,6 +297,133 @@ const ContactDetail = () => {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="profile" className="space-y-4">
+              {/* Tags */}
+              {contact.tags && contact.tags.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Tags</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {contact.tags.map((tag, idx) => (
+                        <Badge key={idx} variant="secondary">{tag}</Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Customer Profile from Monday CRM */}
+              {contact.customer_profile && Object.keys(contact.customer_profile).length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Customer Profile</CardTitle>
+                    <CardDescription>Imported from Monday CRM</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {contact.customer_profile.income && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Income</p>
+                        <p className="text-sm">{contact.customer_profile.income}</p>
+                      </div>
+                    )}
+                    {contact.customer_profile.interest_level && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Interest Level</p>
+                        <p className="text-sm">{contact.customer_profile.interest_level}</p>
+                      </div>
+                    )}
+                    {contact.customer_profile.trading_preferences && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Trading Preferences</p>
+                        <p className="text-sm">{contact.customer_profile.trading_preferences}</p>
+                      </div>
+                    )}
+                    {Object.entries(contact.customer_profile)
+                      .filter(([key]) => !['income', 'interest_level', 'trading_preferences'].includes(key))
+                      .map(([key, value]) => (
+                        <div key={key}>
+                          <p className="text-sm font-medium text-muted-foreground capitalize">
+                            {key.replace(/_/g, ' ')}
+                          </p>
+                          <p className="text-sm">{String(value)}</p>
+                        </div>
+                      ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* AI Customer Profile */}
+              {contact.ai_profile && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Insights</CardTitle>
+                    <CardDescription>Gathered from conversations</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {contact.ai_profile.interests && contact.ai_profile.interests.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Interests</p>
+                        <div className="flex flex-wrap gap-2">
+                          {contact.ai_profile.interests.map((interest, idx) => (
+                            <Badge key={idx} variant="outline">{interest}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {contact.ai_profile.complaints && contact.ai_profile.complaints.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Complaints</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {contact.ai_profile.complaints.map((complaint, idx) => (
+                            <li key={idx} className="text-sm text-muted-foreground">{complaint}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {contact.ai_profile.preferences && Object.keys(contact.ai_profile.preferences).length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Preferences</p>
+                        <div className="space-y-2">
+                          {Object.entries(contact.ai_profile.preferences).map(([key, value]) => (
+                            <div key={key} className="flex justify-between text-sm">
+                              <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                              <span className="font-medium">{value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {contact.ai_profile.important_notes && contact.ai_profile.important_notes.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium mb-2">Important Notes</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {contact.ai_profile.important_notes.map((note, idx) => (
+                            <li key={idx} className="text-sm text-muted-foreground">{note}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {(!contact.ai_profile.interests || contact.ai_profile.interests.length === 0) &&
+                     (!contact.ai_profile.complaints || contact.ai_profile.complaints.length === 0) &&
+                     (!contact.ai_profile.preferences || Object.keys(contact.ai_profile.preferences).length === 0) &&
+                     (!contact.ai_profile.important_notes || contact.ai_profile.important_notes.length === 0) && (
+                      <p className="text-sm text-muted-foreground">No AI insights yet</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {!contact.tags?.length && !contact.customer_profile && !contact.ai_profile && (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No profile information available yet
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="notes">

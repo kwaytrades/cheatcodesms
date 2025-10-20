@@ -37,6 +37,7 @@ const CATEGORIES = [
   "Technical Support",
   "Customer Stories",
   "Company History",
+  "Style Guide",
 ];
 
 export const KnowledgeBase = () => {

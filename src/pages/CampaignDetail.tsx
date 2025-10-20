@@ -8,6 +8,7 @@ import { ArrowLeft, Send, CheckCircle, XCircle, MessageSquare, Clock, Users } fr
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { FailedMessagesDialog } from "@/components/FailedMessagesDialog";
+import { CampaignContactsDialog } from "@/components/CampaignContactsDialog";
 
 interface Campaign {
   id: string;
@@ -277,60 +278,84 @@ const CampaignDetail = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{campaign.total_contacts}</div>
-          </CardContent>
-        </Card>
+        <CampaignContactsDialog
+          campaignId={campaign.id}
+          filterType="total"
+          count={campaign.total_contacts}
+        >
+          <Card className="cursor-pointer hover:border-primary transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{campaign.total_contacts}</div>
+            </CardContent>
+          </Card>
+        </CampaignContactsDialog>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sent</CardTitle>
-            <Send className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{campaign.sent_count}</div>
-            <p className="text-xs text-muted-foreground">
-              {campaign.total_contacts > 0 
-                ? `${((campaign.sent_count / campaign.total_contacts) * 100).toFixed(1)}%`
-                : "0%"}
-            </p>
-          </CardContent>
-        </Card>
+        <CampaignContactsDialog
+          campaignId={campaign.id}
+          filterType="sent"
+          count={campaign.sent_count}
+        >
+          <Card className="cursor-pointer hover:border-primary transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Sent</CardTitle>
+              <Send className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{campaign.sent_count}</div>
+              <p className="text-xs text-muted-foreground">
+                {campaign.total_contacts > 0 
+                  ? `${((campaign.sent_count / campaign.total_contacts) * 100).toFixed(1)}%`
+                  : "0%"}
+              </p>
+            </CardContent>
+          </Card>
+        </CampaignContactsDialog>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Delivered</CardTitle>
-            <CheckCircle className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{campaign.delivered_count}</div>
-            <p className="text-xs text-muted-foreground">
-              {campaign.sent_count > 0 
-                ? `${((campaign.delivered_count / campaign.sent_count) * 100).toFixed(1)}%`
-                : "0%"}
-            </p>
-          </CardContent>
-        </Card>
+        <CampaignContactsDialog
+          campaignId={campaign.id}
+          filterType="delivered"
+          count={campaign.delivered_count}
+        >
+          <Card className="cursor-pointer hover:border-primary transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Delivered</CardTitle>
+              <CheckCircle className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{campaign.delivered_count}</div>
+              <p className="text-xs text-muted-foreground">
+                {campaign.sent_count > 0 
+                  ? `${((campaign.delivered_count / campaign.sent_count) * 100).toFixed(1)}%`
+                  : "0%"}
+              </p>
+            </CardContent>
+          </Card>
+        </CampaignContactsDialog>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Replies</CardTitle>
-            <MessageSquare className="h-4 w-4 text-secondary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-secondary">{campaign.reply_count}</div>
-            <p className="text-xs text-muted-foreground">
-              {campaign.delivered_count > 0 
-                ? `${((campaign.reply_count / campaign.delivered_count) * 100).toFixed(1)}%`
-                : "0%"}
-            </p>
-          </CardContent>
-        </Card>
+        <CampaignContactsDialog
+          campaignId={campaign.id}
+          filterType="replied"
+          count={campaign.reply_count}
+        >
+          <Card className="cursor-pointer hover:border-primary transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Replies</CardTitle>
+              <MessageSquare className="h-4 w-4 text-secondary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-secondary">{campaign.reply_count}</div>
+              <p className="text-xs text-muted-foreground">
+                {campaign.delivered_count > 0 
+                  ? `${((campaign.reply_count / campaign.delivered_count) * 100).toFixed(1)}%`
+                  : "0%"}
+              </p>
+            </CardContent>
+          </Card>
+        </CampaignContactsDialog>
       </div>
 
       {/* Campaign Details */}
