@@ -42,35 +42,17 @@ export const StyleGuidesManager = () => {
 
   const currentGuide = styleGuides?.find(g => g.format === activeFormat);
 
-  const [formData, setFormData] = useState({
-    brand_voice: '',
-    content_instructions: '',
-    tone_preferences: '',
-    hook_guidelines: '',
-    cta_templates: '',
-    additional_notes: '',
-  });
+  const [instructions, setInstructions] = useState('');
+  const [fileName, setFileName] = useState('');
 
   // Update form when guide or format changes
   useEffect(() => {
     if (currentGuide) {
-      setFormData({
-        brand_voice: currentGuide.brand_voice || '',
-        content_instructions: currentGuide.content_instructions || '',
-        tone_preferences: currentGuide.tone_preferences || '',
-        hook_guidelines: currentGuide.hook_guidelines || '',
-        cta_templates: currentGuide.cta_templates || '',
-        additional_notes: currentGuide.additional_notes || '',
-      });
+      setInstructions(currentGuide.instructions || '');
+      setFileName(currentGuide.file_name || '');
     } else {
-      setFormData({
-        brand_voice: '',
-        content_instructions: '',
-        tone_preferences: '',
-        hook_guidelines: '',
-        cta_templates: '',
-        additional_notes: '',
-      });
+      setInstructions('');
+      setFileName('');
     }
   }, [currentGuide, activeFormat]);
 
@@ -83,11 +65,8 @@ export const StyleGuidesManager = () => {
       // Read file content if it's text-based
       if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
         const text = await file.text();
-        // Parse the content into sections or use it as full instructions
-        setFormData({
-          ...formData,
-          content_instructions: text,
-        });
+        setInstructions(text);
+        setFileName(file.name);
         toast.success("Style guide loaded from file");
       } else {
         toast.error("Only text files (.txt, .md) are supported");
@@ -106,14 +85,15 @@ export const StyleGuidesManager = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      if (!formData.brand_voice && !formData.content_instructions) {
-        throw new Error('Please provide at least brand voice or content instructions');
+      if (!instructions.trim()) {
+        throw new Error('Please provide style guide instructions');
       }
 
       const payload = {
         user_id: user.id,
         format,
-        ...formData,
+        instructions,
+        file_name: fileName,
         is_active: true,
       };
 
@@ -188,10 +168,10 @@ export const StyleGuidesManager = () => {
             {FORMATS.map(format => (
               <TabsContent key={format.id} value={format.id} className="space-y-4">
                 <div>
-                  <Label htmlFor="file-upload">Upload Style Guide Document (Optional)</Label>
+                  <Label htmlFor={`file-upload-${format.id}`}>Upload Style Guide Document</Label>
                   <div className="flex gap-2 mt-2">
                     <Input
-                      id="file-upload"
+                      id={`file-upload-${format.id}`}
                       type="file"
                       onChange={handleFileUpload}
                       disabled={uploading}
@@ -203,73 +183,38 @@ export const StyleGuidesManager = () => {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload a .txt or .md file with your complete style guide instructions
+                    Upload a .txt or .md file with your complete style guide (brand voice, tone, hooks, CTAs, etc.)
                   </p>
+                  {fileName && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Loaded: {fileName}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <Label>Brand Voice</Label>
+                  <Label>Style Guide Instructions</Label>
                   <Textarea
-                    value={formData.brand_voice}
-                    onChange={(e) => setFormData({ ...formData, brand_voice: e.target.value })}
-                    placeholder="Describe your brand's personality, tone, and communication style..."
-                    className="mt-2 min-h-[100px]"
-                  />
-                </div>
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder={`Paste or edit your complete ${format.name} style guide here. Include:
 
-                <div>
-                  <Label>Content Instructions</Label>
-                  <Textarea
-                    value={formData.content_instructions}
-                    onChange={(e) => setFormData({ ...formData, content_instructions: e.target.value })}
-                    placeholder="Specific guidelines for how content should be structured and presented. This field will be populated if you upload a document."
-                    className="mt-2 min-h-[100px]"
-                  />
-                </div>
+- Brand voice and personality
+- Tone guidelines 
+- Hook patterns and examples
+- Content structure requirements
+- CTA templates
+- What to avoid
+- Any format-specific requirements
 
-                <div>
-                  <Label>Tone Preferences</Label>
-                  <Textarea
-                    value={formData.tone_preferences}
-                    onChange={(e) => setFormData({ ...formData, tone_preferences: e.target.value })}
-                    placeholder="Preferred tone settings (e.g., 'Always start with urgency', 'Keep it conversational')..."
-                    className="mt-2 min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <Label>Hook Guidelines</Label>
-                  <Textarea
-                    value={formData.hook_guidelines}
-                    onChange={(e) => setFormData({ ...formData, hook_guidelines: e.target.value })}
-                    placeholder="How should hooks be crafted? Any specific patterns or phrases to use/avoid..."
-                    className="mt-2 min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <Label>CTA Templates</Label>
-                  <Textarea
-                    value={formData.cta_templates}
-                    onChange={(e) => setFormData({ ...formData, cta_templates: e.target.value })}
-                    placeholder="Call-to-action examples and templates (e.g., 'Join our Discord', 'Download the guide')..."
-                    className="mt-2 min-h-[80px]"
-                  />
-                </div>
-
-                <div>
-                  <Label>Additional Notes</Label>
-                  <Textarea
-                    value={formData.additional_notes}
-                    onChange={(e) => setFormData({ ...formData, additional_notes: e.target.value })}
-                    placeholder="Any other format-specific guidelines or considerations..."
-                    className="mt-2 min-h-[80px]"
+This will override the default AI instructions when generating scripts.`}
+                    className="mt-2 min-h-[400px] font-mono text-sm"
                   />
                 </div>
 
                 <Button
                   onClick={() => saveGuide.mutate(format.id)}
-                  disabled={saveGuide.isPending}
+                  disabled={saveGuide.isPending || !instructions.trim()}
                   className="w-full"
                 >
                   {saveGuide.isPending ? (
@@ -280,7 +225,7 @@ export const StyleGuidesManager = () => {
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      Save Style Guide
+                      Save Style Guide for {format.name}
                     </>
                   )}
                 </Button>
@@ -323,7 +268,7 @@ export const StyleGuidesManager = () => {
                         {format?.name || guide.format}
                       </TableCell>
                       <TableCell className="max-w-md truncate">
-                        {guide.brand_voice || guide.content_instructions?.substring(0, 50) + '...' || 'No description'}
+                        {guide.file_name || (guide.instructions?.substring(0, 50) + '...') || 'No description'}
                       </TableCell>
                       <TableCell>
                         {new Date(guide.updated_at).toLocaleDateString()}

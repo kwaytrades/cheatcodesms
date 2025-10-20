@@ -88,11 +88,11 @@ serve(async (req) => {
     };
 
     let styleGuideSection = '';
-    if (style_guide) {
+    if (style_guide && style_guide.instructions) {
       styleGuideSection = `\n\nBRAND STYLE GUIDE:
-${style_guide.brand_voice ? `Brand Voice: ${style_guide.brand_voice}\n` : ''}${style_guide.content_instructions ? `Content Instructions: ${style_guide.content_instructions}\n` : ''}${style_guide.tone_preferences ? `Tone Preferences: ${style_guide.tone_preferences}\n` : ''}${style_guide.hook_guidelines ? `Hook Guidelines: ${style_guide.hook_guidelines}\n` : ''}${style_guide.cta_templates ? `CTA Templates: ${style_guide.cta_templates}\n` : ''}${style_guide.additional_notes ? `Additional Notes: ${style_guide.additional_notes}` : ''}
+${style_guide.instructions}
 
-IMPORTANT: Follow the brand style guide above closely. It overrides general guidelines where specified.`;
+CRITICAL: Follow the brand style guide above closely. These custom instructions override all general guidelines.`;
     }
 
     const systemPrompt = `You are an expert video script writer for trading/finance content creators. Generate engaging, well-structured scripts optimized for the platform and format.
