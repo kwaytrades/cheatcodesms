@@ -120,6 +120,10 @@ serve(async (req) => {
 
     // Determine which AI agent to use based on conversation status
     const agentType = conversation.assigned_agent || 'sales_ai';
+    
+    // Map agent_type to message_sender enum
+    const messageSender = agentType === 'sales_ai' ? 'ai_sales' : 
+                          agentType === 'cs_ai' ? 'ai_cs' : 'human_team';
 
     // Call AI agent to generate response
     const aiResponse = await fetch(`${supabaseUrl}/functions/v1/ai-agent`, {
@@ -149,7 +153,7 @@ serve(async (req) => {
       await supabase.from('messages').insert({
         conversation_id: conversation.id,
         direction: 'outbound',
-        sender: agentType,
+        sender: messageSender,
         body: "Thanks for your message. A team member will get back to you shortly.",
         status: 'sent',
       });
@@ -170,7 +174,7 @@ serve(async (req) => {
     await supabase.from('messages').insert({
       conversation_id: conversation.id,
       direction: 'outbound',
-      sender: agentType,
+      sender: messageSender,
       body: aiMessage,
       status: 'sent',
     });
