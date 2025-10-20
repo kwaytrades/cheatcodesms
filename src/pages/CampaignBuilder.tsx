@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, ArrowRight, Send, User, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Send, User, Search, MessageSquare, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface Contact {
   id: string;
@@ -26,8 +27,13 @@ const CampaignBuilder = () => {
   const [loading, setLoading] = useState(false);
   
   // Campaign data
+  const [channel, setChannel] = useState<"sms" | "email">("sms");
   const [campaignName, setCampaignName] = useState("");
   const [messageTemplate, setMessageTemplate] = useState("");
+  const [subject, setSubject] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [fromName, setFromName] = useState("");
+  const [htmlTemplate, setHtmlTemplate] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,17 +41,24 @@ const CampaignBuilder = () => {
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [channel]);
 
   const loadContacts = async () => {
     setLoadingContacts(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("contacts")
         .select("id, full_name, phone_number, status, email")
-        .not("phone_number", "is", null)
         .order("full_name");
 
+      // Filter based on channel
+      if (channel === "sms") {
+        query = query.not("phone_number", "is", null);
+      } else {
+        query = query.not("email", "is", null);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setContacts(data || []);
     } catch (error) {
@@ -81,8 +94,18 @@ const CampaignBuilder = () => {
   };
 
   const handleCreateCampaign = async () => {
-    if (!campaignName || !messageTemplate || selectedContactIds.size === 0) {
+    if (!campaignName || selectedContactIds.size === 0) {
       toast.error("Please fill in all required fields and select contacts");
+      return;
+    }
+
+    if (channel === "sms" && !messageTemplate) {
+      toast.error("Please enter a message template");
+      return;
+    }
+
+    if (channel === "email" && (!subject || !htmlTemplate)) {
+      toast.error("Please enter subject and email content");
       return;
     }
 
@@ -90,16 +113,28 @@ const CampaignBuilder = () => {
     try {
       const { data: user } = await supabase.auth.getUser();
       
+      const campaignData: any = {
+        name: campaignName,
+        channel,
+        total_contacts: selectedContactIds.size,
+        status: "draft",
+        created_by: user.user?.id,
+        audience_filter: { contact_ids: Array.from(selectedContactIds) }
+      };
+
+      if (channel === "sms") {
+        campaignData.message_template = messageTemplate;
+      } else {
+        campaignData.subject = subject;
+        campaignData.html_template = htmlTemplate;
+        campaignData.plain_text_template = messageTemplate;
+        campaignData.from_email = fromEmail;
+        campaignData.from_name = fromName;
+      }
+
       const { data, error } = await supabase
         .from("campaigns")
-        .insert({
-          name: campaignName,
-          message_template: messageTemplate,
-          total_contacts: selectedContactIds.size,
-          status: "draft",
-          created_by: user.user?.id,
-          audience_filter: { contact_ids: Array.from(selectedContactIds) }
-        })
+        .insert(campaignData)
         .select()
         .single();
 
@@ -123,13 +158,39 @@ const CampaignBuilder = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Create Campaign</h1>
-            <p className="text-muted-foreground">Set up your SMS marketing campaign</p>
+            <p className="text-muted-foreground">Set up your marketing campaign</p>
           </div>
           <Button variant="ghost" onClick={() => navigate("/campaigns")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
         </div>
+
+        {/* Channel Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Channel</CardTitle>
+            <CardDescription>Choose how you want to reach your audience</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={channel} onValueChange={(v) => {
+              setChannel(v as "sms" | "email");
+              setSelectedContactIds(new Set());
+              loadContacts();
+            }}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="sms" className="gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  SMS
+                </TabsTrigger>
+                <TabsTrigger value="email" className="gap-2">
+                  <Mail className="h-4 w-4" />
+                  Email
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardContent>
+        </Card>
 
         {/* Progress */}
         <div className="space-y-2">
@@ -272,31 +333,94 @@ const CampaignBuilder = () => {
         {step === 2 && (
           <Card>
             <CardHeader>
-              <CardTitle>Compose Message</CardTitle>
-              <CardDescription>Write your SMS message template</CardDescription>
+              <CardTitle>Compose {channel === "sms" ? "Message" : "Email"}</CardTitle>
+              <CardDescription>
+                {channel === "sms" ? "Write your SMS message template" : "Create your email campaign content"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {channel === "email" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject">Subject Line *</Label>
+                    <Input
+                      id="subject"
+                      placeholder="Your compelling subject line..."
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fromName">From Name</Label>
+                      <Input
+                        id="fromName"
+                        placeholder="Your Company"
+                        value={fromName}
+                        onChange={(e) => setFromName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fromEmail">From Email</Label>
+                      <Input
+                        id="fromEmail"
+                        type="email"
+                        placeholder="noreply@yourdomain.com"
+                        value={fromEmail}
+                        onChange={(e) => setFromEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="htmlTemplate">Email Content (HTML) *</Label>
+                    <Textarea
+                      id="htmlTemplate"
+                      placeholder="<h1>Hello {FirstName}!</h1><p>Your email content...</p>"
+                      value={htmlTemplate}
+                      onChange={(e) => setHtmlTemplate(e.target.value)}
+                      rows={10}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Use HTML for rich formatting. Available merge fields: {"{FirstName}"}
+                    </p>
+                  </div>
+                </>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="message">Message Template *</Label>
+                <Label htmlFor="message">
+                  {channel === "sms" ? "Message Template *" : "Plain Text Version"}
+                </Label>
                 <Textarea
                   id="message"
-                  placeholder="Hi {FirstName}, check out our new product..."
+                  placeholder={channel === "sms" 
+                    ? "Hi {FirstName}, check out our new product..."
+                    : "Plain text version of your email..."}
                   value={messageTemplate}
                   onChange={(e) => setMessageTemplate(e.target.value)}
                   rows={6}
-                  maxLength={160}
+                  maxLength={channel === "sms" ? 160 : undefined}
                 />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Available merge fields: {"{FirstName}"}, {"{Product}"}, {"{LeadScore}"}</span>
-                  <span>{messageTemplate.length}/160 characters</span>
-                </div>
+                {channel === "sms" && (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Available merge fields: {"{FirstName}"}</span>
+                    <span>{messageTemplate.length}/160 characters</span>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                 <h4 className="font-semibold mb-2 text-sm">Preview</h4>
-                <p className="text-sm">
-                  {messageTemplate.replace("{FirstName}", "John") || "Your message will appear here..."}
-                </p>
+                {channel === "email" && subject && (
+                  <p className="text-sm font-semibold mb-2">Subject: {subject.replace("{FirstName}", "John")}</p>
+                )}
+                <div className="text-sm" dangerouslySetInnerHTML={{
+                  __html: channel === "email" 
+                    ? (htmlTemplate || "Your email content will appear here...").replace("{FirstName}", "John")
+                    : (messageTemplate.replace("{FirstName}", "John") || "Your message will appear here...")
+                }} />
               </div>
 
               <div className="flex justify-between gap-2">
@@ -306,7 +430,7 @@ const CampaignBuilder = () => {
                 </Button>
                 <Button
                   onClick={() => setStep(3)}
-                  disabled={!messageTemplate}
+                  disabled={channel === "sms" ? !messageTemplate : (!subject || !htmlTemplate)}
                 >
                   Next: Review
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -331,14 +455,42 @@ const CampaignBuilder = () => {
                 </div>
 
                 <div>
+                  <h4 className="font-semibold mb-1">Channel</h4>
+                  <p className="text-muted-foreground capitalize">{channel}</p>
+                </div>
+
+                <div>
                   <h4 className="font-semibold mb-1">Selected Contacts</h4>
                   <p className="text-muted-foreground">{selectedContactIds.size} contacts</p>
                 </div>
 
-                <div>
-                  <h4 className="font-semibold mb-1">Message Template</h4>
-                  <p className="text-muted-foreground">{messageTemplate}</p>
-                </div>
+                {channel === "email" && (
+                  <>
+                    <div>
+                      <h4 className="font-semibold mb-1">Subject</h4>
+                      <p className="text-muted-foreground">{subject}</p>
+                    </div>
+                    {fromName && (
+                      <div>
+                        <h4 className="font-semibold mb-1">From</h4>
+                        <p className="text-muted-foreground">{fromName} {fromEmail && `<${fromEmail}>`}</p>
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="font-semibold mb-1">Email Content</h4>
+                      <div className="p-3 bg-muted rounded-lg max-h-40 overflow-y-auto">
+                        <div className="text-sm" dangerouslySetInnerHTML={{ __html: htmlTemplate }} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {channel === "sms" && (
+                  <div>
+                    <h4 className="font-semibold mb-1">Message Template</h4>
+                    <p className="text-muted-foreground">{messageTemplate}</p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -347,7 +499,9 @@ const CampaignBuilder = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">Estimated Cost</h4>
-                    <p className="text-muted-foreground">${(selectedContactIds.size * 0.0079).toFixed(2)}</p>
+                    <p className="text-muted-foreground">
+                      ${(selectedContactIds.size * (channel === "sms" ? 0.0079 : 0.001)).toFixed(2)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -358,11 +512,20 @@ const CampaignBuilder = () => {
                   Ready to Launch
                 </h4>
                 <p className="text-sm text-muted-foreground">
-                  Your campaign will be created as a draft. To actually send messages, you'll need to:
+                  Your campaign will be created as a draft. To actually send {channel === "sms" ? "messages" : "emails"}, you'll need to:
                 </p>
                 <ul className="text-sm text-muted-foreground list-disc list-inside mt-2 space-y-1">
-                  <li>Configure Twilio credentials in backend settings</li>
-                  <li>Set up Monday.com integration for contact data</li>
+                  {channel === "sms" ? (
+                    <>
+                      <li>Configure Twilio credentials in Settings</li>
+                      <li>Set up Monday.com integration for contact data</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Configure AWS SES credentials in Settings</li>
+                      <li>Verify your sender email domain in AWS SES</li>
+                    </>
+                  )}
                   <li>Activate the campaign from the campaigns list</li>
                 </ul>
               </div>
