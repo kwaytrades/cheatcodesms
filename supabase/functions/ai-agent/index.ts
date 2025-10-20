@@ -88,7 +88,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           query: incomingMessage,
-          category: agentType === 'sales_ai' ? 'Product Info' : null,
+          // Don't filter by category - search all documents
         }),
       });
 

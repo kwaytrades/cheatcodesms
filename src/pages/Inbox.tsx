@@ -41,7 +41,7 @@ const Inbox = () => {
   useEffect(() => {
     loadConversations();
     
-    // Subscribe to new messages
+    // Subscribe to new messages - works regardless of selected conversation
     const messagesChannel = supabase
       .channel('messages-changes')
       .on(
@@ -51,10 +51,30 @@ const Inbox = () => {
           schema: 'public',
           table: 'messages'
         },
-        () => {
-          if (selectedConversation) {
+        (payload) => {
+          console.log('New message received:', payload);
+          // Reload conversations to update last_message_at
+          loadConversations();
+          // If viewing the conversation where the message was added, reload messages
+          if (selectedConversation && payload.new.conversation_id === selectedConversation.id) {
             loadMessages(selectedConversation.id);
           }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to conversation updates
+    const conversationsChannel = supabase
+      .channel('conversations-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations'
+        },
+        () => {
+          console.log('Conversation updated');
           loadConversations();
         }
       )
@@ -62,6 +82,7 @@ const Inbox = () => {
 
     return () => {
       supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(conversationsChannel);
     };
   }, [selectedConversation]);
 
