@@ -90,6 +90,34 @@ serve(async (req) => {
       status: 'delivered',
     });
 
+    // Check if this phone number was part of any campaigns and increment reply count
+    const { data: campaignMessages } = await supabase
+      .from('campaign_messages')
+      .select('campaign_id')
+      .eq('phone_number', from)
+      .eq('status', 'sent')
+      .limit(1);
+
+    if (campaignMessages && campaignMessages.length > 0) {
+      // Increment the campaign's reply_count
+      const campaignId = campaignMessages[0].campaign_id;
+      
+      const { data: currentCampaign } = await supabase
+        .from('campaigns')
+        .select('reply_count')
+        .eq('id', campaignId)
+        .single();
+
+      if (currentCampaign) {
+        await supabase
+          .from('campaigns')
+          .update({ reply_count: (currentCampaign.reply_count || 0) + 1 })
+          .eq('id', campaignId);
+        
+        console.log(`Incremented reply count for campaign ${campaignId}`);
+      }
+    }
+
     // Update conversation last_message_at
     await supabase
       .from('conversations')
