@@ -48,6 +48,9 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
             sourceUrl: url,
             volume: 100,
             speed: 1,
+            content: {
+              position: { x: 70, y: 10, width: 25, height: 25 }
+            }
           };
           const updatedTracks = project.tracks.map(t =>
             t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
@@ -78,6 +81,9 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
             end: project.currentTime + 3,
             enabled: true,
             sourceUrl: url,
+            content: {
+              position: { x: 70, y: 10, width: 25, height: 25 }
+            }
           };
           const updatedTracks = project.tracks.map(t =>
             t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t

@@ -257,13 +257,103 @@ export const PropertiesPanel = ({
             </div>
           )}
 
-          {clip.type === 'image' && (
+          {(clip.type === 'image' || clip.type === 'video') && (
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Image Source</Label>
-                <div className="text-xs text-muted-foreground mt-1 truncate">
-                  {clip.sourceUrl?.substring(0, 30)}...
-                </div>
+                <Label className="text-xs">Position X (%)</Label>
+                <Input
+                  type="number"
+                  value={clip.content?.position?.x || 70}
+                  onChange={(e) =>
+                    updateClip({ 
+                      content: { 
+                        ...clip.content, 
+                        position: { 
+                          ...clip.content?.position, 
+                          x: Number(e.target.value),
+                          y: clip.content?.position?.y || 10,
+                          width: clip.content?.position?.width || 25,
+                          height: clip.content?.position?.height || 25
+                        } 
+                      } 
+                    })
+                  }
+                  min="0"
+                  max="100"
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Position Y (%)</Label>
+                <Input
+                  type="number"
+                  value={clip.content?.position?.y || 10}
+                  onChange={(e) =>
+                    updateClip({ 
+                      content: { 
+                        ...clip.content, 
+                        position: { 
+                          ...clip.content?.position, 
+                          x: clip.content?.position?.x || 70,
+                          y: Number(e.target.value),
+                          width: clip.content?.position?.width || 25,
+                          height: clip.content?.position?.height || 25
+                        } 
+                      } 
+                    })
+                  }
+                  min="0"
+                  max="100"
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Width (%)</Label>
+                <Input
+                  type="number"
+                  value={clip.content?.position?.width || 25}
+                  onChange={(e) =>
+                    updateClip({ 
+                      content: { 
+                        ...clip.content, 
+                        position: { 
+                          ...clip.content?.position, 
+                          x: clip.content?.position?.x || 70,
+                          y: clip.content?.position?.y || 10,
+                          width: Number(e.target.value),
+                          height: clip.content?.position?.height || 25
+                        } 
+                      } 
+                    })
+                  }
+                  min="5"
+                  max="100"
+                  className="h-8 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Height (%)</Label>
+                <Input
+                  type="number"
+                  value={clip.content?.position?.height || 25}
+                  onChange={(e) =>
+                    updateClip({ 
+                      content: { 
+                        ...clip.content, 
+                        position: { 
+                          ...clip.content?.position, 
+                          x: clip.content?.position?.x || 70,
+                          y: clip.content?.position?.y || 10,
+                          width: clip.content?.position?.width || 25,
+                          height: Number(e.target.value)
+                        } 
+                      } 
+                    })
+                  }
+                  min="5"
+                  max="100"
+                  className="h-8 mt-1"
+                />
               </div>
             </div>
           )}

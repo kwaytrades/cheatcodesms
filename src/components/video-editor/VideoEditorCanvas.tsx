@@ -36,61 +36,76 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
   // Update text overlays and stickers based on current time
   useEffect(() => {
-    if (!fabricCanvas || !fabricCanvas.getContext()) return;
-
+    if (!fabricCanvas) return;
+    
+    // Check if canvas is ready with a valid context
     try {
-      fabricCanvas.clear();
+      const ctx = fabricCanvas.getContext();
+      if (!ctx) return;
     } catch (error) {
-      console.error('Error clearing canvas:', error);
+      console.error('Canvas context not available:', error);
       return;
     }
 
-    // Get all text clips from text track
-    const textTrack = project.tracks.find(t => t.type === 'text');
-    if (textTrack) {
-      textTrack.clips
-        .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-        .forEach((clip) => {
-          if (clip.content?.text) {
-            const text = new FabricText(clip.content.text, {
-              left: (clip.content.position?.x || 50) * (fabricCanvas.width / 100),
-              top: (clip.content.position?.y || 50) * (fabricCanvas.height / 100),
-              fontSize: clip.content.fontSize || 32,
-              fontFamily: clip.content.fontFamily || 'Arial',
-              fill: clip.content.color || '#ffffff',
-              selectable: true,
+    // Use requestAnimationFrame to batch updates
+    requestAnimationFrame(() => {
+      try {
+        fabricCanvas.clear();
+
+        // Get all text clips from text track
+        const textTrack = project.tracks.find(t => t.type === 'text');
+        if (textTrack) {
+          textTrack.clips
+            .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+            .forEach((clip) => {
+              if (clip.content?.text) {
+                try {
+                  const text = new FabricText(clip.content.text, {
+                    left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+                    top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+                    fontSize: clip.content.fontSize || 32,
+                    fontFamily: clip.content.fontFamily || 'Arial',
+                    fill: clip.content.color || '#ffffff',
+                    selectable: false,
+                  });
+
+                  fabricCanvas.add(text);
+                } catch (err) {
+                  console.error('Error adding text:', err);
+                }
+              }
             });
+        }
 
-            fabricCanvas.add(text);
-          }
-        });
-    }
+        // Get all sticker clips from sticker track
+        const stickerTrack = project.tracks.find(t => t.type === 'sticker');
+        if (stickerTrack) {
+          stickerTrack.clips
+            .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+            .forEach((clip) => {
+              if (clip.content?.emoji) {
+                try {
+                  const emoji = new FabricText(clip.content.emoji, {
+                    left: (clip.content.position?.x || 50) * (fabricCanvas.width! / 100),
+                    top: (clip.content.position?.y || 50) * (fabricCanvas.height! / 100),
+                    fontSize: 60 * ((clip.content.scale || 100) / 100),
+                    angle: clip.content.rotation || 0,
+                    selectable: false,
+                  });
 
-    // Get all sticker clips from sticker track
-    const stickerTrack = project.tracks.find(t => t.type === 'sticker');
-    if (stickerTrack) {
-      stickerTrack.clips
-        .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
-        .forEach((clip) => {
-          if (clip.content?.emoji) {
-            const emoji = new FabricText(clip.content.emoji, {
-              left: (clip.content.position?.x || 50) * (fabricCanvas.width / 100),
-              top: (clip.content.position?.y || 50) * (fabricCanvas.height / 100),
-              fontSize: 60 * ((clip.content.scale || 100) / 100),
-              angle: clip.content.rotation || 0,
-              selectable: true,
+                  fabricCanvas.add(emoji);
+                } catch (err) {
+                  console.error('Error adding sticker:', err);
+                }
+              }
             });
+        }
 
-            fabricCanvas.add(emoji);
-          }
-        });
-    }
-
-    try {
-      fabricCanvas.renderAll();
-    } catch (error) {
-      console.error('Error rendering canvas:', error);
-    }
+        fabricCanvas.renderAll();
+      } catch (error) {
+        console.error('Error updating canvas:', error);
+      }
+    });
   }, [fabricCanvas, project.tracks, project.currentTime]);
 
   // Apply CSS filters to video
@@ -168,39 +183,44 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
             project.currentTime >= clip.start && 
             project.currentTime <= clip.end
           )
-          .map(clip => (
-            <div
-              key={clip.id}
-              className="absolute"
-              style={{
-                top: '10%',
-                right: '10%',
-                width: '30%',
-                height: '30%',
-                zIndex: 5,
-              }}
-            >
-              {clip.type === 'image' && clip.sourceUrl && (
-                <img 
-                  src={clip.sourceUrl} 
-                  alt="Overlay" 
-                  className="w-full h-full object-contain"
-                />
-              )}
-              {clip.type === 'video' && clip.sourceUrl && (
-                <ReactPlayer
-                  url={clip.sourceUrl}
-                  playing={project.isPlaying}
-                  volume={(clip.volume || 100) / 100}
-                  width="100%"
-                  height="100%"
-                  style={{ objectFit: 'contain' }}
-                  progressInterval={50}
-                  controls={false}
-                />
-              )}
-            </div>
-          ))
+          .map(clip => {
+            const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+            
+            return (
+              <div
+                key={clip.id}
+                className="absolute"
+                style={{
+                  top: `${position.y}%`,
+                  left: `${position.x}%`,
+                  width: `${position.width}%`,
+                  height: `${position.height}%`,
+                  zIndex: 5,
+                }}
+              >
+                {clip.type === 'image' && clip.sourceUrl && (
+                  <img 
+                    src={clip.sourceUrl} 
+                    alt="Overlay" 
+                    className="w-full h-full object-contain rounded-lg shadow-lg"
+                  />
+                )}
+                {clip.type === 'video' && clip.sourceUrl && (
+                  <ReactPlayer
+                    url={clip.sourceUrl}
+                    playing={project.isPlaying}
+                    volume={(clip.volume || 100) / 100}
+                    width="100%"
+                    height="100%"
+                    style={{ objectFit: 'contain' }}
+                    progressInterval={50}
+                    controls={false}
+                    className="rounded-lg shadow-lg"
+                  />
+                )}
+              </div>
+            );
+          })
         }
         
         {/* Text and Sticker Canvas Overlay */}

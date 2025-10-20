@@ -40,44 +40,53 @@ export const MultiTrackTimeline = ({
     onProjectUpdate({ currentTime: newTime });
   };
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>, trackId: string) => {
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = (x / timelineWidth) * project.duration;
-    
-    if (activeTool === 'split') {
-      handleSplitAtTime(time, trackId);
-    } else {
-      onProjectUpdate({ currentTime: time });
-    }
+    onProjectUpdate({ currentTime: time });
   };
 
-  const handleSplitAtTime = (time: number, trackId: string) => {
-    const track = project.tracks.find(t => t.id === trackId);
-    if (!track) {
-      toast.error("Track not found");
+  const handleSplitSelectedClip = () => {
+    if (!selectedClipId) {
+      toast.error("Select a clip first to split it");
       return;
     }
 
-    const clipToSplit = track.clips.find(
-      clip => clip.enabled && time > clip.start && time < clip.end
-    );
+    let clipToSplit: TimelineClip | null = null;
+    let trackId: string | null = null;
 
-    if (!clipToSplit) {
-      toast.error("No clip at this position to split");
+    for (const track of project.tracks) {
+      const clip = track.clips.find(c => c.id === selectedClipId);
+      if (clip) {
+        clipToSplit = clip;
+        trackId = track.id;
+        break;
+      }
+    }
+
+    if (!clipToSplit || !trackId) {
+      toast.error("Selected clip not found");
+      return;
+    }
+
+    const splitTime = project.currentTime;
+
+    if (splitTime <= clipToSplit.start || splitTime >= clipToSplit.end) {
+      toast.error("Playhead must be within the selected clip to split");
       return;
     }
 
     const updatedTracks = project.tracks.map(t => {
       if (t.id === trackId) {
         const newClips = t.clips.flatMap(clip => {
-          if (clip.id === clipToSplit.id) {
+          if (clip.id === clipToSplit!.id) {
             return [
-              { ...clip, end: time },
+              { ...clip, end: splitTime },
               {
                 ...clip,
                 id: `${clip.id}-split-${Date.now()}`,
-                start: time,
+                start: splitTime,
               }
             ];
           }
@@ -89,6 +98,7 @@ export const MultiTrackTimeline = ({
     });
 
     onProjectUpdate({ tracks: updatedTracks });
+    onClipSelect(null);
     toast.success("Clip split successfully");
   };
 
@@ -165,6 +175,17 @@ export const MultiTrackTimeline = ({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {activeTool === 'split' && (
+              <Button 
+                size="sm" 
+                variant="default" 
+                onClick={handleSplitSelectedClip}
+                disabled={!selectedClipId}
+                className="h-8"
+              >
+                Split at Playhead
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={() => handleZoom('out')} className="h-8 w-8 p-0">
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -207,7 +228,7 @@ export const MultiTrackTimeline = ({
               <div 
                 className="relative flex-1 bg-muted/10 hover:bg-muted/20 cursor-pointer"
                 style={{ width: timelineWidth }}
-                onClick={(e) => handleTimelineClick(e, track.id)}
+                onClick={(e) => handleTimelineClick(e)}
               >
                 {track.clips
                   .filter(clip => clip.enabled)
