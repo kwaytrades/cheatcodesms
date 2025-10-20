@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,30 +70,39 @@ serve(async (req) => {
     const { agentType, incomingMessage, history } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    // Initialize Supabase client to fetch knowledge base
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Fetch relevant knowledge base documents
-    const { data: knowledgeBase } = await supabase
-      .from('knowledge_base')
-      .select('title, category, content')
-      .order('created_at', { ascending: false });
-
-    // Build knowledge base context
+    // Search knowledge base for relevant context
     let knowledgeContext = '';
-    if (knowledgeBase && knowledgeBase.length > 0) {
-      knowledgeContext = '\n\nKNOWLEDGE BASE (Reference this information when relevant):\n';
-      knowledgeBase.forEach((doc: any) => {
-        if (doc.content) {
-          knowledgeContext += `\n[${doc.category}] ${doc.title}:\n${doc.content}\n`;
-        }
+    try {
+      const kbResponse = await fetch(`${SUPABASE_URL}/functions/v1/search-knowledge-base`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          query: incomingMessage,
+          category: agentType === 'sales_ai' ? 'Product Info' : null,
+        }),
       });
+
+      if (kbResponse.ok) {
+        const { results } = await kbResponse.json();
+        if (results && results.length > 0) {
+          knowledgeContext = '\n\nRELEVANT KNOWLEDGE BASE INFO:\n' + 
+            results.map((doc: any) => `[${doc.category}] ${doc.title}:\n${doc.content}`).join('\n\n');
+          console.log('Added knowledge base context:', results.length, 'documents');
+        }
+      }
+    } catch (kbError) {
+      console.error('Knowledge base search failed:', kbError);
+      // Continue without KB context
     }
 
     // Select system prompt based on agent type

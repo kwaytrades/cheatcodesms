@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -26,9 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trash2, Upload, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
-import { Textarea } from "@/components/ui/textarea";
+import { Trash2, Upload, FileText } from "lucide-react";
 
 const CATEGORIES = [
   "Product Info",
@@ -39,14 +39,14 @@ const CATEGORIES = [
   "Company History",
 ];
 
-export function KnowledgeBase() {
+export const KnowledgeBase = () => {
+  const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const queryClient = useQueryClient();
+  const [uploading, setUploading] = useState(false);
 
-  const { data: knowledgeBase = [], isLoading } = useQuery({
+  const { data: documents, isLoading } = useQuery({
     queryKey: ["knowledge-base"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -59,235 +59,204 @@ export function KnowledgeBase() {
     },
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async () => {
-      if (!title || !category) {
-        throw new Error("Title and category are required");
-      }
-
-      let filePath = null;
-      let fileType = null;
-
-      // Upload file if provided
-      if (file) {
-        const fileExt = file.name.split(".").pop();
-        const fileName = `${crypto.randomUUID()}.${fileExt}`;
-        filePath = fileName;
-        fileType = file.type;
-
-        const { error: uploadError } = await supabase.storage
-          .from("knowledge-base")
-          .upload(fileName, file);
-
-        if (uploadError) throw uploadError;
-      }
-
-      // Insert knowledge base entry
-      const { error } = await supabase.from("knowledge_base").insert({
-        title,
-        category,
-        content,
-        file_path: filePath,
-        file_type: fileType,
-      });
+  const addDocument = useMutation({
+    mutationFn: async (doc: { title: string; category: string; content: string; file_path?: string; file_type?: string }) => {
+      const { error } = await supabase
+        .from("knowledge_base")
+        .insert([doc]);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
-      toast.success("Document added to knowledge base");
       setTitle("");
       setCategory("");
       setContent("");
-      setFile(null);
+      toast.success("Document added to knowledge base");
     },
     onError: (error) => {
       toast.error("Failed to add document: " + error.message);
     },
   });
 
-  const deleteMutation = useMutation({
+  const deleteDocument = useMutation({
     mutationFn: async (id: string) => {
-      const doc = knowledgeBase.find((d) => d.id === id);
-
-      // Delete file from storage if exists
-      if (doc?.file_path) {
-        await supabase.storage.from("knowledge-base").remove([doc.file_path]);
-      }
-
-      // Delete database entry
-      const { error } = await supabase.from("knowledge_base").delete().eq("id", id);
+      const { error } = await supabase
+        .from("knowledge_base")
+        .delete()
+        .eq("id", id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
-      toast.success("Document removed");
+      toast.success("Document deleted");
     },
     onError: (error) => {
-      toast.error("Failed to remove document: " + error.message);
+      toast.error("Failed to delete: " + error.message);
     },
   });
 
-  const downloadFile = async (filePath: string, title: string) => {
-    const { data, error } = await supabase.storage
-      .from("knowledge-base")
-      .download(filePath);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    if (error) {
-      toast.error("Failed to download file");
+    setUploading(true);
+    try {
+      // Read file content if it's text-based
+      if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+        const text = await file.text();
+        setContent(text);
+        setTitle(file.name);
+        toast.success("File content loaded");
+      } else {
+        toast.error("Only text files (.txt, .md) are supported for now");
+      }
+    } catch (error: any) {
+      toast.error("Failed to read file: " + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !category || !content) {
+      toast.error("Please fill in all fields");
       return;
     }
 
-    const url = URL.createObjectURL(data);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = title;
-    a.click();
-    URL.revokeObjectURL(url);
+    addDocument.mutate({
+      title,
+      category,
+      content,
+    });
   };
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Add Knowledge Base Document</CardTitle>
+          <CardTitle>Knowledge Base</CardTitle>
           <CardDescription>
-            Upload documents or add text that AI agents can reference during conversations
+            Upload documents for AI agents to reference (products, services, company history, objections, etc.)
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              placeholder="e.g., Algo V5 Product Guide"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="file-upload">Upload Document (Optional)</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="file-upload"
+                  type="file"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  accept=".txt,.md"
+                  className="cursor-pointer"
+                />
+                <Button type="button" size="icon" disabled={uploading}>
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Supported: .txt, .md files
+              </p>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="content">Text Content (Optional)</Label>
-            <Textarea
-              id="content"
-              placeholder="Paste document text here..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={6}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="file">Upload File (Optional)</Label>
-            <div className="flex gap-2">
+            <div>
+              <Label htmlFor="title">Document Title</Label>
               <Input
-                id="file"
-                type="file"
-                accept=".pdf,.doc,.docx,.txt,.md"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Algo V5 Product Guide"
               />
             </div>
-            {file && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {file.name}
-              </p>
-            )}
-          </div>
 
-          <Button
-            onClick={() => uploadMutation.mutate()}
-            disabled={uploadMutation.isPending || !title || !category}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Add Document
-          </Button>
+            <div>
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="content">Content</Label>
+              <Textarea
+                id="content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Paste or type document content here..."
+                rows={8}
+              />
+            </div>
+
+            <Button type="submit" disabled={addDocument.isPending}>
+              {addDocument.isPending ? "Adding..." : "Add to Knowledge Base"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Knowledge Base Documents</CardTitle>
+          <CardTitle>Existing Documents</CardTitle>
           <CardDescription>
-            {knowledgeBase.length} document(s) available to AI agents
+            {documents?.length || 0} documents in knowledge base
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <p>Loading...</p>
-          ) : knowledgeBase.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No documents added yet
-            </p>
-          ) : (
+          ) : documents && documents.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Type</TableHead>
                   <TableHead>Added</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {knowledgeBase.map((doc) => (
+                {documents.map((doc) => (
                   <TableRow key={doc.id}>
-                    <TableCell className="font-medium">{doc.title}</TableCell>
-                    <TableCell>{doc.category}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        {doc.file_path ? "File" : "Text"}
-                      </div>
+                    <TableCell className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      {doc.title}
                     </TableCell>
+                    <TableCell>{doc.category}</TableCell>
                     <TableCell>
                       {new Date(doc.created_at).toLocaleDateString()}
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {doc.file_path && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => downloadFile(doc.file_path, doc.title)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteMutation.mutate(doc.id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteDocument.mutate(doc.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+          ) : (
+            <p className="text-muted-foreground">No documents yet. Add your first document above.</p>
           )}
         </CardContent>
       </Card>
     </div>
   );
-}
+};

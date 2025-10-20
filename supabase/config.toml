@@ -2,3 +2,6 @@ project_id = "kkzqhkrcjwktttsntooz"
 
 [functions.twilio-webhook]
 verify_jwt = false
+
+[functions.search-knowledge-base]
+verify_jwt = false
