@@ -22,6 +22,7 @@ export const MultiTrackTimeline = ({
 }: MultiTrackTimelineProps) => {
   const timelineRef = useRef<HTMLDivElement>(null);
   const [pixelsPerSecond, setPixelsPerSecond] = useState(100);
+  const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
   const timelineWidth = project.duration * pixelsPerSecond;
 
   const formatTime = (seconds: number) => {
@@ -99,6 +100,36 @@ export const MultiTrackTimeline = ({
     });
   };
 
+  const handlePlayheadMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingPlayhead(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingPlayhead || !timelineRef.current) return;
+
+      const rect = timelineRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left - 150; // Subtract label width
+      const time = Math.max(0, Math.min(project.duration, (x / timelineWidth) * project.duration));
+      onProjectUpdate({ currentTime: time });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingPlayhead(false);
+    };
+
+    if (isDraggingPlayhead) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingPlayhead, timelineWidth, project.duration, onProjectUpdate]);
+
   const getClipColor = (type: string) => {
     switch (type) {
       case 'video': return 'bg-blue-500/70';
@@ -143,7 +174,7 @@ export const MultiTrackTimeline = ({
 
       {/* Timeline Tracks */}
       <ScrollArea className="flex-1">
-        <div className="relative" style={{ width: timelineWidth + 200, minHeight: '100%' }}>
+        <div ref={timelineRef} className="relative" style={{ width: timelineWidth + 200, minHeight: '100%' }}>
           {/* Time Ruler */}
           <div className="sticky top-0 z-10 bg-card border-b border-border h-8 flex items-center" style={{ width: timelineWidth + 200 }}>
             <div className="w-[150px] flex-none" />
@@ -198,14 +229,18 @@ export const MultiTrackTimeline = ({
             </div>
           ))}
 
-          {/* Playhead */}
+          {/* Playhead - Draggable */}
           <div
-            className="absolute top-0 bottom-0 w-0.5 bg-destructive z-20 pointer-events-none"
+            className="absolute top-0 bottom-0 w-0.5 bg-destructive z-20 cursor-ew-resize"
             style={{
               left: 150 + (project.currentTime * pixelsPerSecond),
             }}
+            onMouseDown={handlePlayheadMouseDown}
           >
-            <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-destructive rounded-full" />
+            <div 
+              className="absolute -top-1 -left-1.5 w-3 h-3 bg-destructive rounded-full cursor-pointer hover:scale-125 transition-transform"
+              onMouseDown={handlePlayheadMouseDown}
+            />
           </div>
         </div>
       </ScrollArea>

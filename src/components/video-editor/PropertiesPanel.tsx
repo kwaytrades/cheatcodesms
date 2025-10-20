@@ -217,6 +217,18 @@ export const PropertiesPanel = ({
           {clip.type === 'sticker' && (
             <div className="space-y-3">
               <div>
+                <Label className="text-xs">Emoji/Sticker</Label>
+                <Input
+                  value={clip.content?.emoji || ''}
+                  onChange={(e) =>
+                    updateClip({ content: { ...clip.content, emoji: e.target.value } })
+                  }
+                  className="h-8 mt-1 text-2xl text-center"
+                  placeholder="😀"
+                  maxLength={2}
+                />
+              </div>
+              <div>
                 <Label className="text-xs">Scale (%)</Label>
                 <Input
                   type="number"
@@ -241,6 +253,17 @@ export const PropertiesPanel = ({
                   max="180"
                   className="h-8 mt-1"
                 />
+              </div>
+            </div>
+          )}
+
+          {clip.type === 'image' && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">Image Source</Label>
+                <div className="text-xs text-muted-foreground mt-1 truncate">
+                  {clip.sourceUrl?.substring(0, 30)}...
+                </div>
               </div>
             </div>
           )}

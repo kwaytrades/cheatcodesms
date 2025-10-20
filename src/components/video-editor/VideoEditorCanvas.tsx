@@ -34,13 +34,13 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
     };
   }, []);
 
-  // Update text overlays based on current time
+  // Update text overlays and stickers based on current time
   useEffect(() => {
     if (!fabricCanvas) return;
 
     fabricCanvas.clear();
 
-    // Get all text clips from all tracks
+    // Get all text clips from text track
     const textTrack = project.tracks.find(t => t.type === 'text');
     if (textTrack) {
       textTrack.clips
@@ -57,6 +57,26 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
             });
 
             fabricCanvas.add(text);
+          }
+        });
+    }
+
+    // Get all sticker clips from sticker track
+    const stickerTrack = project.tracks.find(t => t.type === 'sticker');
+    if (stickerTrack) {
+      stickerTrack.clips
+        .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+        .forEach((clip) => {
+          if (clip.content?.emoji) {
+            const emoji = new FabricText(clip.content.emoji, {
+              left: (clip.content.position?.x || 50) * (fabricCanvas.width / 100),
+              top: (clip.content.position?.y || 50) * (fabricCanvas.height / 100),
+              fontSize: 60 * ((clip.content.scale || 100) / 100),
+              angle: clip.content.rotation || 0,
+              selectable: true,
+            });
+
+            fabricCanvas.add(emoji);
           }
         });
     }
