@@ -122,7 +122,7 @@ export const VideoEditorCanvas = ({
 
     // Create canvas element imperatively to avoid React reconciliation issues
     const canvasElement = document.createElement('canvas');
-    canvasElement.className = 'absolute top-0 left-0 pointer-events-none w-full h-full';
+    canvasElement.className = 'absolute top-0 left-0 w-full h-full';
     canvasElement.style.mixBlendMode = 'normal';
     canvasElement.style.zIndex = '10';
     
