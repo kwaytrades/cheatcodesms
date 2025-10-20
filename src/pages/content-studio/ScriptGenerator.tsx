@@ -379,7 +379,7 @@ const ScriptGenerator = () => {
                       onClick={openInTeleprompter}
                     >
                       <Video className="h-4 w-4 mr-2" />
-                      Open in Teleprompter
+                      Record Video
                     </Button>
                   </div>
                 </div>

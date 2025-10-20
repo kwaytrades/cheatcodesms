@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2 } from "lucide-react";
+import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import ReactPlayer from "react-player";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -148,11 +148,39 @@ const ContentLibrary = () => {
   });
 
   const handlePlayVideo = async (video: any) => {
-    const { data } = supabase.storage
+    // Get a signed URL since the bucket is private
+    const { data, error } = await supabase.storage
       .from('content-videos')
-      .getPublicUrl(video.video_url);
+      .createSignedUrl(video.video_url, 3600); // 1 hour expiry
     
-    setSelectedVideo({ ...video, publicUrl: data.publicUrl });
+    if (error) {
+      toast.error('Failed to load video');
+      return;
+    }
+    
+    setSelectedVideo({ ...video, signedUrl: data.signedUrl });
+  };
+
+  const handleExportVideo = async (video: any) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('content-videos')
+        .createSignedUrl(video.video_url, 60); // 1 minute is enough for download
+      
+      if (error) throw error;
+
+      // Create download link
+      const link = document.createElement('a');
+      link.href = data.signedUrl;
+      link.download = `video-${video.id}.webm`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success('Video download started');
+    } catch (error) {
+      toast.error('Failed to export video');
+    }
   };
 
   const isLoading = scriptsLoading || videosLoading;
@@ -272,15 +300,24 @@ const ContentLibrary = () => {
                       </div>
                       <div className="flex items-center gap-2 mt-3">
                         {item.type === 'video' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1"
-                            onClick={() => handlePlayVideo(item.data)}
-                          >
-                            <Video className="h-3 w-3 mr-1" />
-                            Play
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => handlePlayVideo(item.data)}
+                            >
+                              <Video className="h-3 w-3 mr-1" />
+                              Play
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleExportVideo(item.data)}
+                            >
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="sm"
@@ -333,13 +370,22 @@ const ContentLibrary = () => {
                       )}
                       <div className="flex-none flex items-center gap-2">
                         {item.type === 'video' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handlePlayVideo(item.data)}
-                          >
-                            <Video className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePlayVideo(item.data)}
+                            >
+                              <Video className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleExportVideo(item.data)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="sm"
@@ -377,13 +423,28 @@ const ContentLibrary = () => {
             <DialogTitle>Video Player</DialogTitle>
           </DialogHeader>
           {selectedVideo && (
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <ReactPlayer
-                url={selectedVideo.publicUrl}
-                controls
-                width="100%"
-                height="100%"
-              />
+            <div className="space-y-4">
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                <ReactPlayer
+                  url={selectedVideo.signedUrl}
+                  controls
+                  width="100%"
+                  height="100%"
+                  playing
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Duration: {Math.floor(selectedVideo.duration_seconds / 60)}:{(selectedVideo.duration_seconds % 60).toString().padStart(2, '0')}
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => handleExportVideo(selectedVideo)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Video
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
