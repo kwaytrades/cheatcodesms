@@ -23,7 +23,7 @@ interface SegmentsSidebarProps {
 const QUICK_SEGMENTS = [
   { id: 'all', name: 'All Customers', icon: Users, description: 'View all contacts' },
   { id: 'new', name: 'New This Week', icon: Sparkles, description: 'Created in last 7 days' },
-  { id: 'hot', name: 'Hot Leads', icon: TrendingUp, description: 'Score 80+' },
+  { id: 'hot', name: 'Hot Leads', icon: TrendingUp, description: 'Status: Hot' },
   { id: 'at-risk', name: 'At Risk', icon: AlertCircle, description: 'Inactive 14+ days' },
   { id: 'vip', name: 'VIPs', icon: Star, description: 'High-value customers' },
   { id: 'high-spenders', name: 'High Spenders', icon: DollarSign, description: 'Spent $500+' },
@@ -74,9 +74,9 @@ export function SegmentsSidebar({ onSegmentSelect, selectedSegmentId, onToggle }
       case 'hot':
         filterConfig = { 
           filters: [{ 
-            field: 'lead_score', 
-            operator: 'greater', 
-            value: '80' 
+            field: 'lead_status', 
+            operator: 'equals', 
+            value: 'hot' 
           }] 
         };
         break;
