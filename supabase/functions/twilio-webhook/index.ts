@@ -188,7 +188,10 @@ serve(async (req) => {
 
     const { response: aiMessage, needsHandoff } = aiResponse.data || {};
 
+    console.log('Processing AI response:', { aiMessage: aiMessage?.substring(0, 100), needsHandoff });
+
     if (needsHandoff) {
+      console.log('Handoff needed, marking conversation for human review');
       // Mark conversation for human review
       await supabase
         .from('conversations')
@@ -217,13 +220,21 @@ serve(async (req) => {
     }
 
     // Store AI response in database
-    await supabase.from('messages').insert({
+    console.log('Storing AI message in database...');
+    const { error: insertError } = await supabase.from('messages').insert({
       conversation_id: conversation.id,
       direction: 'outbound',
       sender: messageSender,
       body: aiMessage,
       status: 'sent',
     });
+
+    if (insertError) {
+      console.error('Error inserting message:', insertError);
+      throw insertError;
+    }
+
+    console.log('Message stored, returning TwiML response');
 
     // Send AI response via Twilio
     return new Response(
