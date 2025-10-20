@@ -8,34 +8,56 @@ const corsHeaders = {
 
 // Helper function to detect intent signals
 function detectIntentSignals(text: string): number {
-  const highIntentPhrases = [
-    'how much', 'price', 'cost', 'when can i', 'ready to', 'sign up',
-    'want to buy', 'interested in purchasing', "let's do it", 'how do i get',
-    'where do i', 'when does', 'what are the next steps'
-  ];
-  
-  const objectionPhrases = [
-    'too expensive', 'not sure', 'need to think', 'maybe later', 'not ready'
-  ];
-  
-  const resolutionPhrases = [
-    'that works', 'sounds good', "let's go ahead", 'perfect', 'great',
-    'yes please', 'count me in', "i'm in"
-  ];
-  
   const lowerText = text.toLowerCase();
   let signals = 0;
   
-  highIntentPhrases.forEach(phrase => {
-    if (lowerText.includes(phrase)) signals += 1;
+  // Ultra high intent - budget/money mentions (10 points each)
+  const budgetRegex = /(\$|usd|dollar|k\b|thousand|million)\s*\d+|\d+\s*(\$|k\b|dollar|thousand)/gi;
+  const budgetMatches = text.match(budgetRegex);
+  if (budgetMatches) {
+    signals += budgetMatches.length * 10;
+  }
+  
+  // VIP/Premium tier interest (8 points)
+  const premiumPhrases = ['vip', 'premium', 'elite', 'platinum', 'exclusive'];
+  premiumPhrases.forEach(phrase => {
+    if (lowerText.includes(phrase)) signals += 8;
   });
   
+  // Product interest mentions (5 points each)
+  const productPhrases = [
+    'interested in', 'want to buy', 'looking for', 'need the', 'get the',
+    'purchase', 'textbook', 'course', 'mentorship', 'coaching', 'training'
+  ];
+  productPhrases.forEach(phrase => {
+    if (lowerText.includes(phrase)) signals += 5;
+  });
+  
+  // High intent questions (3 points each)
+  const intentQuestions = [
+    'how much', 'what is the price', 'how do i', 'when can i', 'where do i',
+    'what are the next steps', 'how to get started', 'ready to'
+  ];
+  intentQuestions.forEach(phrase => {
+    if (lowerText.includes(phrase)) signals += 3;
+  });
+  
+  // Ready to buy signals (6 points each)
+  const buyingPhrases = [
+    "let's do it", 'sign me up', 'count me in', "i'm in", "i'll take it",
+    'sounds good', 'perfect', "let's go ahead", 'yes please'
+  ];
+  buyingPhrases.forEach(phrase => {
+    if (lowerText.includes(phrase)) signals += 6;
+  });
+  
+  // Objections (reduce score)
+  const objectionPhrases = [
+    'too expensive', 'not sure', 'need to think', 'maybe later', 'not ready',
+    'not interested', "can't afford"
+  ];
   objectionPhrases.forEach(phrase => {
-    if (lowerText.includes(phrase)) signals -= 0.5;
-  });
-  
-  resolutionPhrases.forEach(phrase => {
-    if (lowerText.includes(phrase)) signals += 1.5;
+    if (lowerText.includes(phrase)) signals -= 3;
   });
   
   return Math.max(0, signals);
@@ -85,23 +107,23 @@ async function calculateLeadScore(
     }
   }
   
-  // Calculate base scores
+  // Calculate base scores (reduced weight - max 30 points total)
   const emailOpens = activities?.filter((a: any) => a.activity_type === 'email_open').length || 0;
   const smsReplies = activities?.filter((a: any) => a.activity_type === 'sms_reply').length || 0;
   const purchaseCount = purchases?.length || 0;
   
-  const emailScore = Math.min(emailOpens * 1.5, 15);
-  const smsScore = Math.min(smsReplies * 4, 20);
-  const purchaseScore = Math.min(purchaseCount * 12.5, 25);
+  const emailScore = Math.min(emailOpens * 1, 10);
+  const smsScore = Math.min(smsReplies * 2, 10);
+  const purchaseScore = Math.min(purchaseCount * 5, 10);
   
-  // Calculate conversation intelligence score (0-40 points)
+  // Calculate conversation intelligence score (0-70 points - MUCH higher weight)
   let conversationScore = 0;
   
-  // Product interests (0-10)
+  // Product interests (0-15)
   const productInterests = aiProfile?.interests?.length || 0;
-  conversationScore += Math.min(productInterests * 2, 10);
+  conversationScore += Math.min(productInterests * 3, 15);
   
-  // Intent signals from messages (0-10)
+  // Intent signals from messages (0-35 - heavily weighted)
   let intentSignals = 0;
   if (allMessages.length > 0) {
     allMessages.forEach((msg: any) => {
@@ -110,7 +132,8 @@ async function calculateLeadScore(
       }
     });
   }
-  conversationScore += Math.min(intentSignals * 3.3, 10);
+  // High intent signals should contribute significantly
+  conversationScore += Math.min(intentSignals * 2, 35);
   
   // Sentiment analysis (0-10)
   if (allMessages.length > 0) {
@@ -157,6 +180,8 @@ async function calculateLeadScore(
     const responseRate = customerMessages.length / Math.max(allMessages.length, 1);
     conversationScore += responseRate * 10;
   }
+  
+  console.log(`Scoring for ${contactId}: email=${emailScore}, sms=${smsScore}, purchase=${purchaseScore}, conversation=${conversationScore}, intentSignals=${intentSignals}`);
   
   // Calculate total score
   const totalScore = Math.min(
