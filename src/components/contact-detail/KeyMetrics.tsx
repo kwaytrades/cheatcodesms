@@ -17,14 +17,30 @@ export const KeyMetrics = ({
   leadStatus = "new",
   lastContactDate
 }: KeyMetricsProps) => {
-  const getStatusColor = (status: string): "default" | "destructive" | "outline" | "secondary" => {
-    const colors: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
-      qualified: "default",
-      new: "secondary",
-      contacted: "outline",
-      converted: "default"
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-score-hot';
+    if (score >= 51) return 'text-score-warm';
+    if (score >= 21) return 'text-score-cool';
+    return 'text-score-cold';
+  };
+
+  const getScoreBgColor = (score: number) => {
+    if (score >= 80) return 'bg-score-hot';
+    if (score >= 51) return 'bg-score-warm';
+    if (score >= 21) return 'bg-score-cool';
+    return 'bg-score-cold';
+  };
+
+  const getStatusColor = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'cold': 'bg-status-cold/10 text-status-cold border-status-cold/20',
+      'warm': 'bg-status-warm/10 text-status-warm border-status-warm/20',
+      'hot': 'bg-status-hot/10 text-status-hot border-status-hot/20',
+      'customer': 'bg-status-customer/10 text-status-customer border-status-customer/20',
+      'vip': 'bg-status-vip/10 text-status-vip border-status-vip/20',
+      'churned': 'bg-status-churned/10 text-status-churned border-status-churned/20',
     };
-    return colors[status] || "secondary";
+    return statusMap[status?.toLowerCase()] || 'bg-muted text-muted-foreground';
   };
 
   const formatTimeAgo = (date?: string) => {
@@ -38,7 +54,7 @@ export const KeyMetrics = ({
   };
 
   return (
-    <Card>
+    <Card className="accent-left-purple card-gradient">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           📊 Key Metrics
@@ -48,18 +64,18 @@ export const KeyMetrics = ({
         <div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-muted-foreground">Status</span>
-            <Badge variant={getStatusColor(leadStatus)}>
+            <Badge className={getStatusColor(leadStatus)}>
               {leadStatus}
             </Badge>
           </div>
         </div>
         
         <div>
-          <div className="flex justify-between items-center mb-1">
+          <div className="flex justify-between items-center mb-2">
             <span className="text-muted-foreground">Score</span>
-            <span className="font-medium">{leadScore}/100</span>
+            <span className={`font-bold ${getScoreColor(leadScore)}`}>{leadScore}/100</span>
           </div>
-          <Progress value={leadScore} className="h-2" />
+          <Progress value={leadScore} className="h-2" indicatorClassName={getScoreBgColor(leadScore)} />
         </div>
         
         <div>
@@ -72,7 +88,7 @@ export const KeyMetrics = ({
         <div>
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Spent</span>
-            <span className="font-medium">${totalSpent.toLocaleString()}</span>
+            <span className="font-medium text-success">${totalSpent.toLocaleString()}</span>
           </div>
         </div>
         

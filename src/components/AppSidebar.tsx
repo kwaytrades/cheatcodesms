@@ -40,14 +40,14 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-border/50 p-4">
-        <div className="flex items-center gap-2">
-          <div className="bg-primary/10 p-2 rounded-lg">
-            <Zap className="h-5 w-5 text-primary" />
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <div className="flex items-center gap-3">
+          <div className="icon-bg-green p-2 rounded-lg">
+            <Zap className="h-5 w-5" />
           </div>
-          <div>
-            <h2 className="font-bold text-lg">Cheat Code</h2>
-            <p className="text-xs text-muted-foreground">SMS Platform</p>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-base truncate">Cheat Code</h2>
+            <p className="text-xs text-muted-foreground truncate">SMS Platform</p>
           </div>
         </div>
       </SidebarHeader>
@@ -56,14 +56,16 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
                       end
                       className={({ isActive }) =>
-                        isActive ? "bg-primary/10 text-primary font-medium" : ""
+                        isActive 
+                          ? "bg-primary/10 text-primary font-medium border-l-4 border-primary pl-3" 
+                          : "hover:bg-sidebar-accent transition-colors"
                       }
                     >
                       <item.icon className="h-4 w-4" />

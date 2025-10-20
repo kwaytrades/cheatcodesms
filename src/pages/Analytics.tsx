@@ -187,30 +187,32 @@ const Analytics = () => {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
-        <p className="text-muted-foreground">Monitor your marketing and customer performance</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Monitor your marketing and customer performance</p>
       </div>
 
-      <Tabs defaultValue="campaigns" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="campaigns">Campaign Analytics</TabsTrigger>
-          <TabsTrigger value="contacts">Contact Analytics</TabsTrigger>
+      <Tabs defaultValue="campaigns" className="space-y-4 md:space-y-6">
+        <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:inline-grid">
+          <TabsTrigger value="campaigns">Campaign</TabsTrigger>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="campaigns" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <TabsContent value="campaigns" className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="border-border/50 hover:border-primary/50 transition-colors">
+            <Card key={stat.title} className="border-l-4 border-l-primary/50 card-gradient hover:glow-green transition-all">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <Icon className={`h-4 w-4 ${stat.color}`} />
+                <CardTitle className="text-xs sm:text-sm font-medium">{stat.title}</CardTitle>
+                <div className="icon-bg-green p-2 rounded-lg">
+                  <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                </div>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                <div className="text-xl sm:text-2xl font-bold text-primary">{stat.value}</div>
                 <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
               </CardContent>
             </Card>
@@ -218,30 +220,30 @@ const Analytics = () => {
         })}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Campaign Performance */}
-        <Card className="border-border/50">
+        <Card className="border-border/50 accent-left-blue">
           <CardHeader>
-            <CardTitle>Campaign Performance</CardTitle>
-            <CardDescription>Messages sent, delivered, failed, and replies per campaign</CardDescription>
+            <CardTitle className="text-base md:text-lg">Campaign Performance</CardTitle>
+            <CardDescription className="text-xs md:text-sm">Messages sent, delivered, failed, and replies</CardDescription>
           </CardHeader>
           <CardContent>
             {campaignData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
                 <BarChart data={campaignData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} className="md:text-xs" />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} className="md:text-xs" />
                   <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }} />
-                  <Legend />
-                  <Bar dataKey="sent" fill="hsl(var(--primary))" name="Sent" />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="sent" fill="hsl(var(--chart-1))" name="Sent" />
                   <Bar dataKey="delivered" fill="hsl(var(--chart-2))" name="Delivered" />
                   <Bar dataKey="failed" fill="hsl(var(--destructive))" name="Failed" />
-                  <Bar dataKey="replies" fill="hsl(var(--chart-4))" name="Replies" />
+                  <Bar dataKey="replies" fill="hsl(var(--chart-3))" name="Replies" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              <div className="flex items-center justify-center h-[250px] md:h-[300px] text-muted-foreground text-sm">
                 No campaign data available
               </div>
             )}

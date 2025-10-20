@@ -60,13 +60,13 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  'new': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  'cold': 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-  'warm': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-  'hot': 'bg-orange-500/10 text-orange-500 border-orange-500/20',
-  'customer': 'bg-success/10 text-success border-success/20',
-  'vip': 'bg-purple-500/10 text-purple-500 border-purple-500/20',
-  'churned': 'bg-destructive/10 text-destructive border-destructive/20',
+  'new': 'bg-info/10 text-info border-info/20',
+  'cold': 'bg-status-cold/10 text-status-cold border-status-cold/20',
+  'warm': 'bg-status-warm/10 text-status-warm border-status-warm/20',
+  'hot': 'bg-status-hot/10 text-status-hot border-status-hot/20',
+  'customer': 'bg-status-customer/10 text-status-customer border-status-customer/20',
+  'vip': 'bg-status-vip/10 text-status-vip border-status-vip/20',
+  'churned': 'bg-status-churned/10 text-status-churned border-status-churned/20',
 };
 
 const Contacts = () => {
@@ -274,10 +274,11 @@ const Contacts = () => {
   };
 
   const getScoreColor = (score: number | null) => {
-    if (!score) return 'bg-gray-500/10 text-gray-500';
-    if (score >= 80) return 'bg-success/10 text-success';
-    if (score >= 50) return 'bg-yellow-500/10 text-yellow-500';
-    return 'bg-orange-500/10 text-orange-500';
+    if (!score) return 'bg-status-cold/10 text-status-cold';
+    if (score >= 80) return 'bg-score-hot/10 text-score-hot';
+    if (score >= 51) return 'bg-score-warm/10 text-score-warm';
+    if (score >= 21) return 'bg-score-cool/10 text-score-cool';
+    return 'bg-score-cold/10 text-score-cold';
   };
 
   const renderCellContent = (contact: Contact, columnKey: ColumnKey) => {
@@ -361,7 +362,7 @@ const Contacts = () => {
     <ResizablePanelGroup direction="horizontal" className="h-full">
       {showSegments && (
         <>
-          <ResizablePanel defaultSize={15} minSize={12} maxSize={20}>
+          <ResizablePanel defaultSize={15} minSize={12} maxSize={20} className="hidden md:block">
             <SegmentsSidebar 
               onSegmentSelect={(segment) => {
                 setSelectedSegment(segment);
@@ -371,44 +372,45 @@ const Contacts = () => {
               onToggle={() => setShowSegments(false)}
             />
           </ResizablePanel>
-          <ResizableHandle />
+          <ResizableHandle className="hidden md:flex" />
         </>
       )}
       
       <ResizablePanel defaultSize={85}>
         <div className="flex flex-col h-full overflow-hidden">
           {/* Header */}
-          <div className="border-b bg-background p-4">
-            <div className="flex items-center justify-between mb-4">
+          <div className="border-b bg-card p-3 md:p-4 accent-left-green">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 md:mb-4">
               {!showSegments && (
                 <Button 
                   variant="ghost" 
                   size="sm"
                   onClick={() => setShowSegments(true)}
-                  className="mr-2"
+                  className="w-fit"
                 >
                   <Filter className="h-4 w-4 mr-2" />
                   Show Segments
                 </Button>
               )}
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
-              <p className="text-sm text-muted-foreground">
-                {selectedSegment ? selectedSegment.name : 'All contacts'} • {filteredContacts.length} total
-              </p>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">Contacts</h1>
+                <p className="text-xs md:text-sm text-muted-foreground truncate">
+                  {selectedSegment ? selectedSegment.name : 'All contacts'} • {filteredContacts.length} total
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <ImportContactsDialog onImportComplete={loadContacts} />
+                <Button onClick={() => navigate('/contacts/new')} size="sm" className="gap-2 glow-green">
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add Contact</span>
+                  <span className="sm:hidden">Add</span>
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <ImportContactsDialog onImportComplete={loadContacts} />
-              <Button onClick={() => navigate('/contacts/new')} size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Contact
-              </Button>
-            </div>
-          </div>
 
           {/* Toolbar */}
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+            <div className="relative flex-1 max-w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search contacts..."
@@ -418,41 +420,44 @@ const Contacts = () => {
               />
             </div>
 
-            <Button 
-              variant={showFilters ? "default" : "outline"} 
-              size="sm" 
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-            >
-              <Filter className="h-4 w-4" />
-              Filters {filters.length > 0 && `(${filters.length})`}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant={showFilters ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => setShowFilters(!showFilters)}
+                className="gap-2 flex-1 sm:flex-none"
+              >
+                <Filter className="h-4 w-4" />
+                <span className="hidden sm:inline">Filters</span>
+                {filters.length > 0 && `(${filters.length})`}
+              </Button>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings2 className="h-4 w-4" />
-                  Columns
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56" align="end">
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Toggle columns</h4>
-                  {columns.map((column) => (
-                    <div key={column.key} className="flex items-center gap-2">
-                      <Checkbox
-                        id={column.key}
-                        checked={column.visible}
-                        onCheckedChange={() => toggleColumn(column.key)}
-                      />
-                      <label htmlFor={column.key} className="text-sm cursor-pointer flex-1">
-                        {column.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none">
+                    <Settings2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Columns</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56" align="end">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Toggle columns</h4>
+                    {columns.map((column) => (
+                      <div key={column.key} className="flex items-center gap-2">
+                        <Checkbox
+                          id={column.key}
+                          checked={column.visible}
+                          onCheckedChange={() => toggleColumn(column.key)}
+                        />
+                        <label htmlFor={column.key} className="text-sm cursor-pointer flex-1">
+                          {column.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           {/* Filter Builder */}
