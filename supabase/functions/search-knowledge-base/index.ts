@@ -14,56 +14,102 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { query, category } = await req.json();
 
     console.log('Searching knowledge base:', { query, category });
 
-    // Build search query
-    let searchQuery = supabase
-      .from('knowledge_base')
-      .select('*');
+    let results;
 
-    // Filter by category if provided
-    if (category) {
-      searchQuery = searchQuery.eq('category', category);
-    }
-
-    // Improved text search - split query into keywords and search for each
+    // Try vector search first if we have a query
     if (query) {
-      // Extract keywords (remove common words, split by spaces)
-      const keywords = query
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .filter((word: string) => word.length > 2 && !['the', 'and', 'for', 'what', 'about'].includes(word));
-      
-      console.log('Search keywords:', keywords);
-      
-      if (keywords.length > 0) {
-        // Build OR conditions for each keyword
-        const conditions = keywords
-          .map((keyword: string) => `title.ilike.%${keyword}%,content.ilike.%${keyword}%`)
-          .join(',');
-        searchQuery = searchQuery.or(conditions);
+      try {
+        // Generate embedding for the search query
+        const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${lovableApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'text-embedding-3-small',
+            input: query,
+          }),
+        });
+
+        if (embeddingResponse.ok) {
+          const embeddingData = await embeddingResponse.json();
+          const queryEmbedding = embeddingData.data[0].embedding;
+
+          console.log('Using vector search');
+
+          // Use vector similarity search
+          const { data: vectorResults, error: vectorError } = await supabase.rpc('match_documents', {
+            query_embedding: queryEmbedding,
+            match_threshold: 0.7,
+            match_count: 15
+          });
+
+          if (!vectorError && vectorResults && vectorResults.length > 0) {
+            results = vectorResults;
+            console.log('Vector search found', results.length, 'documents');
+          }
+        }
+      } catch (vectorError) {
+        console.log('Vector search failed, falling back to keyword search:', vectorError);
       }
     }
 
-    const { data: results, error } = await searchQuery.limit(10);
+    // Fallback to keyword search if vector search didn't work or no results
+    if (!results || results.length === 0) {
+      console.log('Using keyword search fallback');
+      
+      let searchQuery = supabase
+        .from('knowledge_base')
+        .select('*');
 
-    if (error) {
-      console.error('Knowledge base search error:', error);
-      throw error;
+      // Filter by category if provided
+      if (category) {
+        searchQuery = searchQuery.eq('category', category);
+      }
+
+      // Improved text search - split query into keywords and search for each
+      if (query) {
+        const keywords = query
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter((word: string) => word.length > 2 && !['the', 'and', 'for', 'what', 'about'].includes(word));
+        
+        console.log('Search keywords:', keywords);
+        
+        if (keywords.length > 0) {
+          const conditions = keywords
+            .map((keyword: string) => `title.ilike.%${keyword}%,content.ilike.%${keyword}%`)
+            .join(',');
+          searchQuery = searchQuery.or(conditions);
+        }
+      }
+
+      const { data: keywordResults, error } = await searchQuery.limit(15);
+
+      if (error) {
+        console.error('Knowledge base search error:', error);
+        throw error;
+      }
+
+      results = keywordResults;
+      console.log('Keyword search found', results?.length || 0, 'documents');
     }
 
-    console.log('Found', results?.length || 0, 'relevant documents');
-
-    // Format results for AI context
-    const formattedResults = results?.map(doc => ({
+    // Return FULL content - no truncation
+    const formattedResults = results?.map((doc: any) => ({
       title: doc.title,
       category: doc.category,
-      content: doc.content?.substring(0, 1000), // Limit to 1000 chars per doc
+      content: doc.content, // Full content, no truncation
+      similarity: doc.similarity || undefined,
     })) || [];
 
     return new Response(

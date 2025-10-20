@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Trash2, Upload, FileText } from "lucide-react";
+import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
 
 const CATEGORIES = [
   "Product Info",
@@ -136,6 +137,8 @@ export const KnowledgeBase = () => {
 
   return (
     <div className="space-y-6">
+      <KnowledgeBaseEmbeddings />
+      
       <Card>
         <CardHeader>
           <CardTitle>Knowledge Base</CardTitle>
