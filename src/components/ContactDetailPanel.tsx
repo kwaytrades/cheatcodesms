@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X, Mail, Phone, DollarSign, TrendingUp, Calendar, Tag, ShoppingBag, Maximize2, Sparkles } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { X, Mail, Phone, DollarSign, TrendingUp, Calendar, Tag, ShoppingBag, Maximize2, Sparkles, MessageSquare, Bot, User, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
@@ -15,10 +16,19 @@ interface ContactDetailPanelProps {
   showExpandButton?: boolean;
 }
 
+interface Message {
+  id: string;
+  body: string;
+  sender: string;
+  direction: string;
+  created_at: string;
+  status: string;
+}
+
 export function ContactDetailPanel({ contactId, onClose, showExpandButton = false }: ContactDetailPanelProps) {
   const navigate = useNavigate();
   const [contact, setContact] = useState<any>(null);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [aiMessages, setAiMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,36 +51,39 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
       if (contactError) throw contactError;
       setContact(contactData);
 
-      // Load activities
-      const { data: activitiesData, error: activitiesError } = await supabase
-        .from('contact_activities')
-        .select('*')
+      // Load conversation and messages
+      const { data: conversationData } = await supabase
+        .from('conversations')
+        .select('id')
         .eq('contact_id', contactId)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .maybeSingle();
 
-      if (activitiesError) throw activitiesError;
-      setActivities(activitiesData || []);
+      if (conversationData) {
+        const { data: messagesData } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversationData.id)
+          .order('created_at', { ascending: true });
+        
+        setMessages(messagesData || []);
+      }
 
       // Load purchases
-      const { data: purchasesData, error: purchasesError } = await supabase
+      const { data: purchasesData } = await supabase
         .from('purchases')
         .select('*, products(*)')
         .eq('contact_id', contactId)
         .order('purchase_date', { ascending: false });
 
-      if (purchasesError) throw purchasesError;
       setPurchases(purchasesData || []);
 
       // Load AI messages
-      const { data: aiMessagesData, error: aiMessagesError } = await supabase
+      const { data: aiMessagesData } = await supabase
         .from('ai_messages')
         .select('*')
         .eq('contact_id', contactId)
-        .order('sent_at', { ascending: false })
-        .limit(5);
+        .order('sent_at', { ascending: false });
 
-      if (aiMessagesError) throw aiMessagesError;
       setAiMessages(aiMessagesData || []);
 
     } catch (error) {
@@ -97,11 +110,35 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
     );
   }
 
+  const emailMessages = aiMessages.filter(m => m.channel === 'email');
+  const smsAiMessages = aiMessages.filter(m => m.channel === 'sms');
+
+  // Combine all communications for timeline
+  const allCommunications = [
+    ...messages.map(m => ({ type: 'sms', data: m, timestamp: m.created_at })),
+    ...aiMessages.map(m => ({ type: 'ai_message', data: m, timestamp: m.sent_at })),
+    ...purchases.map(p => ({ type: 'purchase', data: p, timestamp: p.purchase_date })),
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
   return (
-    <div className="h-full flex flex-col border-l bg-card">
-      <div className="p-4 border-b flex items-center justify-between">
-        <h3 className="font-semibold">Contact Details</h3>
-        <div className="flex gap-2">
+    <div className="h-full flex flex-col border-l bg-background">
+      {/* Header */}
+      <div className="p-4 border-b flex items-center justify-between bg-card">
+        <div className="flex-1 min-w-0">
+          <h2 className="text-lg font-semibold truncate">{contact.full_name}</h2>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {contact.lead_status && (
+              <Badge variant="secondary" className="text-xs">{contact.lead_status}</Badge>
+            )}
+            {contact.tags?.slice(0, 2).map((tag: string) => (
+              <Badge key={tag} variant="outline" className="text-xs">
+                <Tag className="h-3 w-3 mr-1" />
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-1 ml-2">
           {showExpandButton && (
             <Button 
               variant="ghost" 
@@ -121,97 +158,125 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
-          {/* Header */}
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold">{contact.full_name}</h2>
-            <div className="flex flex-wrap gap-2">
-              {contact.lead_status && (
-                <Badge variant="secondary">{contact.lead_status}</Badge>
-              )}
-              {contact.tags?.map((tag: string) => (
-                <Badge key={tag} variant="outline">
-                  <Tag className="h-3 w-3 mr-1" />
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* Contact Info */}
+        <div className="p-4 space-y-4">
+          {/* Overview Card - Compact Info + Metrics */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {contact.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{contact.email}</span>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Contact Info */}
+                <div className="space-y-2">
+                  {contact.email && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">{contact.email}</span>
+                    </div>
+                  )}
+                  {contact.phone_number && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span>{contact.phone_number}</span>
+                    </div>
+                  )}
+                  {contact.last_contact_date && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(contact.last_contact_date).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {contact.phone_number && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{contact.phone_number}</span>
+
+                {/* Key Metrics */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center p-2 bg-muted/50 rounded">
+                    <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+                      <TrendingUp className="h-3 w-3" />
+                      <span>Score</span>
+                    </div>
+                    <p className="text-lg font-bold">{contact.lead_score || 0}</p>
+                  </div>
+                  <div className="text-center p-2 bg-muted/50 rounded">
+                    <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-1">
+                      <DollarSign className="h-3 w-3" />
+                      <span>Spent</span>
+                    </div>
+                    <p className="text-lg font-bold">${contact.total_spent || 0}</p>
+                  </div>
+                  {contact.engagement_score !== undefined && (
+                    <div className="text-center p-2 bg-muted/50 rounded col-span-2">
+                      <p className="text-xs text-muted-foreground mb-1">Engagement</p>
+                      <p className="text-lg font-bold">{contact.engagement_score}</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Key Metrics */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Purchases Summary - Inline */}
+          {purchases.length > 0 && (
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lead Score</p>
-                    <p className="text-2xl font-bold">{contact.lead_score || 0}</p>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-semibold text-sm">Recent Purchases</span>
                   </div>
+                  <Badge variant="secondary">{purchases.length}</Badge>
                 </div>
+                <div className="space-y-2">
+                  {purchases.slice(0, 3).map((purchase) => (
+                    <div key={purchase.id} className="flex items-center justify-between text-sm py-1">
+                      <span className="truncate">{purchase.products?.name || 'Product'}</span>
+                      <span className="font-semibold text-primary ml-2">${purchase.amount}</span>
+                    </div>
+                  ))}
+                </div>
+                {purchases.length > 3 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    +{purchases.length - 3} more
+                  </p>
+                )}
               </CardContent>
             </Card>
+          )}
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-primary" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Spent</p>
-                    <p className="text-2xl font-bold">${contact.total_spent || 0}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Trading Info */}
+          {/* Trading Profile - Compact */}
           {contact.trading_experience && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Trading Profile</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Experience:</span>
-                  <span className="ml-2 font-medium">{contact.trading_experience}</span>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm">Trading Profile</span>
                 </div>
-                {contact.trading_style && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <div>
-                    <span className="text-muted-foreground">Style:</span>
-                    <span className="ml-2 font-medium">{contact.trading_style}</span>
+                    <span className="text-xs text-muted-foreground">Experience</span>
+                    <p className="font-medium">{contact.trading_experience}</p>
                   </div>
-                )}
-                {contact.account_size && (
-                  <div>
-                    <span className="text-muted-foreground">Account Size:</span>
-                    <span className="ml-2 font-medium">{contact.account_size}</span>
-                  </div>
-                )}
+                  {contact.trading_style && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">Style</span>
+                      <p className="font-medium">{contact.trading_style}</p>
+                    </div>
+                  )}
+                  {contact.account_size && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">Account Size</span>
+                      <p className="font-medium">{contact.account_size}</p>
+                    </div>
+                  )}
+                  {contact.risk_tolerance && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">Risk Tolerance</span>
+                      <p className="font-medium">{contact.risk_tolerance}</p>
+                    </div>
+                  )}
+                </div>
                 {contact.assets_traded && contact.assets_traded.length > 0 && (
-                  <div>
-                    <span className="text-muted-foreground">Assets:</span>
+                  <div className="mt-3">
+                    <span className="text-xs text-muted-foreground">Assets</span>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {contact.assets_traded.map((asset: string) => (
                         <Badge key={asset} variant="outline" className="text-xs">
@@ -225,151 +290,234 @@ export function ContactDetailPanel({ contactId, onClose, showExpandButton = fals
             </Card>
           )}
 
-          {/* AI Profile Notes */}
-          {contact.ai_profile && (
+          {/* AI Profile - Compact */}
+          {contact.ai_profile && Object.keys(contact.ai_profile).length > 0 && (
             <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  <CardTitle className="text-sm">AI Profile Analysis</CardTitle>
+                  <span className="font-semibold text-sm">AI Profile Analysis</span>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {Object.entries(contact.ai_profile).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
-                    <span className="ml-2 font-medium">{String(value)}</span>
-                  </div>
-                ))}
+                <div className="space-y-2 text-sm">
+                  {Object.entries(contact.ai_profile).slice(0, 4).map(([key, value]) => (
+                    <div key={key} className="flex justify-between gap-2">
+                      <span className="text-muted-foreground text-xs capitalize">
+                        {key.replace(/_/g, ' ')}:
+                      </span>
+                      <span className="font-medium text-xs text-right">{String(value)}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
 
           {/* Customer Profile */}
-          {contact.customer_profile && (
+          {contact.customer_profile && Object.keys(contact.customer_profile).length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Customer Profile</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {Object.entries(contact.customer_profile).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
-                    <span className="ml-2 font-medium">{String(value)}</span>
-                  </div>
-                ))}
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm">Customer Profile</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  {Object.entries(contact.customer_profile).slice(0, 4).map(([key, value]) => (
+                    <div key={key} className="flex justify-between gap-2">
+                      <span className="text-muted-foreground text-xs capitalize">
+                        {key.replace(/_/g, ' ')}:
+                      </span>
+                      <span className="font-medium text-xs text-right">{String(value)}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Tabs */}
-          <Tabs defaultValue="activity" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="activity">Activity</TabsTrigger>
-              <TabsTrigger value="purchases">Purchases</TabsTrigger>
-              <TabsTrigger value="ai">AI Messages</TabsTrigger>
-            </TabsList>
+          {/* Communication History Tabs */}
+          <Card>
+            <Tabs defaultValue="sms" className="w-full">
+              <CardContent className="p-0">
+                <TabsList className="w-full rounded-none border-b">
+                  <TabsTrigger value="sms" className="flex-1">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    SMS/Chat
+                  </TabsTrigger>
+                  <TabsTrigger value="email" className="flex-1">
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email
+                  </TabsTrigger>
+                  <TabsTrigger value="all" className="flex-1">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    Timeline
+                  </TabsTrigger>
+                </TabsList>
 
-            <TabsContent value="activity" className="space-y-2">
-              {activities.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No activity yet
-                </p>
-              ) : (
-                activities.map((activity) => (
-                  <Card key={activity.id}>
-                    <CardContent className="pt-4">
-                      <div className="flex items-start gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{activity.activity_type}</p>
-                          {activity.description && (
-                            <p className="text-sm text-muted-foreground">{activity.description}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(activity.created_at).toLocaleDateString()}
-                          </p>
+                {/* SMS/Chat Tab */}
+                <TabsContent value="sms" className="p-4 space-y-3 m-0">
+                  {messages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No messages yet
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[85%] rounded-lg p-3 ${
+                              message.direction === 'outbound'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              {message.sender === 'ai_bot' ? (
+                                <Bot className="h-3 w-3" />
+                              ) : message.direction === 'outbound' ? (
+                                <User className="h-3 w-3" />
+                              ) : (
+                                <MessageSquare className="h-3 w-3" />
+                              )}
+                              <span className="text-xs font-medium capitalize">
+                                {message.sender.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <p className="text-sm whitespace-pre-wrap break-words">
+                              {message.body}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2 text-xs opacity-70">
+                              <span>
+                                {new Date(message.created_at).toLocaleString()}
+                              </span>
+                              {message.status === 'delivered' && (
+                                <CheckCheck className="h-3 w-3" />
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
 
-            <TabsContent value="purchases" className="space-y-2">
-              {purchases.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No purchases yet
-                </p>
-              ) : (
-                purchases.map((purchase) => (
-                  <Card key={purchase.id}>
-                    <CardContent className="pt-4">
-                      <div className="flex items-start gap-2">
-                        <ShoppingBag className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">
-                            {purchase.products?.name || 'Product'}
-                          </p>
-                          <p className="text-sm text-primary font-semibold">
-                            ${purchase.amount}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(purchase.purchase_date).toLocaleDateString()}
-                          </p>
+                {/* Email Tab */}
+                <TabsContent value="email" className="p-4 space-y-2 m-0">
+                  {emailMessages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No emails yet
+                    </p>
+                  ) : (
+                    emailMessages.map((email) => (
+                      <div key={email.id} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1 min-w-0">
+                            {email.subject && (
+                              <p className="font-medium text-sm truncate">{email.subject}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(email.sent_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            {email.opened && (
+                              <Badge variant="outline" className="text-xs">Opened</Badge>
+                            )}
+                            {email.replied && (
+                              <Badge variant="outline" className="text-xs">Replied</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="ai" className="space-y-2">
-              {aiMessages.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No AI messages yet
-                </p>
-              ) : (
-                aiMessages.map((message) => (
-                  <Card key={message.id}>
-                    <CardContent className="pt-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant={message.channel === 'email' ? 'default' : 'secondary'}>
-                            {message.channel}
-                          </Badge>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(message.sent_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {message.subject && (
-                          <p className="text-sm font-medium">{message.subject}</p>
-                        )}
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {message.message_body}
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {email.message_body}
                         </p>
-                        <div className="flex gap-2 text-xs">
-                          {message.opened && <Badge variant="outline">Opened</Badge>}
-                          {message.replied && <Badge variant="outline">Replied</Badge>}
-                          {message.converted && <Badge variant="outline">Converted</Badge>}
-                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
+                    ))
+                  )}
+                </TabsContent>
+
+                {/* Timeline Tab */}
+                <TabsContent value="all" className="p-4 space-y-3 m-0">
+                  {allCommunications.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No activity yet
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {allCommunications.map((item, index) => (
+                        <div key={`${item.type}-${index}`}>
+                          {item.type === 'sms' && (
+                            <div className="flex items-start gap-3">
+                              <MessageSquare className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">
+                                  {item.data.direction === 'outbound' ? 'Sent Message' : 'Received Message'}
+                                </p>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {item.data.body}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {item.type === 'ai_message' && (
+                            <div className="flex items-start gap-3">
+                              <Mail className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">
+                                  {item.data.channel === 'email' ? 'Email Sent' : 'SMS Sent'}
+                                </p>
+                                {item.data.subject && (
+                                  <p className="text-sm font-medium">{item.data.subject}</p>
+                                )}
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {item.data.message_body}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {item.type === 'purchase' && (
+                            <div className="flex items-start gap-3">
+                              <ShoppingBag className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">Purchase</p>
+                                <p className="text-sm">{item.data.products?.name || 'Product'}</p>
+                                <p className="text-sm text-primary font-semibold">
+                                  ${item.data.amount}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {new Date(item.timestamp).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {index < allCommunications.length - 1 && (
+                            <Separator className="my-3" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </CardContent>
+            </Tabs>
+          </Card>
 
           {/* Notes */}
           {contact.notes && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-semibold text-sm">Notes</span>
+                </div>
                 <p className="text-sm text-muted-foreground">{contact.notes}</p>
               </CardContent>
             </Card>
