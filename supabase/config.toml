@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.sync-lead-scores]
 verify_jwt = false
+
+[functions.analyze-article]
+verify_jwt = false
+
+[functions.search-news-perplexity]
+verify_jwt = false
+
+[functions.generate-content-script]
+verify_jwt = false

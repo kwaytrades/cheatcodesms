@@ -58,6 +58,10 @@ All colors MUST be HSL.
     --info: 210 100% 50%;
     --purple: 270 50% 60%;
     
+    /* Content Studio Brand Colors */
+    --content-studio-primary: 270 56% 60%;
+    --content-studio-accent: 48 100% 62%;
+    
     /* Status Colors */
     --status-cold: 0 0% 77%;
     --status-warm: 38 100% 62%;
@@ -65,6 +69,18 @@ All colors MUST be HSL.
     --status-customer: 150 100% 39%;
     --status-vip: 270 50% 60%;
     --status-churned: 0 0% 50%;
+    
+    /* Content Studio Status Colors */
+    --content-draft: 0 0% 50%;
+    --content-scripted: 210 100% 50%;
+    --content-recorded: 270 56% 60%;
+    --content-published: 150 100% 39%;
+    
+    /* Content Studio Format Colors */
+    --format-youtube: 0 100% 50%;
+    --format-short: 0 79% 70%;
+    --format-carousel: 210 100% 40%;
+    --format-tiktok: 180 100% 47%;
     
     /* Lead Score Gradient Colors (Blue → Yellow → Orange → Red) */
     --score-cold: 210 100% 50%;
