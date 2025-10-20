@@ -14,6 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_messages: {
+        Row: {
+          ai_prompt: string | null
+          channel: string
+          contact_id: string | null
+          converted: boolean | null
+          converted_at: string | null
+          customer_context: Json | null
+          id: string
+          message_body: string
+          opened: boolean | null
+          opened_at: string | null
+          replied: boolean | null
+          replied_at: string | null
+          sent_at: string | null
+          subject: string | null
+          trigger_id: string | null
+        }
+        Insert: {
+          ai_prompt?: string | null
+          channel: string
+          contact_id?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          customer_context?: Json | null
+          id?: string
+          message_body: string
+          opened?: boolean | null
+          opened_at?: string | null
+          replied?: boolean | null
+          replied_at?: string | null
+          sent_at?: string | null
+          subject?: string | null
+          trigger_id?: string | null
+        }
+        Update: {
+          ai_prompt?: string | null
+          channel?: string
+          contact_id?: string | null
+          converted?: boolean | null
+          converted_at?: string | null
+          customer_context?: Json | null
+          id?: string
+          message_body?: string
+          opened?: boolean | null
+          opened_at?: string | null
+          replied?: boolean | null
+          replied_at?: string | null
+          sent_at?: string | null
+          subject?: string | null
+          trigger_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_messages_trigger_id_fkey"
+            columns: ["trigger_id"]
+            isOneToOne: false
+            referencedRelation: "automation_triggers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_triggers: {
+        Row: {
+          action_config: Json
+          action_type: string
+          condition_config: Json | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          last_fired_at: string | null
+          name: string
+          priority: number | null
+          stats: Json | null
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          action_config: Json
+          action_type: string
+          condition_config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_fired_at?: string | null
+          name: string
+          priority?: number | null
+          stats?: Json | null
+          trigger_config: Json
+          trigger_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          condition_config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_fired_at?: string | null
+          name?: string
+          priority?: number | null
+          stats?: Json | null
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       campaign_messages: {
         Row: {
           campaign_id: string
@@ -186,81 +306,164 @@ export type Database = {
           },
         ]
       }
+      contact_assignments: {
+        Row: {
+          assigned_at: string | null
+          assigned_by: string | null
+          assigned_to: string | null
+          contact_id: string | null
+          id: string
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
+          contact_id?: string | null
+          id?: string
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assigned_to?: string | null
+          contact_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_assignments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
+          account_size: string | null
           ai_profile: Json | null
+          assets_traded: string[] | null
+          avg_response_time: number | null
           created_at: string
           customer_profile: Json | null
           email: string | null
           engagement_score: number | null
           first_name: string | null
           full_name: string
+          goals: string[] | null
           id: string
           last_contact_date: string | null
           last_name: string | null
           lead_score: number | null
+          lead_source: string | null
+          lead_status: string | null
           metadata: Json | null
           monday_board_id: string | null
           monday_board_name: string | null
           monday_item_id: string | null
           notes: string | null
+          objections: string | null
           phone_number: string | null
+          preferred_contact_method: string | null
           products_interested: string[] | null
           products_owned: string[] | null
+          referrer: string | null
+          risk_tolerance: string | null
+          sentiment: string | null
           status: string | null
+          subscription_status: string | null
           synced_at: string | null
           tags: string[] | null
+          time_availability: string | null
+          total_spent: number | null
+          trading_experience: string | null
+          trading_style: string | null
           updated_at: string
+          utm_campaign: string | null
         }
         Insert: {
+          account_size?: string | null
           ai_profile?: Json | null
+          assets_traded?: string[] | null
+          avg_response_time?: number | null
           created_at?: string
           customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
           first_name?: string | null
           full_name: string
+          goals?: string[] | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
           lead_score?: number | null
+          lead_source?: string | null
+          lead_status?: string | null
           metadata?: Json | null
           monday_board_id?: string | null
           monday_board_name?: string | null
           monday_item_id?: string | null
           notes?: string | null
+          objections?: string | null
           phone_number?: string | null
+          preferred_contact_method?: string | null
           products_interested?: string[] | null
           products_owned?: string[] | null
+          referrer?: string | null
+          risk_tolerance?: string | null
+          sentiment?: string | null
           status?: string | null
+          subscription_status?: string | null
           synced_at?: string | null
           tags?: string[] | null
+          time_availability?: string | null
+          total_spent?: number | null
+          trading_experience?: string | null
+          trading_style?: string | null
           updated_at?: string
+          utm_campaign?: string | null
         }
         Update: {
+          account_size?: string | null
           ai_profile?: Json | null
+          assets_traded?: string[] | null
+          avg_response_time?: number | null
           created_at?: string
           customer_profile?: Json | null
           email?: string | null
           engagement_score?: number | null
           first_name?: string | null
           full_name?: string
+          goals?: string[] | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
           lead_score?: number | null
+          lead_source?: string | null
+          lead_status?: string | null
           metadata?: Json | null
           monday_board_id?: string | null
           monday_board_name?: string | null
           monday_item_id?: string | null
           notes?: string | null
+          objections?: string | null
           phone_number?: string | null
+          preferred_contact_method?: string | null
           products_interested?: string[] | null
           products_owned?: string[] | null
+          referrer?: string | null
+          risk_tolerance?: string | null
+          sentiment?: string | null
           status?: string | null
+          subscription_status?: string | null
           synced_at?: string | null
           tags?: string[] | null
+          time_availability?: string | null
+          total_spent?: number | null
+          trading_experience?: string | null
+          trading_style?: string | null
           updated_at?: string
+          utm_campaign?: string | null
         }
         Relationships: []
       }
@@ -388,6 +591,170 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          contact_id: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_read: boolean | null
+          snoozed_until: string | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_read?: boolean | null
+          snoozed_until?: string | null
+          title: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_read?: boolean | null
+          snoozed_until?: string | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price?: number | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number | null
+        }
+        Relationships: []
+      }
+      purchases: {
+        Row: {
+          amount: number
+          contact_id: string | null
+          id: string
+          metadata: Json | null
+          product_id: string | null
+          purchase_date: string | null
+          status: string | null
+          stripe_charge_id: string | null
+        }
+        Insert: {
+          amount: number
+          contact_id?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id?: string | null
+          purchase_date?: string | null
+          status?: string | null
+          stripe_charge_id?: string | null
+        }
+        Update: {
+          amount?: number
+          contact_id?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id?: string | null
+          purchase_date?: string | null
+          status?: string | null
+          stripe_charge_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      segments: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          customer_count: number | null
+          description: string | null
+          filter_config: Json
+          folder: string | null
+          id: string
+          is_dynamic: boolean | null
+          name: string
+          updated_at: string | null
+          visibility: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_count?: number | null
+          description?: string | null
+          filter_config: Json
+          folder?: string | null
+          id?: string
+          is_dynamic?: boolean | null
+          name: string
+          updated_at?: string | null
+          visibility?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_count?: number | null
+          description?: string | null
+          filter_config?: Json
+          folder?: string | null
+          id?: string
+          is_dynamic?: boolean | null
+          name?: string
+          updated_at?: string | null
+          visibility?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -417,6 +784,14 @@ export type Database = {
       binary_quantize: {
         Args: { "": string } | { "": unknown }
         Returns: unknown
+      }
+      calculate_lead_score: {
+        Args: { p_contact_id: string }
+        Returns: number
+      }
+      get_customer_context: {
+        Args: { p_contact_id: string }
+        Returns: Json
       }
       halfvec_avg: {
         Args: { "": number[] }
