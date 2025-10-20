@@ -196,4 +196,35 @@ All colors MUST be HSL.
       hsl(355, 85%, 60%) 100%
     );
   }
+  
+  /* Sentiment gradient (red → yellow → green) for bad to good */
+  .sentiment-gradient {
+    background: linear-gradient(
+      to right,
+      hsl(355, 85%, 60%) 0%,
+      hsl(10, 90%, 60%) 20%,
+      hsl(30, 100%, 55%) 35%,
+      hsl(45, 100%, 55%) 50%,
+      hsl(60, 100%, 50%) 60%,
+      hsl(120, 70%, 45%) 75%,
+      hsl(150, 80%, 40%) 100%
+    );
+  }
+  
+  /* Stage-specific gradients for purchase intent */
+  .stage-cold {
+    background: hsl(210, 100%, 50%);
+  }
+  
+  .stage-warm {
+    background: hsl(30, 100%, 55%);
+  }
+  
+  .stage-hot {
+    background: hsl(355, 85%, 60%);
+  }
+  
+  .stage-ready {
+    background: hsl(150, 80%, 40%);
+  }
 }

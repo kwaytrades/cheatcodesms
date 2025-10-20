@@ -488,7 +488,7 @@ export const ContactAnalytics = () => {
             <div className="text-3xl font-bold" style={{ color: getSentimentColor(metrics.sentimentScore) }}>
               {metrics.sentimentScore}
             </div>
-            <Progress value={metrics.sentimentScore} className="mt-2" useGradient />
+            <Progress value={metrics.sentimentScore} className="mt-2" useSentimentGradient />
           </CardContent>
         </Card>
       </div>
@@ -576,25 +576,35 @@ export const ContactAnalytics = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {purchaseIntent.map((stage, index) => (
-                <div 
-                  key={stage.stage} 
-                  className="space-y-2 cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
-                  onClick={() => handleStageClick(stage)}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{stage.stage}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {stage.count} ({stage.percentage}%)
-                    </span>
+              {purchaseIntent.map((stage, index) => {
+                // Determine stage-specific color class
+                const stageClass = 
+                  stage.stage.toLowerCase().includes('cold') ? 'stage-cold' :
+                  stage.stage.toLowerCase().includes('warm') ? 'stage-warm' :
+                  stage.stage.toLowerCase().includes('hot') ? 'stage-hot' :
+                  stage.stage.toLowerCase().includes('ready') ? 'stage-ready' :
+                  '';
+                
+                return (
+                  <div 
+                    key={stage.stage} 
+                    className="space-y-2 cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
+                    onClick={() => handleStageClick(stage)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{stage.stage}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {stage.count} ({stage.percentage}%)
+                      </span>
+                    </div>
+                    <Progress 
+                      value={stage.percentage} 
+                      className="h-3"
+                      indicatorClassName={stageClass}
+                    />
                   </div>
-                  <Progress 
-                    value={stage.percentage} 
-                    className="h-3"
-                    useGradient
-                  />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
