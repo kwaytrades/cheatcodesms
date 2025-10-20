@@ -30,9 +30,24 @@ serve(async (req) => {
       searchQuery = searchQuery.eq('category', category);
     }
 
-    // Simple text search (case-insensitive)
+    // Improved text search - split query into keywords and search for each
     if (query) {
-      searchQuery = searchQuery.or(`title.ilike.%${query}%,content.ilike.%${query}%`);
+      // Extract keywords (remove common words, split by spaces)
+      const keywords = query
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((word: string) => word.length > 2 && !['the', 'and', 'for', 'what', 'about'].includes(word));
+      
+      console.log('Search keywords:', keywords);
+      
+      if (keywords.length > 0) {
+        // Build OR conditions for each keyword
+        const conditions = keywords
+          .map((keyword: string) => `title.ilike.%${keyword}%,content.ilike.%${keyword}%`)
+          .join(',');
+        searchQuery = searchQuery.or(conditions);
+      }
     }
 
     const { data: results, error } = await searchQuery.limit(5);

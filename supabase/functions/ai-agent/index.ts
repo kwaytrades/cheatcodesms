@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { updateCustomerProfile } from "./update-profile.ts";
 
 const corsHeaders = {
@@ -100,6 +101,52 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
+    // Get conversation and contact information
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    const { data: conversation } = await supabase
+      .from('conversations')
+      .select('contact_id, contact_name')
+      .eq('id', conversationId)
+      .single();
+    
+    let contactInfo = '';
+    if (conversation?.contact_id) {
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('full_name, email, status, products_owned, products_interested, ai_profile, customer_profile')
+        .eq('id', conversation.contact_id)
+        .single();
+      
+      if (contact) {
+        contactInfo = `\n\nCUSTOMER INFORMATION:
+- Name: ${contact.full_name || 'Unknown'}
+- Email: ${contact.email || 'Not provided'}
+- Status: ${contact.status || 'Unknown'}
+- Products Owned: ${contact.products_owned?.join(', ') || 'None'}
+- Products Interested: ${contact.products_interested?.join(', ') || 'None'}`;
+        
+        if (contact.ai_profile) {
+          const profile = contact.ai_profile as any;
+          if (profile.interests?.length) {
+            contactInfo += `\n- Interests: ${profile.interests.join(', ')}`;
+          }
+          if (profile.complaints?.length) {
+            contactInfo += `\n- Past Complaints: ${profile.complaints.join('; ')}`;
+          }
+          if (profile.important_notes?.length) {
+            contactInfo += `\n- Important Notes: ${profile.important_notes.join('; ')}`;
+          }
+        }
+        
+        if (contact.customer_profile) {
+          const profile = contact.customer_profile as any;
+          if (profile.income) contactInfo += `\n- Income Level: ${profile.income}`;
+          if (profile.interest_level) contactInfo += `\n- Interest Level: ${profile.interest_level}`;
+          if (profile.trading_preferences) contactInfo += `\n- Trading Preferences: ${profile.trading_preferences}`;
+        }
+      }
+    }
+
     // Search knowledge base for relevant context
     let knowledgeContext = '';
     try {
@@ -130,7 +177,7 @@ serve(async (req) => {
 
     // Select system prompt based on agent type
     const basePrompt = agentType === 'sales_ai' ? SALES_AGENT_PROMPT : CS_AGENT_PROMPT;
-    const systemPrompt = basePrompt + knowledgeContext;
+    const systemPrompt = basePrompt + contactInfo + knowledgeContext;
 
     // Build conversation context
     const messages = [

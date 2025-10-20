@@ -21,6 +21,9 @@ serve(async (req) => {
     const from = formData.get('From')?.toString() || '';
     const body = formData.get('Body')?.toString() || '';
     const messageSid = formData.get('MessageSid')?.toString() || '';
+    
+    // Normalize phone number for matching (remove spaces and special chars except +)
+    const normalizePhone = (phone: string) => phone.replace(/[\s\-\(\)]/g, '');
 
     console.log('Incoming SMS:', { from, body, messageSid });
 
@@ -30,12 +33,23 @@ serve(async (req) => {
       body.toUpperCase().includes(keyword)
     );
 
-    // Find existing contact by phone number
-    const { data: existingContact } = await supabase
+    // Find existing contact by phone number (try both normalized and original)
+    let { data: existingContact } = await supabase
       .from('contacts')
       .select('*')
       .eq('phone_number', from)
       .maybeSingle();
+    
+    // If not found, try with normalized phone number matching
+    if (!existingContact) {
+      const { data: allContacts } = await supabase
+        .from('contacts')
+        .select('*');
+      
+      existingContact = allContacts?.find(c => 
+        c.phone_number && normalizePhone(c.phone_number) === normalizePhone(from)
+      ) || null;
+    }
 
     // Find or create conversation
     let { data: conversation, error: convError } = await supabase
