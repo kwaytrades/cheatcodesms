@@ -244,13 +244,17 @@ const ContactDetail = () => {
         {/* Right Column - Activity & Messages */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="messages" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="messages">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Messages ({messages.length})
+            <TabsList className="grid w-full grid-cols-3 h-auto">
+              <TabsTrigger value="messages" className="flex-col sm:flex-row gap-1 sm:gap-2 py-2">
+                <MessageSquare className="h-4 w-4" />
+                <span className="text-xs sm:text-sm">Messages ({messages.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="notes">Notes</TabsTrigger>
+              <TabsTrigger value="profile" className="py-2">
+                <span className="text-xs sm:text-sm">Profile</span>
+              </TabsTrigger>
+              <TabsTrigger value="notes" className="py-2">
+                <span className="text-xs sm:text-sm">Notes</span>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="messages" className="space-y-4">
