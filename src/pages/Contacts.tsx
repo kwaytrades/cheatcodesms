@@ -3,17 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Search, RefreshCw, Plus, Trash2, Settings2, Mail, Phone, Download, Upload } from "lucide-react";
+import { Search, Plus, Settings2, Mail, Phone, Filter, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { MondayBoardSettings } from "@/components/MondayBoardSettings";
+import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
+import { SegmentsSidebar } from "@/components/SegmentsSidebar";
+import { BulkActionsToolbar } from "@/components/BulkActionsToolbar";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 
 interface Contact {
@@ -23,16 +22,20 @@ interface Contact {
   last_name: string | null;
   email: string | null;
   phone_number: string | null;
-  status: string | null;
+  lead_status: string | null;
   lead_score: number | null;
-  products_interested: string[] | null;
+  products_owned: string[] | null;
   tags: string[] | null;
   last_contact_date: string | null;
   engagement_score: number;
+  total_spent: number | null;
+  trading_experience: string | null;
+  trading_style: string | null;
+  account_size: string | null;
   created_at: string;
 }
 
-type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'status' | 'lead_score' | 'products_interested' | 'tags' | 'last_contact_date' | 'engagement_score' | 'created_at';
+type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'lead_status' | 'lead_score' | 'products_owned' | 'tags' | 'last_contact_date' | 'total_spent' | 'trading_experience' | 'created_at';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -44,55 +47,45 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'full_name', label: 'Name', visible: true },
   { key: 'email', label: 'Email', visible: true },
   { key: 'phone_number', label: 'Phone', visible: true },
-  { key: 'status', label: 'Status', visible: true },
-  { key: 'lead_score', label: 'Lead Score', visible: false },
-  { key: 'products_interested', label: 'Products Interested', visible: true },
+  { key: 'lead_status', label: 'Status', visible: true },
+  { key: 'lead_score', label: 'Lead Score', visible: true },
+  { key: 'products_owned', label: 'Products Owned', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
-  { key: 'last_contact_date', label: 'Last Contact', visible: true },
-  { key: 'engagement_score', label: 'Engagement', visible: false },
-  { key: 'created_at', label: 'Created', visible: false },
+  { key: 'last_contact_date', label: 'Last Activity', visible: true },
+  { key: 'total_spent', label: 'Lifetime Value', visible: false },
+  { key: 'trading_experience', label: 'Experience', visible: false },
+  { key: 'created_at', label: 'Customer Since', visible: false },
 ];
+
+const STATUS_COLORS: Record<string, string> = {
+  'new': 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  'cold': 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+  'warm': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+  'hot': 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+  'customer': 'bg-success/10 text-success border-success/20',
+  'vip': 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+  'churned': 'bg-destructive/10 text-destructive border-destructive/20',
+};
 
 const Contacts = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncingToMonday, setSyncingToMonday] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [mondayBoardIds, setMondayBoardIds] = useState<string[]>([]);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [newContact, setNewContact] = useState({
-    full_name: '',
-    email: '',
-    phone_number: '',
-    status: 'Lead'
-  });
+  const [filters, setFilters] = useState<FilterCondition[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<any>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadContacts();
-    const stored = localStorage.getItem("monday_board_ids");
-    if (stored) {
-      setMondayBoardIds(stored.split(",").map(id => id.trim()).filter(id => id.length > 0));
-    }
   }, []);
 
   useEffect(() => {
-    if (searchQuery) {
-      const filtered = contacts.filter(contact =>
-        contact.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        contact.phone_number?.includes(searchQuery)
-      );
-      setFilteredContacts(filtered);
-    } else {
-      setFilteredContacts(contacts);
-    }
-  }, [searchQuery, contacts]);
+    applyFiltersAndSearch();
+  }, [searchQuery, contacts, filters, selectedSegment]);
 
   const loadContacts = async () => {
     try {
@@ -103,7 +96,6 @@ const Contacts = () => {
 
       if (error) throw error;
       setContacts(data || []);
-      setFilteredContacts(data || []);
     } catch (error) {
       console.error("Error loading contacts:", error);
       toast.error("Failed to load contacts");
@@ -112,152 +104,68 @@ const Contacts = () => {
     }
   };
 
-  const handleSync = async () => {
-    if (mondayBoardIds.length === 0) {
-      toast.error("Please configure Monday board IDs first");
-      return;
+  const applyFiltersAndSearch = () => {
+    let filtered = [...contacts];
+
+    // Apply search
+    if (searchQuery) {
+      filtered = filtered.filter(contact =>
+        contact.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contact.phone_number?.includes(searchQuery)
+      );
     }
 
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sync-contacts', {
-        body: { boardIds: mondayBoardIds }
+    // Apply filters from FilterBuilder
+    if (filters.length > 0) {
+      filtered = filtered.filter(contact => {
+        return filters.every(filter => {
+          const value = contact[filter.field as keyof Contact];
+          
+          switch (filter.operator) {
+            case 'contains':
+              return String(value || '').toLowerCase().includes(String(filter.value).toLowerCase());
+            case 'equals':
+              return value === filter.value;
+            case 'greater':
+              return Number(value) > Number(filter.value);
+            case 'less':
+              return Number(value) < Number(filter.value);
+            case 'includes':
+              return Array.isArray(value) && value.some(v => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
+            default:
+              return true;
+          }
+        });
       });
-
-      if (error) throw error;
-
-      toast.success(`Synced ${data.total} contacts from Monday.com`);
-      await loadContacts();
-    } catch (error: any) {
-      if (error.message?.includes('MONDAY_API_KEY')) {
-        toast.error("Monday.com API key not configured. Please add it in backend settings.");
-      } else {
-        toast.error("Failed to sync contacts");
-      }
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleSyncToMonday = async () => {
-    if (selectedContacts.size === 0) {
-      toast.error("Please select contacts to sync");
-      return;
     }
 
-    setSyncingToMonday(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('sync-to-monday', {
-        body: { contactIds: Array.from(selectedContacts) }
+    // Apply segment filters
+    if (selectedSegment?.filter_config?.filters) {
+      const segmentFilters = selectedSegment.filter_config.filters;
+      filtered = filtered.filter(contact => {
+        return segmentFilters.every((filter: any) => {
+          const value = contact[filter.field as keyof Contact];
+          
+          switch (filter.operator) {
+            case 'equals':
+              return value === filter.value;
+            case 'greater':
+              return Number(value) > Number(filter.value);
+            case 'within_days':
+              if (!contact.created_at && !contact.last_contact_date) return false;
+              const date = new Date(contact.last_contact_date || contact.created_at);
+              const now = new Date();
+              const daysDiff = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+              return daysDiff <= Number(filter.value);
+            default:
+              return true;
+          }
+        });
       });
-
-      if (error) throw error;
-
-      toast.success(`Synced ${data.successCount} of ${data.total} contacts to Monday.com`);
-      if (data.failCount > 0) {
-        toast.error(`${data.failCount} contacts failed to sync`);
-      }
-      setSelectedContacts(new Set());
-    } catch (error: any) {
-      if (error.message?.includes('MONDAY_API_KEY')) {
-        toast.error("Monday.com API key not configured");
-      } else {
-        toast.error("Failed to sync to Monday.com");
-      }
-    } finally {
-      setSyncingToMonday(false);
     }
-  };
 
-  const handleExportCSV = async () => {
-    setExporting(true);
-    try {
-      // Fetch all contacts with complete data
-      const { data: allContacts, error } = await supabase
-        .from("contacts")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Prepare CSV headers
-      const headers = [
-        'Full Name', 'First Name', 'Last Name', 'Email', 'Phone Number',
-        'Status', 'Lead Score', 'Engagement Score',
-        'Products Interested', 'Products Owned', 'Tags',
-        'AI Interests', 'AI Complaints', 'AI Preferences', 'AI Important Notes',
-        'Customer Income Level', 'Customer Interest Level',
-        'Last Contact Date', 'Created At', 'Synced At',
-        'Monday Item ID', 'Monday Board ID', 'Monday Board Name',
-        'Notes'
-      ];
-
-      // Convert contacts to CSV rows
-      const rows = allContacts?.map((contact: any) => {
-        const aiProfile = contact.ai_profile || {};
-        const customerProfile = contact.customer_profile || {};
-
-        return [
-          contact.full_name || '',
-          contact.first_name || '',
-          contact.last_name || '',
-          contact.email || '',
-          contact.phone_number || '',
-          contact.status || '',
-          contact.lead_score ?? '',
-          contact.engagement_score ?? '',
-          Array.isArray(contact.products_interested) ? contact.products_interested.join(', ') : '',
-          Array.isArray(contact.products_owned) ? contact.products_owned.join(', ') : '',
-          Array.isArray(contact.tags) ? contact.tags.join(', ') : '',
-          Array.isArray(aiProfile.interests) ? aiProfile.interests.join(', ') : '',
-          Array.isArray(aiProfile.complaints) ? aiProfile.complaints.join(' | ') : '',
-          aiProfile.preferences ? JSON.stringify(aiProfile.preferences) : '',
-          Array.isArray(aiProfile.important_notes) ? aiProfile.important_notes.join(' | ') : '',
-          customerProfile.income_level || '',
-          customerProfile.interest_level || '',
-          contact.last_contact_date || '',
-          contact.created_at || '',
-          contact.synced_at || '',
-          contact.monday_item_id || '',
-          contact.monday_board_id || '',
-          contact.monday_board_name || '',
-          contact.notes || ''
-        ].map(value => `"${String(value).replace(/"/g, '""')}"`); // Escape quotes
-      }) || [];
-
-      // Combine headers and rows
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-      ].join('\n');
-
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `contacts_export_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success(`Exported ${allContacts?.length || 0} contacts to CSV`);
-    } catch (error) {
-      console.error("Error exporting CSV:", error);
-      toast.error("Failed to export contacts");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map(n => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    setFilteredContacts(filtered);
   };
 
   const handleSelectAll = () => {
@@ -298,26 +206,61 @@ const Contacts = () => {
     }
   };
 
-  const handleAddContact = async () => {
-    if (!newContact.full_name.trim()) {
-      toast.error("Name is required");
-      return;
-    }
-
+  const handleExportCSV = async () => {
     try {
+      const contactsToExport = selectedContacts.size > 0 
+        ? filteredContacts.filter(c => selectedContacts.has(c.id))
+        : filteredContacts;
+
+      const headers = ['Name', 'Email', 'Phone', 'Status', 'Lead Score', 'Total Spent', 'Created'];
+      const rows = contactsToExport.map(contact => [
+        contact.full_name || '',
+        contact.email || '',
+        contact.phone_number || '',
+        contact.lead_status || '',
+        contact.lead_score ?? '',
+        contact.total_spent ?? '',
+        contact.created_at ? format(new Date(contact.created_at), 'yyyy-MM-dd') : ''
+      ].map(value => `"${String(value).replace(/"/g, '""')}"`));
+
+      const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `contacts_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success(`Exported ${contactsToExport.length} contacts`);
+    } catch (error) {
+      console.error("Error exporting:", error);
+      toast.error("Failed to export contacts");
+    }
+  };
+
+  const handleSaveSegment = async (name: string, description: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { error } = await supabase
-        .from('contacts')
-        .insert([newContact]);
+        .from('segments')
+        .insert([{
+          name,
+          description,
+          filter_config: { filters } as any,
+          created_by: user.id,
+          customer_count: filteredContacts.length
+        }]);
 
       if (error) throw error;
-
-      toast.success("Contact added successfully");
-      setIsAddDialogOpen(false);
-      setNewContact({ full_name: '', email: '', phone_number: '', status: 'Lead' });
-      await loadContacts();
+      toast.success('Segment saved successfully');
     } catch (error) {
-      console.error("Error adding contact:", error);
-      toast.error("Failed to add contact");
+      console.error('Error saving segment:', error);
+      toast.error('Failed to save segment');
     }
   };
 
@@ -325,6 +268,13 @@ const Contacts = () => {
     setColumns(columns.map(col => 
       col.key === key ? { ...col, visible: !col.visible } : col
     ));
+  };
+
+  const getScoreColor = (score: number | null) => {
+    if (!score) return 'bg-gray-500/10 text-gray-500';
+    if (score >= 80) return 'bg-success/10 text-success';
+    if (score >= 50) return 'bg-yellow-500/10 text-yellow-500';
+    return 'bg-orange-500/10 text-orange-500';
   };
 
   const renderCellContent = (contact: Contact, columnKey: ColumnKey) => {
@@ -345,18 +295,29 @@ const Contacts = () => {
             <span>{contact.phone_number}</span>
           </div>
         ) : '-';
-      case 'status':
-        return contact.status ? <Badge variant="outline">{contact.status}</Badge> : '-';
+      case 'lead_status':
+        return contact.lead_status ? (
+          <Badge className={STATUS_COLORS[contact.lead_status] || 'bg-muted'}>
+            {contact.lead_status}
+          </Badge>
+        ) : '-';
       case 'lead_score':
-        return contact.lead_score ?? '-';
-      case 'products_interested':
-        return contact.products_interested && contact.products_interested.length > 0 ? (
+        return contact.lead_score !== null ? (
+          <div className="flex items-center gap-2">
+            <Badge className={getScoreColor(contact.lead_score)}>
+              {contact.lead_score}
+            </Badge>
+            <TrendingUp className="h-3 w-3 text-muted-foreground" />
+          </div>
+        ) : '-';
+      case 'products_owned':
+        return contact.products_owned && contact.products_owned.length > 0 ? (
           <div className="flex gap-1 flex-wrap">
-            {contact.products_interested.slice(0, 2).map((product, idx) => (
+            {contact.products_owned.slice(0, 2).map((product, idx) => (
               <Badge key={idx} variant="secondary" className="text-xs">{product}</Badge>
             ))}
-            {contact.products_interested.length > 2 && (
-              <Badge variant="secondary" className="text-xs">+{contact.products_interested.length - 2}</Badge>
+            {contact.products_owned.length > 2 && (
+              <Badge variant="secondary" className="text-xs">+{contact.products_owned.length - 2}</Badge>
             )}
           </div>
         ) : '-';
@@ -370,8 +331,12 @@ const Contacts = () => {
         ) : '-';
       case 'last_contact_date':
         return contact.last_contact_date ? format(new Date(contact.last_contact_date), 'MMM d, yyyy') : '-';
-      case 'engagement_score':
-        return contact.engagement_score;
+      case 'total_spent':
+        return contact.total_spent ? `$${contact.total_spent.toFixed(2)}` : '-';
+      case 'trading_experience':
+        return contact.trading_experience ? (
+          <Badge variant="outline" className="text-xs capitalize">{contact.trading_experience}</Badge>
+        ) : '-';
       case 'created_at':
         return format(new Date(contact.created_at), 'MMM d, yyyy');
       default:
@@ -390,26 +355,38 @@ const Contacts = () => {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b bg-background p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
-            <p className="text-sm text-muted-foreground">Manage your customer relationships</p>
-          </div>
-          <div className="flex gap-2">
-            <ImportContactsDialog onImportComplete={loadContacts} />
-            <MondayBoardSettings onBoardsChanged={setMondayBoardIds} />
-            <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm">
-              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </div>
+    <div className="flex h-full">
+      {/* Segments Sidebar */}
+      <SegmentsSidebar 
+        onSegmentSelect={(segment) => {
+          setSelectedSegment(segment);
+          if (segment) setFilters([]);
+        }}
+        selectedSegmentId={selectedSegment?.id || null}
+      />
 
-        {/* Toolbar */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 flex-1">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="border-b bg-background p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
+              <p className="text-sm text-muted-foreground">
+                {selectedSegment ? selectedSegment.name : 'All contacts'} • {filteredContacts.length} total
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <ImportContactsDialog onImportComplete={loadContacts} />
+              <Button onClick={() => navigate('/contacts/new')} size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add Contact
+              </Button>
+            </div>
+          </div>
+
+          {/* Toolbar */}
+          <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -419,45 +396,15 @@ const Contacts = () => {
                 className="pl-9 h-9"
               />
             </div>
-            
-            {selectedContacts.size > 0 && (
-              <>
-                <span className="text-sm text-muted-foreground">
-                  {selectedContacts.size} selected
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleSyncToMonday}
-                  disabled={syncingToMonday}
-                  className="gap-2"
-                >
-                  <Upload className={`h-4 w-4 ${syncingToMonday ? 'animate-pulse' : ''}`} />
-                  Sync to Monday
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  onClick={handleDeleteSelected}
-                  className="gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              </>
-            )}
-          </div>
 
-          <div className="flex items-center gap-2">
             <Button 
-              variant="outline" 
+              variant={showFilters ? "default" : "outline"} 
               size="sm" 
-              onClick={handleExportCSV}
-              disabled={exporting}
+              onClick={() => setShowFilters(!showFilters)}
               className="gap-2"
             >
-              <Download className={`h-4 w-4 ${exporting ? 'animate-pulse' : ''}`} />
-              Export CSV
+              <Filter className="h-4 w-4" />
+              Filters {filters.length > 0 && `(${filters.length})`}
             </Button>
 
             <Popover>
@@ -477,10 +424,7 @@ const Contacts = () => {
                         checked={column.visible}
                         onCheckedChange={() => toggleColumn(column.key)}
                       />
-                      <label
-                        htmlFor={column.key}
-                        className="text-sm cursor-pointer flex-1"
-                      >
+                      <label htmlFor={column.key} className="text-sm cursor-pointer flex-1">
                         {column.label}
                       </label>
                     </div>
@@ -488,105 +432,51 @@ const Contacts = () => {
                 </div>
               </PopoverContent>
             </Popover>
-
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Contact
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Contact</DialogTitle>
-                  <DialogDescription>
-                    Create a new contact manually
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name *</Label>
-                    <Input
-                      id="name"
-                      value={newContact.full_name}
-                      onChange={(e) => setNewContact({ ...newContact, full_name: e.target.value })}
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newContact.email}
-                      onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newContact.phone_number}
-                      onChange={(e) => setNewContact({ ...newContact, phone_number: e.target.value })}
-                      placeholder="+1234567890"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Input
-                      id="status"
-                      value={newContact.status}
-                      onChange={(e) => setNewContact({ ...newContact, status: e.target.value })}
-                      placeholder="Lead"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddContact}>Add Contact</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
+
+          {/* Filter Builder */}
+          {showFilters && (
+            <div className="mt-4">
+              <FilterBuilder 
+                filters={filters} 
+                onFiltersChange={setFilters}
+                onSave={handleSaveSegment}
+              />
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">
-            Loading contacts...
-          </div>
-        ) : filteredContacts.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="text-muted-foreground mb-2">No contacts found</div>
-            <p className="text-sm text-muted-foreground">
-              {searchQuery ? 'Try adjusting your search' : 'Click "Sync from Monday" or "Add Contact" to get started'}
-            </p>
-          </div>
-        ) : (
+        {/* Bulk Actions Toolbar */}
+        <BulkActionsToolbar
+          selectedCount={selectedContacts.size}
+          onSendSMS={() => toast.info('SMS feature coming soon')}
+          onSendEmail={() => toast.info('Email feature coming soon')}
+          onAddTags={() => toast.info('Tags feature coming soon')}
+          onExport={handleExportCSV}
+          onDelete={handleDeleteSelected}
+        />
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 bg-background">
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={selectedContacts.size === filteredContacts.length}
+                    checked={selectedContacts.size === filteredContacts.length && filteredContacts.length > 0}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
-                {visibleColumns.map((column) => (
-                  <TableHead key={column.key}>{column.label}</TableHead>
+                {visibleColumns.map((col) => (
+                  <TableHead key={col.key}>{col.label}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredContacts.map((contact) => (
-                <TableRow
-                  key={contact.id}
-                  className="cursor-pointer"
+                <TableRow 
+                  key={contact.id} 
+                  className="cursor-pointer hover:bg-muted/50"
                   onClick={() => navigate(`/contacts/${contact.id}`)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -595,16 +485,23 @@ const Contacts = () => {
                       onCheckedChange={() => handleSelectContact(contact.id)}
                     />
                   </TableCell>
-                  {visibleColumns.map((column) => (
-                    <TableCell key={column.key}>
-                      {renderCellContent(contact, column.key)}
+                  {visibleColumns.map((col) => (
+                    <TableCell key={col.key}>
+                      {renderCellContent(contact, col.key)}
                     </TableCell>
                   ))}
                 </TableRow>
               ))}
+              {filteredContacts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8 text-muted-foreground">
+                    No contacts found. Try adjusting your filters.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
-        )}
+        </div>
       </div>
     </div>
   );
