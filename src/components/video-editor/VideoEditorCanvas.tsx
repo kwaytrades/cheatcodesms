@@ -13,7 +13,8 @@ interface VideoEditorCanvasProps {
 
 export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPlayingChange }: VideoEditorCanvasProps) => {
   const playerRef = useRef<ReactPlayer>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isMountedRef = useRef(false);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
@@ -43,14 +44,22 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
     return nextClips[0] || null;
   };
 
-  // Initialize fabric canvas for overlays - ONLY ONCE on mount
+  // Initialize fabric canvas imperatively - ONLY ONCE on mount
   useLayoutEffect(() => {
-    // Only initialize once when component mounts
-    if (fabricCanvas || !canvasRef.current) return;
+    if (fabricCanvas || !canvasContainerRef.current) return;
     
     isMountedRef.current = true;
 
-    // Use double requestAnimationFrame to ensure React has fully committed the DOM
+    // Create canvas element imperatively to avoid React reconciliation issues
+    const canvasElement = document.createElement('canvas');
+    canvasElement.className = 'absolute top-0 left-0 pointer-events-none w-full h-full';
+    canvasElement.style.mixBlendMode = 'normal';
+    canvasElement.style.zIndex = '10';
+    
+    canvasRef.current = canvasElement;
+    canvasContainerRef.current.appendChild(canvasElement);
+
+    // Use double requestAnimationFrame to ensure DOM is ready
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (!canvasRef.current || !isMountedRef.current || fabricCanvas) return;
@@ -74,12 +83,8 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
     return () => {
       isMountedRef.current = false;
-    };
-  }, []); // Empty deps - only run once
-  
-  // Cleanup canvas on unmount
-  useEffect(() => {
-    return () => {
+      
+      // Clean up imperatively created canvas
       if (fabricCanvas) {
         try {
           fabricCanvas.dispose();
@@ -87,8 +92,18 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           console.error('Error disposing canvas:', error);
         }
       }
+      
+      if (canvasRef.current && canvasContainerRef.current) {
+        try {
+          canvasContainerRef.current.removeChild(canvasRef.current);
+        } catch (error) {
+          console.error('Error removing canvas element:', error);
+        }
+      }
+      
+      canvasRef.current = null;
     };
-  }, [fabricCanvas]);
+  }, []); // Empty deps - only run once
 
   // Update canvas dimensions imperatively when canvas size changes
   useEffect(() => {
@@ -395,12 +410,8 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           })
         }
         
-        {/* Text and Sticker Canvas Overlay */}
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0 pointer-events-none w-full h-full"
-          style={{ mixBlendMode: 'normal', zIndex: 10 }}
-        />
+        {/* Text and Sticker Canvas Overlay - canvas created imperatively */}
+        <div ref={canvasContainerRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
       </div>
     </div>
   );
