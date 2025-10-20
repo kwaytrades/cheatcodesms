@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, TrendingUp, Activity, Gauge, ArrowUp, ArrowDown } from "lucide-react";
+import { Users, TrendingUp, Activity, Gauge, ArrowUp, ArrowDown, X } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, Tooltip } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface ContactMetrics {
   totalContacts: number;
@@ -50,9 +52,20 @@ interface EngagementChannel {
 }
 
 interface HeatmapData {
-  day: string;
-  hour: number;
-  value: number;
+  product: string;
+  interested: number;
+  purchased: number;
+}
+
+interface CustomersByStage {
+  stage: string;
+  customers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    leadScore: number;
+  }>;
 }
 
 export const ContactAnalytics = () => {
@@ -71,6 +84,8 @@ export const ContactAnalytics = () => {
   const [engagementChannels, setEngagementChannels] = useState<EngagementChannel[]>([]);
   const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStage, setSelectedStage] = useState<CustomersByStage | null>(null);
+  const [allContacts, setAllContacts] = useState<any[]>([]);
 
   useEffect(() => {
     loadContactAnalytics();
@@ -83,6 +98,7 @@ export const ContactAnalytics = () => {
 
       // Fetch contacts
       const { data: contacts } = await supabase.from("contacts").select("*");
+      setAllContacts(contacts || []);
       
       // Fetch recent messages for activity
       const { data: recentMessages } = await supabase
@@ -217,25 +233,29 @@ export const ContactAnalytics = () => {
         },
       ]);
 
-      // Heatmap: activity by day and hour
-      const heatmap: HeatmapData[] = [];
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      // Product heatmap: interest and purchases
+      const { data: products } = await supabase.from("products").select("*");
+      const { data: purchases } = await supabase.from("purchases").select("*");
       
-      for (let day = 0; day < 7; day++) {
-        for (let hour = 0; hour < 24; hour++) {
-          const dayMessages = recentMessages?.filter((m: any) => {
-            const date = new Date(m.created_at);
-            return date.getDay() === (day + 1) % 7 && date.getHours() === hour;
-          }).length || 0;
-          
-          heatmap.push({
-            day: days[day],
-            hour,
-            value: dayMessages,
-          });
-        }
-      }
-      setHeatmapData(heatmap);
+      const productHeatmap: HeatmapData[] = [];
+      
+      products?.forEach((product: any) => {
+        // Count interested customers (those who have product in products_interested)
+        const interested = contacts?.filter((c: any) => 
+          c.products_interested?.includes(product.name)
+        ).length || 0;
+        
+        // Count purchases
+        const purchased = purchases?.filter((p: any) => p.product_id === product.id).length || 0;
+        
+        productHeatmap.push({
+          product: product.name,
+          interested,
+          purchased,
+        });
+      });
+      
+      setHeatmapData(productHeatmap);
 
     } catch (error) {
       console.error("Error loading contact analytics:", error);
@@ -263,6 +283,31 @@ export const ContactAnalytics = () => {
     return date.toLocaleDateString();
   };
 
+  const handleStageClick = (stage: PurchaseIntent) => {
+    let customers: any[] = [];
+    
+    if (stage.stage === 'Cold') {
+      customers = allContacts.filter((c: any) => !c.lead_score || c.lead_score < 25);
+    } else if (stage.stage === 'Warm') {
+      customers = allContacts.filter((c: any) => c.lead_score >= 25 && c.lead_score < 50);
+    } else if (stage.stage === 'Hot') {
+      customers = allContacts.filter((c: any) => c.lead_score >= 50 && c.lead_score < 75);
+    } else if (stage.stage === 'Ready to Buy') {
+      customers = allContacts.filter((c: any) => c.lead_score >= 75);
+    }
+
+    setSelectedStage({
+      stage: stage.stage,
+      customers: customers.map((c: any) => ({
+        id: c.id,
+        name: c.full_name || 'Unknown',
+        email: c.email || 'No email',
+        phone: c.phone_number || 'No phone',
+        leadScore: c.lead_score || 0,
+      })),
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -283,7 +328,59 @@ export const ContactAnalytics = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <Dialog open={!!selectedStage} onOpenChange={() => setSelectedStage(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedStage?.stage} Customers ({selectedStage?.customers.length})
+            </DialogTitle>
+            <DialogDescription>
+              Customers in the {selectedStage?.stage.toLowerCase()} stage of the purchase funnel
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead className="text-right">Lead Score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedStage?.customers.map((customer) => (
+                  <TableRow 
+                    key={customer.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      setSelectedStage(null);
+                      navigate(`/contacts/${customer.id}`);
+                    }}
+                  >
+                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{customer.email}</TableCell>
+                    <TableCell className="text-muted-foreground">{customer.phone}</TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline">{customer.leadScore}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(!selectedStage?.customers || selectedStage.customers.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      No customers in this stage
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="space-y-6">
       {/* Top Row - Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-border/50 hover:border-primary/50 transition-colors">
@@ -411,7 +508,11 @@ export const ContactAnalytics = () => {
           <CardContent>
             <div className="space-y-4">
               {purchaseIntent.map((stage, index) => (
-                <div key={stage.stage} className="space-y-2">
+                <div 
+                  key={stage.stage} 
+                  className="space-y-2 cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
+                  onClick={() => handleStageClick(stage)}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{stage.stage}</span>
                     <span className="text-sm text-muted-foreground">
@@ -487,18 +588,39 @@ export const ContactAnalytics = () => {
         </Card>
       </div>
 
-      {/* Fourth Row - Activity Heatmap */}
+      {/* Fourth Row - Product Interest Heatmap */}
       <Card className="border-border/50">
         <CardHeader>
-          <CardTitle>Customer Activity Heatmap</CardTitle>
-          <CardDescription>Best times to engage with customers (darker = more active)</CardDescription>
+          <CardTitle>Product Interest & Purchases</CardTitle>
+          <CardDescription>Which products customers are interested in and buying</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-sm text-muted-foreground text-center py-8">
-            Heatmap visualization coming soon - showing activity patterns by day and hour
-          </div>
+          {heatmapData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={heatmapData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis 
+                  type="category" 
+                  dataKey="product" 
+                  stroke="hsl(var(--muted-foreground))" 
+                  fontSize={12}
+                  width={150}
+                />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }} />
+                <Legend />
+                <Bar dataKey="interested" fill="hsl(var(--warning))" name="Interested" />
+                <Bar dataKey="purchased" fill="hsl(var(--chart-1))" name="Purchased" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[400px] text-muted-foreground">
+              No product data available
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </>
   );
 };
