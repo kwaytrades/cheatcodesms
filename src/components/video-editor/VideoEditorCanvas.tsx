@@ -302,94 +302,85 @@ export const VideoEditorCanvas = ({
               });
           }
 
-          // Collect all overlay clips that should be visible
-          const overlayClips = project.tracks
+          // Render interactive image and video overlays on canvas
+          project.tracks
             .filter(t => t.type === 'image' || (t.type === 'video' && t.id !== 'video-1'))
-            .flatMap(track => track.clips)
-            .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end);
+            .forEach(track => {
+              track.clips
+                .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+                .forEach((clip) => {
+                  if (clip.type === 'image' && clip.sourceUrl && isMountedRef.current) {
+                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+                    
+                    FabricImage.fromURL(clip.sourceUrl, {
+                      crossOrigin: 'anonymous'
+                    }).then((img) => {
+                      if (!isMountedRef.current || !fabricCanvas) return;
 
-          // Render interactive image overlays on canvas
-          const imagePromises = overlayClips
-            .filter(clip => clip.type === 'image' && clip.sourceUrl)
-            .map((clip) => {
-              const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
-              
-              return FabricImage.fromURL(clip.sourceUrl!, {
-                crossOrigin: 'anonymous'
-              }).then((img) => {
-                if (!isMountedRef.current || !fabricCanvas) return null;
+                      const canvasWidth = fabricCanvas.width!;
+                      const canvasHeight = fabricCanvas.height!;
+                      
+                      const targetWidth = (position.width / 100) * canvasWidth;
+                      const targetHeight = (position.height / 100) * canvasHeight;
+                      
+                      img.set({
+                        left: (position.x / 100) * canvasWidth,
+                        top: (position.y / 100) * canvasHeight,
+                        scaleX: targetWidth / img.width!,
+                        scaleY: targetHeight / img.height!,
+                        selectable: true,
+                        hasControls: true,
+                        hasBorders: true,
+                        lockRotation: false,
+                        borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                        borderScaleFactor: 2,
+                        cornerColor: '#3b82f6',
+                        cornerStrokeColor: '#ffffff',
+                        transparentCorners: false,
+                      });
 
-                const canvasWidth = fabricCanvas.width!;
-                const canvasHeight = fabricCanvas.height!;
-                
-                const targetWidth = (position.width / 100) * canvasWidth;
-                const targetHeight = (position.height / 100) * canvasHeight;
-                
-                img.set({
-                  left: (position.x / 100) * canvasWidth,
-                  top: (position.y / 100) * canvasHeight,
-                  scaleX: targetWidth / img.width!,
-                  scaleY: targetHeight / img.height!,
-                  selectable: true,
-                  hasControls: true,
-                  hasBorders: true,
-                  lockRotation: false,
-                  borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                  cornerColor: '#3b82f6',
-                  cornerStrokeColor: '#ffffff',
-                  transparentCorners: false,
-                  borderScaleFactor: 2,
+                      (img as any).data = { clipId: clip.id };
+                      
+                      fabricCanvas.add(img);
+                      interactiveObjectsRef.current.set(clip.id, img);
+                      fabricCanvas.renderAll();
+                    }).catch(err => {
+                      console.error('Error loading image:', err);
+                    });
+                  } else if (clip.type === 'video' && isMountedRef.current) {
+                    // For video overlays, add a transparent rectangle as interaction placeholder
+                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+                    
+                    const rect = new FabricRect({
+                      left: (position.x / 100) * fabricCanvas.width!,
+                      top: (position.y / 100) * fabricCanvas.height!,
+                      width: (position.width / 100) * fabricCanvas.width!,
+                      height: (position.height / 100) * fabricCanvas.height!,
+                      fill: 'rgba(59, 130, 246, 0.1)',
+                      stroke: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                      strokeWidth: 2,
+                      selectable: true,
+                      hasControls: true,
+                      hasBorders: true,
+                      lockRotation: false,
+                      borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                      borderScaleFactor: 2,
+                      cornerColor: '#3b82f6',
+                      cornerStrokeColor: '#ffffff',
+                      transparentCorners: false,
+                    });
+
+                    (rect as any).data = { clipId: clip.id };
+                    
+                    fabricCanvas.add(rect);
+                    interactiveObjectsRef.current.set(clip.id, rect);
+                  }
                 });
-
-                (img as any).data = { clipId: clip.id };
-                
-                fabricCanvas.add(img);
-                interactiveObjectsRef.current.set(clip.id, img);
-                return img;
-              }).catch(err => {
-                console.error('Error loading image:', clip.sourceUrl, err);
-                return null;
-              });
             });
 
-          // Wait for all images to load, then add video overlay rectangles
-          Promise.all(imagePromises).then(() => {
-            if (!isMountedRef.current || !fabricCanvas) return;
-
-            overlayClips
-              .filter(clip => clip.type === 'video')
-              .forEach((clip) => {
-                const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
-                
-                const rect = new FabricRect({
-                  left: (position.x / 100) * fabricCanvas.width!,
-                  top: (position.y / 100) * fabricCanvas.height!,
-                  width: (position.width / 100) * fabricCanvas.width!,
-                  height: (position.height / 100) * fabricCanvas.height!,
-                  fill: 'rgba(59, 130, 246, 0.1)',
-                  stroke: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                  strokeWidth: 2,
-                  selectable: true,
-                  hasControls: true,
-                  hasBorders: true,
-                  lockRotation: false,
-                  borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
-                  cornerColor: '#3b82f6',
-                  cornerStrokeColor: '#ffffff',
-                  transparentCorners: false,
-                  borderScaleFactor: 2,
-                });
-
-                (rect as any).data = { clipId: clip.id };
-                
-                fabricCanvas.add(rect);
-                interactiveObjectsRef.current.set(clip.id, rect);
-              });
-
-            if (isMountedRef.current) {
-              fabricCanvas.renderAll();
-            }
-          });
+          if (isMountedRef.current) {
+            fabricCanvas.renderAll();
+          }
 
           if (isMountedRef.current) {
             fabricCanvas.renderAll();
