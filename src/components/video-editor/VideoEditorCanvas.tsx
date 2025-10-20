@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import ReactPlayer from "react-player";
-import { Canvas as FabricCanvas, Text as FabricText } from "fabric";
+import { Canvas as FabricCanvas, Text as FabricText, Image as FabricImage, Rect as FabricRect, FabricObject } from "fabric";
 import { VideoProject, TimelineClip } from "@/pages/content-studio/VideoEditor";
 import { Button } from "@/components/ui/button";
 
@@ -9,15 +9,25 @@ interface VideoEditorCanvasProps {
   selectedClipId: string | null;
   onTimeUpdate: (time: number) => void;
   onPlayingChange: (playing: boolean) => void;
+  onProjectUpdate: (updates: Partial<VideoProject>) => void;
+  onClipSelect: (clipId: string | null) => void;
 }
 
-export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPlayingChange }: VideoEditorCanvasProps) => {
+export const VideoEditorCanvas = ({ 
+  project, 
+  selectedClipId, 
+  onTimeUpdate, 
+  onPlayingChange,
+  onProjectUpdate,
+  onClipSelect,
+}: VideoEditorCanvasProps) => {
   const playerRef = useRef<ReactPlayer>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isMountedRef = useRef(false);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const interactiveObjectsRef = useRef<Map<string, any>>(new Map());
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get active video clip from video-1 track to determine what should be playing
@@ -42,6 +52,66 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
       .sort((a, b) => a.start - b.start);
     
     return nextClips[0] || null;
+  };
+
+  // Handle fabric object moving
+  const handleObjectMoving = (e: any) => {
+    const obj = e.target;
+    const clipId = obj.data?.clipId;
+    if (!clipId || !fabricCanvas) return;
+
+    const xPercent = (obj.left / fabricCanvas.width!) * 100;
+    const yPercent = (obj.top / fabricCanvas.height!) * 100;
+
+    updateClipPosition(clipId, xPercent, yPercent, undefined, undefined);
+  };
+
+  // Handle fabric object scaling
+  const handleObjectScaling = (e: any) => {
+    const obj = e.target;
+    const clipId = obj.data?.clipId;
+    if (!clipId || !fabricCanvas) return;
+
+    const widthPercent = ((obj.width! * obj.scaleX!) / fabricCanvas.width!) * 100;
+    const heightPercent = ((obj.height! * obj.scaleY!) / fabricCanvas.height!) * 100;
+    const xPercent = (obj.left / fabricCanvas.width!) * 100;
+    const yPercent = (obj.top / fabricCanvas.height!) * 100;
+
+    updateClipPosition(clipId, xPercent, yPercent, widthPercent, heightPercent);
+  };
+
+  // Handle object selection
+  const handleObjectSelected = (e: any) => {
+    const obj = e.selected?.[0];
+    if (obj?.data?.clipId) {
+      onClipSelect(obj.data.clipId);
+    }
+  };
+
+  // Update clip position in project
+  const updateClipPosition = (clipId: string, x: number, y: number, width?: number, height?: number) => {
+    const updatedTracks = project.tracks.map(track => ({
+      ...track,
+      clips: track.clips.map(clip => {
+        if (clip.id === clipId && clip.content?.position) {
+          return {
+            ...clip,
+            content: {
+              ...clip.content,
+              position: {
+                x: Math.round(x * 10) / 10,
+                y: Math.round(y * 10) / 10,
+                width: width !== undefined ? Math.round(width * 10) / 10 : clip.content.position.width,
+                height: height !== undefined ? Math.round(height * 10) / 10 : clip.content.position.height,
+              }
+            }
+          };
+        }
+        return clip;
+      })
+    }));
+
+    onProjectUpdate({ tracks: updatedTracks });
   };
 
   // Initialize fabric canvas imperatively - ONLY ONCE on mount
@@ -69,9 +139,15 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
             width: 1920,
             height: 1080,
             backgroundColor: 'transparent',
-            selection: false,
+            selection: true,
             renderOnAddRemove: false,
           });
+
+          // Add event handlers for interactive objects
+          canvas.on('object:moving', handleObjectMoving);
+          canvas.on('object:scaling', handleObjectScaling);
+          canvas.on('selection:created', handleObjectSelected);
+          canvas.on('selection:updated', handleObjectSelected);
 
           setFabricCanvas(canvas);
           setIsCanvasReady(true);
@@ -149,7 +225,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
     return () => cancelAnimationFrame(rafId);
   }, [fabricCanvas, isCanvasReady, project.canvasSize.width, project.canvasSize.height]);
 
-  // Update text overlays and stickers based on current time - debounced for performance
+  // Update text overlays, stickers, and interactive image/video overlays based on current time
   useEffect(() => {
     if (!isMountedRef.current || !isCanvasReady || !fabricCanvas) return;
     
@@ -175,6 +251,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
 
         try {
           fabricCanvas.clear();
+          interactiveObjectsRef.current.clear();
 
           // Get all text clips from text track
           const textTrack = project.tracks.find(t => t.type === 'text');
@@ -225,6 +302,77 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
               });
           }
 
+          // Render interactive image overlays on canvas
+          project.tracks
+            .filter(t => t.type === 'image' || (t.type === 'video' && t.id !== 'video-1'))
+            .forEach(track => {
+              track.clips
+                .filter(clip => clip.enabled && project.currentTime >= clip.start && project.currentTime <= clip.end)
+                .forEach((clip) => {
+                  if (clip.type === 'image' && clip.sourceUrl && isMountedRef.current) {
+                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+                    
+                    FabricImage.fromURL(clip.sourceUrl, {
+                      crossOrigin: 'anonymous'
+                    }).then((img) => {
+                      if (!isMountedRef.current || !fabricCanvas) return;
+
+                      const canvasWidth = fabricCanvas.width!;
+                      const canvasHeight = fabricCanvas.height!;
+                      
+                      const targetWidth = (position.width / 100) * canvasWidth;
+                      const targetHeight = (position.height / 100) * canvasHeight;
+                      
+                      img.set({
+                        left: (position.x / 100) * canvasWidth,
+                        top: (position.y / 100) * canvasHeight,
+                        scaleX: targetWidth / img.width!,
+                        scaleY: targetHeight / img.height!,
+                        selectable: true,
+                        hasControls: true,
+                        hasBorders: true,
+                        borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                        cornerColor: '#3b82f6',
+                        cornerStrokeColor: '#ffffff',
+                        transparentCorners: false,
+                      });
+
+                      (img as any).data = { clipId: clip.id };
+                      
+                      fabricCanvas.add(img);
+                      interactiveObjectsRef.current.set(clip.id, img);
+                    }).catch(err => {
+                      console.error('Error loading image:', err);
+                    });
+                  } else if (clip.type === 'video' && isMountedRef.current) {
+                    // For video overlays, add a transparent rectangle as interaction placeholder
+                    const position = clip.content?.position || { x: 70, y: 10, width: 25, height: 25 };
+                    
+                    const rect = new FabricRect({
+                      left: (position.x / 100) * fabricCanvas.width!,
+                      top: (position.y / 100) * fabricCanvas.height!,
+                      width: (position.width / 100) * fabricCanvas.width!,
+                      height: (position.height / 100) * fabricCanvas.height!,
+                      fill: 'rgba(59, 130, 246, 0.1)',
+                      stroke: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                      strokeWidth: 2,
+                      selectable: true,
+                      hasControls: true,
+                      hasBorders: true,
+                      borderColor: selectedClipId === clip.id ? '#3b82f6' : '#ffffff',
+                      cornerColor: '#3b82f6',
+                      cornerStrokeColor: '#ffffff',
+                      transparentCorners: false,
+                    });
+
+                    (rect as any).data = { clipId: clip.id };
+                    
+                    fabricCanvas.add(rect);
+                    interactiveObjectsRef.current.set(clip.id, rect);
+                  }
+                });
+            });
+
           if (isMountedRef.current) {
             fabricCanvas.renderAll();
           }
@@ -239,7 +387,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [fabricCanvas, isCanvasReady, project.tracks, project.currentTime]);
+  }, [fabricCanvas, isCanvasReady, project.tracks, project.currentTime, selectedClipId]);
 
   // Apply CSS filters to video
   const getFilterStyle = () => {
@@ -353,10 +501,11 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           controls={false}
         />
         
-        {/* Image and Video Overlays */}
+        {/* Video Overlays (rendered as DOM elements, interactive via canvas) */}
         {project.tracks
-          .find(t => t.id === 'video-2')
-          ?.clips.filter(clip => 
+          .filter(t => t.type === 'video' && t.id !== 'video-1')
+          .flatMap(track => track.clips)
+          .filter(clip => 
             clip.enabled && 
             project.currentTime >= clip.start && 
             project.currentTime <= clip.end
@@ -367,7 +516,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
             return (
               <div
                 key={`overlay-${clip.id}`}
-                className="absolute"
+                className="absolute pointer-events-none"
                 style={{
                   top: `${position.y}%`,
                   left: `${position.x}%`,
@@ -376,19 +525,7 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
                   zIndex: 5,
                 }}
               >
-                {clip.type === 'image' && clip.sourceUrl && (
-                  <img 
-                    key={`img-${clip.id}`}
-                    src={clip.sourceUrl} 
-                    alt="Overlay" 
-                    className="w-full h-full object-contain rounded-lg shadow-lg"
-                    onError={(e) => {
-                      console.error('Image failed to load:', clip.sourceUrl);
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                )}
-                {clip.type === 'video' && clip.sourceUrl && (
+                {clip.sourceUrl && (
                   <ReactPlayer
                     key={`video-${clip.id}`}
                     url={clip.sourceUrl}
@@ -410,8 +547,8 @@ export const VideoEditorCanvas = ({ project, selectedClipId, onTimeUpdate, onPla
           })
         }
         
-        {/* Text and Sticker Canvas Overlay - canvas created imperatively */}
-        <div ref={canvasContainerRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+        {/* Interactive Canvas Overlay - includes text, stickers, and interactive image overlays */}
+        <div ref={canvasContainerRef} className="absolute top-0 left-0 w-full h-full" style={{ pointerEvents: 'auto' }} />
       </div>
     </div>
   );

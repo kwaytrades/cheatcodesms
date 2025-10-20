@@ -13,6 +13,10 @@ interface ToolsSidebarProps {
   onToolChange: (tool: string) => void;
   project: VideoProject;
   onProjectUpdate: (updates: Partial<VideoProject>) => void;
+  overlayTrackCounter: number;
+  imageTrackCounter: number;
+  onOverlayTrackIncrement: () => void;
+  onImageTrackIncrement: () => void;
 }
 
 const tools = [
@@ -25,7 +29,16 @@ const tools = [
   { id: 'filters', icon: Palette, label: 'Filters', description: 'Color effects' },
 ];
 
-export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdate }: ToolsSidebarProps) => {
+export const ToolsSidebar = ({ 
+  activeTool, 
+  onToolChange, 
+  project, 
+  onProjectUpdate,
+  overlayTrackCounter,
+  imageTrackCounter,
+  onOverlayTrackIncrement,
+  onImageTrackIncrement,
+}: ToolsSidebarProps) => {
   const [stickerDialogOpen, setStickerDialogOpen] = useState(false);
 
   const handleAddClip = () => {
@@ -39,32 +52,40 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
           const loadingToast = toast.loading("Adding video overlay...");
           
           const url = URL.createObjectURL(file);
-          const videoTrack = project.tracks.find(t => t.id === 'video-2');
+          const trackId = `overlay-${overlayTrackCounter}`;
           
-          if (videoTrack) {
-            const newClip: TimelineClip = {
-              id: `clip-${Date.now()}`,
-              type: 'video',
-              trackId: 'video-2',
-              start: project.currentTime,
-              end: project.currentTime + 5,
-              enabled: true,
-              sourceUrl: url,
-              volume: 100,
-              speed: 1,
-              content: {
-                position: { x: 70, y: 10, width: 25, height: 25 }
-              }
-            };
-            
-            const updatedTracks = project.tracks.map(t =>
-              t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
-            );
-            
-            onProjectUpdate({ tracks: updatedTracks });
-            toast.dismiss(loadingToast);
-            toast.success("Video clip added");
-          }
+          // Create new track for this overlay
+          const newTrack: import("@/pages/content-studio/VideoEditor").Track = {
+            id: trackId,
+            type: 'video',
+            name: `Video Overlay ${overlayTrackCounter}`,
+            clips: [],
+            height: 60,
+            visible: true,
+          };
+          
+          const newClip: TimelineClip = {
+            id: `clip-${Date.now()}`,
+            type: 'video',
+            trackId: trackId,
+            start: project.currentTime,
+            end: project.currentTime + 5,
+            enabled: true,
+            sourceUrl: url,
+            volume: 100,
+            speed: 1,
+            content: {
+              position: { x: 70, y: 10, width: 25, height: 25 }
+            }
+          };
+          
+          newTrack.clips = [newClip];
+          const updatedTracks = [...project.tracks, newTrack];
+          
+          onProjectUpdate({ tracks: updatedTracks });
+          onOverlayTrackIncrement();
+          toast.dismiss(loadingToast);
+          toast.success("Video overlay added");
         } catch (error) {
           toast.error("Failed to add video clip");
           console.error('Error adding video clip:', error);
@@ -85,30 +106,38 @@ export const ToolsSidebar = ({ activeTool, onToolChange, project, onProjectUpdat
           const loadingToast = toast.loading("Adding image...");
           
           const url = URL.createObjectURL(file);
-          const videoTrack = project.tracks.find(t => t.id === 'video-2');
+          const trackId = `image-${imageTrackCounter}`;
           
-          if (videoTrack) {
-            const newClip: TimelineClip = {
-              id: `image-${Date.now()}`,
-              type: 'image',
-              trackId: 'video-2',
-              start: project.currentTime,
-              end: project.currentTime + 3,
-              enabled: true,
-              sourceUrl: url,
-              content: {
-                position: { x: 70, y: 10, width: 25, height: 25 }
-              }
-            };
-            
-            const updatedTracks = project.tracks.map(t =>
-              t.id === 'video-2' ? { ...t, clips: [...t.clips, newClip] } : t
-            );
-            
-            onProjectUpdate({ tracks: updatedTracks });
-            toast.dismiss(loadingToast);
-            toast.success("Image added");
-          }
+          // Create new track for this image
+          const newTrack: import("@/pages/content-studio/VideoEditor").Track = {
+            id: trackId,
+            type: 'image',
+            name: `Image ${imageTrackCounter}`,
+            clips: [],
+            height: 60,
+            visible: true,
+          };
+          
+          const newClip: TimelineClip = {
+            id: `image-${Date.now()}`,
+            type: 'image',
+            trackId: trackId,
+            start: project.currentTime,
+            end: project.currentTime + 3,
+            enabled: true,
+            sourceUrl: url,
+            content: {
+              position: { x: 70, y: 10, width: 25, height: 25 }
+            }
+          };
+          
+          newTrack.clips = [newClip];
+          const updatedTracks = [...project.tracks, newTrack];
+          
+          onProjectUpdate({ tracks: updatedTracks });
+          onImageTrackIncrement();
+          toast.dismiss(loadingToast);
+          toast.success("Image added");
         } catch (error) {
           toast.error("Failed to add image");
           console.error('Error adding image:', error);

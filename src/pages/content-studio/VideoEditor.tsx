@@ -96,23 +96,15 @@ const VideoEditor = () => {
       {
         id: 'video-1',
         type: 'video',
-        name: 'Video Track 1',
+        name: 'Main Video',
         clips: [],
         height: 80,
         visible: true,
       },
       {
-        id: 'video-2',
-        type: 'video',
-        name: 'Video Track 2 (Overlays)',
-        clips: [],
-        height: 60,
-        visible: true,
-      },
-      {
         id: 'audio-1',
         type: 'audio',
-        name: 'Audio Track 1',
+        name: 'Audio Track',
         clips: [],
         height: 50,
         visible: true,
@@ -156,6 +148,8 @@ const VideoEditor = () => {
   const [activeTool, setActiveTool] = useState<string>('select');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [canvasDialogOpen, setCanvasDialogOpen] = useState(false);
+  const [overlayTrackCounter, setOverlayTrackCounter] = useState(1);
+  const [imageTrackCounter, setImageTrackCounter] = useState(1);
 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingVideo, setIsLoadingVideo] = useState(true);
@@ -333,6 +327,10 @@ const VideoEditor = () => {
           onToolChange={setActiveTool}
           project={project}
           onProjectUpdate={updateProject}
+          overlayTrackCounter={overlayTrackCounter}
+          imageTrackCounter={imageTrackCounter}
+          onOverlayTrackIncrement={() => setOverlayTrackCounter(prev => prev + 1)}
+          onImageTrackIncrement={() => setImageTrackCounter(prev => prev + 1)}
         />
 
         {/* Center - Video Preview */}
@@ -342,6 +340,8 @@ const VideoEditor = () => {
             selectedClipId={selectedClipId}
             onTimeUpdate={(currentTime) => updateProject({ currentTime })}
             onPlayingChange={(isPlaying) => updateProject({ isPlaying })}
+            onProjectUpdate={updateProject}
+            onClipSelect={setSelectedClipId}
           />
         </div>
 
