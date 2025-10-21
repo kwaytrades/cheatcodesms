@@ -20,7 +20,8 @@ export const Layer: React.FC<{
       transform: `rotate(${overlay.rotation || 0}deg)`,
       transformOrigin: "center center",
       zIndex,
-      pointerEvents: isSelected ? "all" : "none",
+      pointerEvents: "all", // Always allow pointer events for selection
+      cursor: isSelected ? "move" : "pointer",
     };
   }, [
     overlay.height,
@@ -52,7 +53,13 @@ export const Layer: React.FC<{
       durationInFrames={overlay.durationInFrames}
       layout="none"
     >
-      <div style={style}>
+      <div 
+        style={style}
+        onClick={(e) => {
+          e.stopPropagation();
+          // This will trigger selection in the parent Main component
+        }}
+      >
         <LayerContent overlay={overlay} />
       </div>
     </Sequence>

@@ -36,6 +36,20 @@ export const Main: React.FC<MainProps> = ({
       if (e.button !== 0) {
         return;
       }
+      
+      // Check if we clicked on an overlay
+      const target = e.target as HTMLElement;
+      const overlayElement = target.closest('[data-overlay-id]');
+      
+      if (overlayElement) {
+        const overlayId = parseInt(overlayElement.getAttribute('data-overlay-id') || '0');
+        if (overlayId) {
+          setSelectedOverlayId(overlayId);
+          return;
+        }
+      }
+      
+      // Clicked on background
       setSelectedOverlayId(null);
     },
     [setSelectedOverlayId]
@@ -46,11 +60,12 @@ export const Main: React.FC<MainProps> = ({
       <AbsoluteFill style={layerContainer}>
         {overlays.map((overlay) => {
           return (
-            <Layer
-              key={overlay.id}
-              overlay={overlay}
-              selectedOverlayId={selectedOverlayId}
-            />
+            <div key={overlay.id} data-overlay-id={overlay.id}>
+              <Layer
+                overlay={overlay}
+                selectedOverlayId={selectedOverlayId}
+              />
+            </div>
           );
         })}
       </AbsoluteFill>
