@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { EditorProvider } from "@/contexts/video-editor/EditorContext";
+import { EditorProvider, useEditorContext } from "@/contexts/video-editor/EditorContext";
 import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
 import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
 import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
@@ -26,7 +26,7 @@ import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
 
 const EditorControls: React.FC = () => {
-  const editorState = useEditorState();
+  const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -196,25 +196,25 @@ const EditorContent: React.FC = () => {
               
               <SidebarInset className="flex flex-col overflow-hidden">
                 {/* Header */}
-                <header className="flex items-center gap-2 border-b p-4">
+                <header className="flex items-center gap-2 border-b p-2 shrink-0">
                   <SidebarTrigger />
                   <div className="flex items-center gap-2">
                     <h1 className="text-xl font-semibold">Video Editor</h1>
                   </div>
                 </header>
 
-                {/* Video Player */}
-                <div className="flex-1 p-4 overflow-auto">
+                {/* Video Player - Takes most space */}
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <VideoPlayer playerRef={editorState.playerRef} />
                 </div>
 
                 {/* Controls */}
-                <div className="p-4">
+                <div className="p-2 shrink-0">
                   <EditorControls />
                 </div>
 
                 {/* Timeline */}
-                <div className="p-4 border-t">
+                <div className="h-48 border-t shrink-0 overflow-hidden">
                   <AdvancedTimeline onTimelineClick={editorState.handleTimelineClick} />
                 </div>
               </SidebarInset>

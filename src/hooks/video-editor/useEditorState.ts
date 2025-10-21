@@ -47,10 +47,11 @@ export const useEditorState = () => {
     if (playerRef.current) {
       if (isPlaying) {
         playerRef.current.pause();
+        setIsPlaying(false);
       } else {
         playerRef.current.play();
+        setIsPlaying(true);
       }
-      setIsPlaying(!isPlaying);
     }
   }, [isPlaying]);
 

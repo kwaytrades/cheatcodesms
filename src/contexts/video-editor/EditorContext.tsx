@@ -11,6 +11,7 @@ interface EditorContextProps {
   ) => void;
   setOverlays: (overlays: Overlay[]) => void;
   isPlaying: boolean;
+  setIsPlaying: (playing: boolean) => void;
   currentFrame: number;
   playerRef: React.RefObject<any>;
   playbackRate: number;
