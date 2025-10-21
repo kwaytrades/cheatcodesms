@@ -28,7 +28,7 @@ export const useVideoExport = () => {
 
     try {
       toast.info("Loading video encoder...");
-      const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
       
       console.log("Loading FFmpeg from:", baseURL);
       
@@ -48,10 +48,29 @@ export const useVideoExport = () => {
         console.log("FFmpeg log:", message);
       });
 
-      // Load with timeout
+      // Load with timeout - try loading the core files
+      console.log("Attempting to load core files...");
+      
+      let coreURL, wasmURL;
+      try {
+        coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript");
+        console.log("Core JS loaded successfully");
+      } catch (error) {
+        console.error("Failed to load ffmpeg-core.js:", error);
+        throw new Error(`Failed to load ffmpeg-core.js from ${baseURL}`);
+      }
+
+      try {
+        wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm");
+        console.log("WASM loaded successfully");
+      } catch (error) {
+        console.error("Failed to load ffmpeg-core.wasm:", error);
+        throw new Error(`Failed to load ffmpeg-core.wasm from ${baseURL}`);
+      }
+
       const loadPromise = ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        coreURL,
+        wasmURL,
       });
 
       const timeoutPromise = new Promise((_, reject) => 
