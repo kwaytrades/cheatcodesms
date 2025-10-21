@@ -40,7 +40,7 @@ export const VideoEditorTimeline = ({
     const fabricCanvas = new FabricCanvas(canvasRef.current, {
       width: timelineWidth,
       height: TIMELINE_HEIGHT,
-      backgroundColor: 'hsl(var(--muted))',
+      backgroundColor: 'rgb(30, 41, 59)',
       selection: false,
     });
 
@@ -75,7 +75,7 @@ export const VideoEditorTimeline = ({
     if (!fabricCanvas) return;
 
     fabricCanvas.clear();
-    fabricCanvas.backgroundColor = 'hsl(var(--muted))';
+    fabricCanvas.backgroundColor = 'rgb(30, 41, 59)';
     fabricCanvas.setHeight(TIMELINE_HEIGHT);
 
     const timelineWidth = Math.max(duration * pixelsPerSecond, 1000);
@@ -89,7 +89,9 @@ export const VideoEditorTimeline = ({
         top: trackY,
         width: timelineWidth,
         height: TRACK_HEIGHT,
-        fill: track % 2 === 0 ? 'hsl(var(--muted))' : 'hsl(var(--muted) / 0.5)',
+        fill: track % 2 === 0 ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        stroke: 'rgba(255, 255, 255, 0.1)',
+        strokeWidth: 1,
         selectable: false,
         evented: false,
       });
@@ -99,7 +101,7 @@ export const VideoEditorTimeline = ({
         left: 4,
         top: trackY + 8,
         fontSize: 10,
-        fill: 'hsl(var(--muted-foreground) / 0.5)',
+        fill: 'rgba(255, 255, 255, 0.4)',
         selectable: false,
         evented: false,
       });
@@ -113,7 +115,7 @@ export const VideoEditorTimeline = ({
       
       // Vertical line
       const line = new Line([x, 0, x, RULER_HEIGHT], {
-        stroke: 'hsl(var(--border))',
+        stroke: 'rgba(255, 255, 255, 0.2)',
         strokeWidth: 1,
         selectable: false,
         evented: false,
@@ -125,7 +127,7 @@ export const VideoEditorTimeline = ({
         left: x + 4,
         top: 8,
         fontSize: 12,
-        fill: 'hsl(var(--muted-foreground))',
+        fill: 'rgba(255, 255, 255, 0.7)',
         selectable: false,
         evented: false,
       });
@@ -140,11 +142,11 @@ export const VideoEditorTimeline = ({
         width: clip.duration * pixelsPerSecond || 100,
         height: TRACK_HEIGHT - 20,
         fill: clip.id.startsWith('text-') 
-          ? 'hsl(var(--primary) / 0.6)' 
+          ? 'rgba(139, 92, 246, 0.7)' 
           : clip.id.startsWith('image-')
-          ? 'hsl(var(--accent) / 0.6)'
-          : 'hsl(var(--primary) / 0.4)',
-        stroke: selectedClip === clip.id ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+          ? 'rgba(236, 72, 153, 0.7)'
+          : 'rgba(59, 130, 246, 0.7)',
+        stroke: selectedClip === clip.id ? 'rgb(139, 92, 246)' : 'rgba(255, 255, 255, 0.3)',
         strokeWidth: selectedClip === clip.id ? 3 : 1,
         rx: 4,
         ry: 4,
@@ -161,8 +163,8 @@ export const VideoEditorTimeline = ({
         {
           left: (clip.startTime * pixelsPerSecond) + 8,
           top: RULER_HEIGHT + (clip.track * TRACK_HEIGHT) + 25,
-          fontSize: 14,
-          fill: '#ffffff',
+          fontSize: 12,
+          fill: 'rgb(255, 255, 255)',
           selectable: false,
           evented: false,
           fontWeight: 'bold',
@@ -221,7 +223,7 @@ export const VideoEditorTimeline = ({
     const playheadLine = new Line(
       [playheadX, 0, playheadX, TIMELINE_HEIGHT],
       {
-        stroke: 'hsl(var(--primary))',
+        stroke: 'rgb(34, 211, 238)',
         strokeWidth: 2,
         selectable: false,
         evented: false,
@@ -233,7 +235,7 @@ export const VideoEditorTimeline = ({
       top: 0,
       width: 12,
       height: 12,
-      fill: 'hsl(var(--primary))',
+      fill: 'rgb(34, 211, 238)',
       rx: 6,
       ry: 6,
       selectable: false,

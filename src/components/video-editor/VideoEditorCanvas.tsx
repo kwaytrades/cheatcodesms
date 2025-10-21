@@ -137,6 +137,10 @@ export const VideoEditorCanvas = ({
     const fabricCanvas = fabricCanvasRef.current;
     if (!fabricCanvas) return;
 
+    // Don't clear if user is actively selecting/moving an object
+    const activeObject = fabricCanvas.getActiveObject();
+    if (activeObject) return;
+
     fabricCanvas.clear();
 
     // Get active overlay clips
@@ -228,7 +232,7 @@ export const VideoEditorCanvas = ({
   return (
     <div 
       ref={containerRef} 
-      className="flex-1 flex items-center justify-center bg-muted/30 p-4 overflow-auto"
+      className="flex-1 flex items-center justify-center bg-muted/30 p-4 overflow-hidden max-h-[calc(100vh-280px)]"
     >
       <div 
         className="relative" 
