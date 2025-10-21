@@ -126,54 +126,81 @@ const VideoEditor = () => {
         return;
       }
 
-      console.log('Fetching video blob...');
-      const response = await fetch(url);
-      const videoBlob = await response.blob();
-      console.log('Video blob created:', videoBlob.size, 'bytes, type:', videoBlob.type);
+      console.log('Creating HTML5 video element...');
+      // Use native HTML5 video element - works with all formats (MP4, WebM, MOV, etc.)
+      const video = document.createElement('video');
+      video.src = url;
+      video.crossOrigin = 'anonymous';
+      video.loop = false;
+      video.muted = false;
       
-      // Create MP4Clip from blob stream
-      console.log('Creating MP4Clip...');
-      const mp4Clip = new MP4Clip(videoBlob.stream());
+      // Wait for video metadata to load
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          console.log('Video metadata loaded - duration:', video.duration, 'size:', video.videoWidth, 'x', video.videoHeight);
+          resolve();
+        };
+        video.onerror = (e) => {
+          console.error('Video loading error:', e);
+          reject(new Error('Failed to load video'));
+        };
+        // Trigger loading
+        video.load();
+      });
       
-      // Wait for clip to be ready with timeout
-      await Promise.race([
-        mp4Clip.ready,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for clip ready')), 10000))
-      ]);
+      // Create sprite from native video element
+      console.log('Creating VisibleSprite from video element...');
+      const sprite = new VisibleSprite(video as any);
       
-      console.log('MP4Clip ready');
-      
-      // Create sprite and add to canvas
-      const sprite = new VisibleSprite(mp4Clip);
+      // Set sprite dimensions to match canvas
       sprite.rect.w = CANVAS_FORMATS[selectedFormat].width;
       sprite.rect.h = CANVAS_FORMATS[selectedFormat].height;
+      sprite.rect.x = 0;
+      sprite.rect.y = 0;
       
       console.log('Adding sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
       console.log('Sprite added successfully');
-      
-      // Get video duration
-      const meta = await mp4Clip.meta;
-      const videoDuration = meta.duration / 1e6; // Convert from microseconds to seconds
-      console.log('Video duration:', videoDuration, 'seconds');
       
       // Add to clips
       const newClip: VideoClip = {
         id: `clip-${Date.now()}`,
         url,
         startTime: 0,
-        duration: videoDuration,
+        duration: video.duration,
         track: clips.length,
         sprite,
       };
       
       setClips(prev => [...prev, newClip]);
-      setDuration(prev => Math.max(prev, videoDuration));
-      toast.success("Video loaded successfully");
+      setDuration(prev => Math.max(prev, video.duration));
+      toast.success("Video loaded successfully - click Play to start");
     } catch (error) {
       console.error('Error loading video from URL:', error);
       toast.error(`Failed to load video: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  const handleSplitClip = () => {
+    if (clips.length === 0) {
+      toast.error("No clips to split");
+      return;
+    }
+
+    // Find the clip at current time
+    const clipToSplit = clips.find(
+      clip => currentTime >= clip.startTime && currentTime < clip.startTime + clip.duration
+    );
+
+    if (!clipToSplit) {
+      toast.error("No clip at current playhead position");
+      return;
+    }
+
+    // Calculate split point relative to clip start
+    const splitPoint = currentTime - clipToSplit.startTime;
+
+    toast.info(`Split at ${splitPoint.toFixed(2)}s - Feature in development`);
   };
 
   const handleImportVideo = async (file: File) => {
@@ -187,6 +214,13 @@ const VideoEditor = () => {
     }
   };
 
+
+  const handleFormatChange = (format: keyof typeof CANVAS_FORMATS) => {
+    setSelectedFormat(format);
+    setIsPlaying(false);
+    // Note: Canvas will reinitialize automatically due to dependency change
+  };
+
   const handleAddText = async (text: string, fontSize: number, color: string) => {
     try {
       if (!canvasRef.current) {
@@ -197,18 +231,27 @@ const VideoEditor = () => {
       // Create text image bitmap
       const textBitmap = await renderTxt2ImgBitmap(
         text,
-        `font-size:${fontSize}px; color: ${color}; text-shadow: 2px 2px 6px rgba(0,0,0,0.5);`
+        `font-size:${fontSize}px; color: ${color}; font-weight: bold; text-shadow: 2px 2px 6px rgba(0,0,0,0.8);`
       );
+
+      console.log('Text bitmap created:', textBitmap.width, 'x', textBitmap.height);
 
       // Create image clip and sprite
       const imgClip = new ImgClip(textBitmap);
+      await imgClip.ready;
+      
       const sprite = new VisibleSprite(imgClip);
       
       // Position in center
-      sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - sprite.rect.w) / 2;
-      sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - sprite.rect.h) / 2;
+      sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - textBitmap.width) / 2;
+      sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - textBitmap.height) / 2;
+      sprite.rect.w = textBitmap.width;
+      sprite.rect.h = textBitmap.height;
+      sprite.zIndex = 100; // Put text on top
 
+      console.log('Adding text sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
+      console.log('Text sprite added');
 
       const newClip: VideoClip = {
         id: `text-${Date.now()}`,
@@ -234,24 +277,33 @@ const VideoEditor = () => {
         return;
       }
 
-      // Load image
-      const img = await createImageBitmap(await (await fetch(imageUrl)).blob());
+      // Load image as bitmap
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const imgBitmap = await createImageBitmap(blob);
+
+      console.log('Image bitmap created:', imgBitmap.width, 'x', imgBitmap.height);
 
       // Create image clip and sprite
-      const imgClip = new ImgClip(img);
+      const imgClip = new ImgClip(imgBitmap);
+      await imgClip.ready;
+      
       const sprite = new VisibleSprite(imgClip);
       
       // Scale to fit canvas (max 30% of canvas size)
       const maxSize = Math.min(CANVAS_FORMATS[selectedFormat].width, CANVAS_FORMATS[selectedFormat].height) * 0.3;
-      const scale = Math.min(maxSize / img.width, maxSize / img.height);
-      sprite.rect.w = img.width * scale;
-      sprite.rect.h = img.height * scale;
+      const scale = Math.min(maxSize / imgBitmap.width, maxSize / imgBitmap.height);
+      sprite.rect.w = imgBitmap.width * scale;
+      sprite.rect.h = imgBitmap.height * scale;
       
       // Position in center
       sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - sprite.rect.w) / 2;
       sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - sprite.rect.h) / 2;
+      sprite.zIndex = 100; // Put image on top
 
+      console.log('Adding image sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
+      console.log('Image sprite added');
 
       const newClip: VideoClip = {
         id: `image-${Date.now()}`,
@@ -270,11 +322,23 @@ const VideoEditor = () => {
     }
   };
 
-  const handleFormatChange = (format: keyof typeof CANVAS_FORMATS) => {
-    setSelectedFormat(format);
-    setIsPlaying(false);
-    // Note: Canvas will reinitialize automatically due to dependency change
-  };
+  // Control playback with isPlaying state
+  useEffect(() => {
+    if (!canvasRef.current || clips.length === 0) return;
+
+    const canvas = canvasRef.current as any;
+    
+    if (isPlaying) {
+      console.log('Starting playback...');
+      canvas.play?.().catch((err: Error) => {
+        console.error('Playback error:', err);
+        setIsPlaying(false);
+      });
+    } else {
+      console.log('Pausing playback...');
+      canvas.pause?.();
+    }
+  }, [isPlaying, clips.length]);
 
   const handleExport = async () => {
     if (clips.length === 0) {
@@ -379,7 +443,7 @@ const VideoEditor = () => {
           onImportVideo={handleImportVideo}
           onAddText={() => setShowTextDialog(true)}
           onAddImage={() => setShowImageDialog(true)}
-          onSplit={() => toast.info("Split clip feature coming soon")}
+          onSplit={handleSplitClip}
         />
       </div>
 
