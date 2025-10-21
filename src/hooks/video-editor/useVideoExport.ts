@@ -19,9 +19,11 @@ export const useVideoExport = () => {
   }, []);
 
   const exportVideo = useCallback(async (
-    playerRef: any,
+    overlays: any[],
     durationInFrames: number,
     fps: number,
+    width: number,
+    height: number,
     settings: ExportSettings,
     onProgress?: (progress: number) => void
   ): Promise<void> => {
@@ -32,6 +34,9 @@ export const useVideoExport = () => {
       console.log("Starting server-side export...", {
         durationInFrames,
         fps,
+        width,
+        height,
+        overlaysCount: overlays.length,
         resolution: settings.resolution,
         quality: settings.quality,
       });
@@ -40,18 +45,6 @@ export const useVideoExport = () => {
       onProgress?.(0);
       toast.info("Starting export on server...");
 
-      // Get the composition data from the player
-      const container = playerRef.current?.getContainerNode();
-      if (!container) {
-        throw new Error("Player container not found");
-      }
-
-      // Get overlays and composition settings from the player's input props
-      const playerProps = (playerRef.current as any)?.props?.inputProps;
-      if (!playerProps) {
-        throw new Error("Cannot access player composition data");
-      }
-
       // Call the edge function to render the video
       const { data, error } = await supabase.functions.invoke('render-video', {
         body: {
@@ -59,9 +52,15 @@ export const useVideoExport = () => {
             id: 'Main',
             durationInFrames,
             fps,
-            width: playerProps.width,
-            height: playerProps.height,
-            inputProps: playerProps,
+            width,
+            height,
+            inputProps: {
+              overlays,
+              durationInFrames,
+              fps,
+              width,
+              height,
+            },
           },
           settings,
         },

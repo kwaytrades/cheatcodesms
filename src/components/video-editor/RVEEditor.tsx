@@ -45,9 +45,11 @@ const EditorControls: React.FC = () => {
       setExportInProgress(true);
       
       await exportVideo(
-        editorState.playerRef,
+        editorState.overlays,
         editorState.durationInFrames,
-        30,
+        30, // FPS
+        editorState.playerDimensions.width,
+        editorState.playerDimensions.height,
         settings,
         (progress) => {
           console.log(`Export progress: ${progress}%`);
