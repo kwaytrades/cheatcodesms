@@ -157,8 +157,19 @@ export const useVideoExport = () => {
         throw new Error("Could not get canvas context");
       }
 
+      // Render the first frame to initialize the canvas
+      renderFrame(canvas, ctx, overlays, 0, fps, videoAssets, imageAssets);
+      
       // Create MediaRecorder with fallback MIME types
       const stream = canvas.captureStream(fps);
+      
+      // Verify stream has tracks
+      if (stream.getTracks().length === 0) {
+        throw new Error("Canvas stream has no tracks");
+      }
+      
+      console.log("Stream tracks:", stream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled })));
+      
       let mimeType = 'video/webm;codecs=vp9';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
         mimeType = 'video/webm;codecs=vp8';
@@ -166,6 +177,8 @@ export const useVideoExport = () => {
           mimeType = 'video/webm';
         }
       }
+      
+      console.log("Using MIME type:", mimeType);
 
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType,
@@ -174,16 +187,22 @@ export const useVideoExport = () => {
 
       const chunks: Blob[] = [];
       mediaRecorder.ondataavailable = (e) => {
+        console.log("Data available:", e.data.size, "bytes");
         if (e.data.size > 0) {
           chunks.push(e.data);
         }
       };
+      
+      mediaRecorder.onerror = (e) => {
+        console.error("MediaRecorder error:", e);
+      };
 
-      mediaRecorder.start(100); // Request data every 100ms
+      console.log("Starting MediaRecorder...");
+      mediaRecorder.start(1000); // Request data every second for more reliable capture
       toast.info("Recording...");
 
       // Render frames using requestAnimationFrame for smooth capture
-      let currentFrame = 0;
+      let currentFrame = 1; // Start from 1 since we already rendered frame 0
       const startTime = performance.now();
       const frameDuration = 1000 / fps;
 
@@ -208,7 +227,8 @@ export const useVideoExport = () => {
           onProgress?.(progress);
 
           // Request data periodically to ensure chunks are captured
-          if (currentFrame % 30 === 0) {
+          if (currentFrame % (fps * 2) === 0) { // Request every 2 seconds
+            console.log("Requesting data at frame", currentFrame);
             mediaRecorder.requestData();
           }
 
@@ -227,11 +247,13 @@ export const useVideoExport = () => {
         requestAnimationFrame(renderNextFrame);
       });
 
-      // Stop recording and request final data
+      // Request final data and stop recording
+      console.log("Requesting final data before stop...");
       mediaRecorder.requestData();
       
       await new Promise<void>((resolve) => {
         mediaRecorder.onstop = () => {
+          console.log("MediaRecorder stopped");
           // Wait for all pending data chunks to arrive
           setTimeout(() => {
             console.log(`Creating blob from ${chunks.length} chunks`);
@@ -239,17 +261,20 @@ export const useVideoExport = () => {
             console.log(`Blob size: ${blob.size} bytes`);
             
             if (blob.size === 0) {
+              console.error("No video data captured - chunks array was empty");
               toast.error("Export failed: No video data captured");
               resolve();
               return;
             }
             
             const url = URL.createObjectURL(blob);
+            console.log("Created blob URL:", url);
             
             const a = document.createElement('a');
             a.href = url;
             a.download = `video-export-${settings.resolution}-${Date.now()}.webm`;
             document.body.appendChild(a);
+            console.log("Triggering download...");
             a.click();
             document.body.removeChild(a);
             
@@ -259,9 +284,10 @@ export const useVideoExport = () => {
             onProgress?.(100);
             toast.success("Video exported successfully!");
             resolve();
-          }, 500);
+          }, 1000); // Increased timeout to 1 second
         };
         
+        console.log("Stopping MediaRecorder...");
         mediaRecorder.stop();
       });
 
