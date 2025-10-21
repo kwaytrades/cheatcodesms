@@ -9,6 +9,7 @@ interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onExport: () => Promise<void>;
+  onCancel: () => void;
   currentProgress?: number;
 }
 
@@ -16,6 +17,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   open,
   onOpenChange,
   onExport,
+  onCancel,
   currentProgress = 0,
 }) => {
   const [exporting, setExporting] = useState(false);
@@ -36,11 +38,23 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         setExporting(false);
         setProgress(0);
       }, 1000);
-    } catch (error) {
-      toast.error("Export failed. Please try again.");
+    } catch (error: any) {
+      // Only show error if not cancelled
+      if (error?.message !== "Export cancelled") {
+        toast.error("Export failed. Please try again.");
+      }
       setExporting(false);
       setProgress(0);
     }
+  };
+
+  const handleCancel = () => {
+    if (exporting) {
+      onCancel();
+    }
+    onOpenChange(false);
+    setExporting(false);
+    setProgress(0);
   };
 
   // Use current progress from parent if available
@@ -77,7 +91,10 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={exporting}>
+          <Button 
+            variant="outline" 
+            onClick={handleCancel}
+          >
             Cancel
           </Button>
           <Button onClick={handleExport} disabled={exporting}>

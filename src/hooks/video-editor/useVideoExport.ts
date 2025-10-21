@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { toast } from "sonner";
@@ -7,8 +7,19 @@ export const useVideoExport = () => {
   const [ffmpeg] = useState(() => new FFmpeg());
   const [isLoaded, setIsLoaded] = useState(false);
   const [progress, setProgress] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  const loadFFmpeg = useCallback(async () => {
+  const cancelExport = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log("Cancelling export...");
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setProgress(0);
+      toast.info("Export cancelled");
+    }
+  }, []);
+
+  const loadFFmpeg = useCallback(async (signal: AbortSignal) => {
     if (isLoaded) {
       console.log("FFmpeg already loaded");
       return;
@@ -20,6 +31,11 @@ export const useVideoExport = () => {
       
       console.log("Loading FFmpeg from:", baseURL);
       
+      // Check if cancelled
+      if (signal.aborted) {
+        throw new Error("Export cancelled");
+      }
+
       // Set up event listeners before loading
       ffmpeg.on("progress", ({ progress: p }) => {
         const progressPercent = Math.round(p * 100);
@@ -43,10 +59,18 @@ export const useVideoExport = () => {
 
       await Promise.race([loadPromise, timeoutPromise]);
       
+      // Check again after loading
+      if (signal.aborted) {
+        throw new Error("Export cancelled");
+      }
+      
       setIsLoaded(true);
       console.log("FFmpeg loaded successfully");
       toast.success("Video encoder ready");
     } catch (error: any) {
+      if (error?.message === "Export cancelled") {
+        throw error;
+      }
       console.error("Failed to load FFmpeg:", error);
       toast.error(`Failed to initialize video encoder: ${error?.message || "Unknown error"}`);
       throw error;
@@ -56,9 +80,16 @@ export const useVideoExport = () => {
   const captureFrame = useCallback(async (
     canvas: HTMLCanvasElement,
     frameNumber: number,
-    totalFrames: number
+    totalFrames: number,
+    signal: AbortSignal
   ): Promise<void> => {
     return new Promise((resolve, reject) => {
+      // Check if cancelled
+      if (signal.aborted) {
+        reject(new Error("Export cancelled"));
+        return;
+      }
+
       try {
         // Validate canvas has content
         const ctx = canvas.getContext('2d');
@@ -69,6 +100,11 @@ export const useVideoExport = () => {
 
         canvas.toBlob(async (blob) => {
           try {
+            if (signal.aborted) {
+              reject(new Error("Export cancelled"));
+              return;
+            }
+
             if (!blob) {
               reject(new Error(`Failed to capture frame ${frameNumber}`));
               return;
@@ -102,13 +138,19 @@ export const useVideoExport = () => {
     height: number,
     onProgress?: (progress: number) => void
   ): Promise<void> => {
+    // Create new abort controller for this export
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     try {
       console.log("Starting export...", { durationInFrames, fps, width, height });
       
       // Load FFmpeg first with detailed logging
       console.log("Step 1: Loading FFmpeg...");
-      await loadFFmpeg();
+      await loadFFmpeg(signal);
       console.log("Step 2: FFmpeg loaded successfully");
+      
+      if (signal.aborted) throw new Error("Export cancelled");
       
       setProgress(0);
       onProgress?.(0);
@@ -145,11 +187,15 @@ export const useVideoExport = () => {
       // Wait for player to be ready
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      if (signal.aborted) throw new Error("Export cancelled");
+
       // Capture all frames
       toast.info(`Capturing ${durationInFrames} frames...`);
       console.log(`Step 5: Starting frame capture - ${durationInFrames} frames at ${fps} FPS`);
       
       for (let frame = 0; frame < durationInFrames; frame++) {
+        if (signal.aborted) throw new Error("Export cancelled");
+
         try {
           // Seek to frame
           playerRef.current?.seekTo(frame);
@@ -160,13 +206,14 @@ export const useVideoExport = () => {
           }));
           
           // Capture frame
-          await captureFrame(canvas, frame, durationInFrames);
+          await captureFrame(canvas, frame, durationInFrames, signal);
           
           // Update progress (0-50% for capture)
           const captureProgress = Math.round((frame / durationInFrames) * 50);
           setProgress(captureProgress);
           onProgress?.(captureProgress);
         } catch (error: any) {
+          if (error?.message === "Export cancelled") throw error;
           console.error(`Failed to capture frame ${frame}:`, error);
           throw new Error(`Frame capture failed at frame ${frame}: ${error?.message}`);
         }
@@ -239,19 +286,38 @@ export const useVideoExport = () => {
       if (wasPlaying) {
         playerRef.current?.play();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Export failed with error:", error);
+      
+      // Cleanup on error or cancellation
+      try {
+        const files = await ffmpeg.listDir("/");
+        for (const file of files) {
+          if (file.name.startsWith("frame") || file.name === "output.mp4") {
+            await ffmpeg.deleteFile(file.name);
+          }
+        }
+      } catch (cleanupError) {
+        console.error("Cleanup error:", cleanupError);
+      }
+
       setProgress(0);
       onProgress?.(0);
       
-      // Show detailed error to user
-      toast.error(`Export failed: ${error.message || "Unknown error"}`);
+      // Only show error toast if not cancelled
+      if (error?.message !== "Export cancelled") {
+        toast.error(`Export failed: ${error?.message || "Unknown error"}`);
+      }
+      
       throw error;
+    } finally {
+      abortControllerRef.current = null;
     }
   }, [ffmpeg, loadFFmpeg, captureFrame]);
 
   return {
     exportVideo,
+    cancelExport,
     progress,
     isLoaded,
   };

@@ -33,7 +33,7 @@ import { formatDistanceToNow } from "date-fns";
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
-  const { exportVideo, progress: exportProgress } = useVideoExport();
+  const { exportVideo, cancelExport, progress: exportProgress } = useVideoExport();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportInProgress, setExportInProgress] = useState(false);
 
@@ -55,12 +55,21 @@ const EditorControls: React.FC = () => {
           console.log(`Export progress: ${progress}%`);
         }
       );
-    } catch (error) {
-      console.error("Export failed:", error);
+    } catch (error: any) {
+      // Only log if not cancelled
+      if (error?.message !== "Export cancelled") {
+        console.error("Export failed:", error);
+      }
       throw error;
     } finally {
       setExportInProgress(false);
     }
+  };
+
+  const handleCancelExport = () => {
+    cancelExport();
+    setExportInProgress(false);
+    setExportDialogOpen(false);
   };
 
   const skipBackward = () => {
@@ -202,6 +211,7 @@ const EditorControls: React.FC = () => {
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         onExport={handleExport}
+        onCancel={handleCancelExport}
         currentProgress={exportProgress}
       />
     </>
