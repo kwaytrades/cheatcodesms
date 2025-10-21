@@ -65,10 +65,16 @@ const VideoEditor = () => {
     initialize();
   }, [navigate]);
 
-  // Load video into canvas when video data is provided
+  // Load video into canvas when video data is provided and canvas is ready
   useEffect(() => {
     const loadVideo = async () => {
-      if (!videoData?.video_url || !canvasRef.current) return;
+      if (!videoData?.video_url) return;
+      
+      // Wait for canvas to be initialized
+      if (!canvasRef.current) {
+        setTimeout(() => loadVideo(), 100);
+        return;
+      }
 
       try {
         const storagePath = videoData.video_url.includes('content-videos/') 
@@ -86,35 +92,7 @@ const VideoEditor = () => {
         }
 
         if (data?.signedUrl) {
-          // Fetch video and create clip
-          const response = await fetch(data.signedUrl);
-          const videoBlob = await response.blob();
-          
-          // Create MP4Clip from blob
-          const mp4Clip = new MP4Clip(videoBlob.stream());
-          await mp4Clip.ready;
-
-          // Create sprite and add to canvas
-          const sprite = new VisibleSprite(mp4Clip);
-          await (canvasRef.current as any).add(sprite);
-
-          // Get video duration
-          const meta = await mp4Clip.meta;
-          const videoDuration = meta.duration / 1e6; // Convert from microseconds to seconds
-          
-          // Add to clips
-          const newClip: VideoClip = {
-            id: `clip-${Date.now()}`,
-            url: data.signedUrl,
-            startTime: 0,
-            duration: videoDuration,
-            track: 0,
-            sprite,
-          };
-          
-          setClips([newClip]);
-          setDuration(videoDuration);
-          toast.success("Video loaded successfully");
+          await loadVideoFromUrl(data.signedUrl);
         }
       } catch (error) {
         console.error('Error loading video:', error);
@@ -123,7 +101,71 @@ const VideoEditor = () => {
     };
 
     loadVideo();
-  }, [videoData, canvasRef.current]);
+  }, [videoData]);
+
+  const loadVideoFromUrl = async (url: string) => {
+    try {
+      console.log('Loading video from URL:', url);
+      
+      if (!canvasRef.current) {
+        console.error('Canvas not initialized');
+        toast.error("Canvas not initialized");
+        return;
+      }
+
+      console.log('Fetching video...');
+      // Fetch video and create clip
+      const response = await fetch(url);
+      const videoBlob = await response.blob();
+      console.log('Video blob created:', videoBlob.size, 'bytes');
+      
+      // Create MP4Clip from blob stream
+      console.log('Creating MP4Clip...');
+      const mp4Clip = new MP4Clip(videoBlob.stream());
+      await mp4Clip.ready;
+      console.log('MP4Clip ready');
+
+      // Create sprite and add to canvas
+      console.log('Creating sprite...');
+      const sprite = new VisibleSprite(mp4Clip);
+      console.log('Adding sprite to canvas...');
+      await (canvasRef.current as any).addSprite(sprite);
+      console.log('Sprite added successfully');
+
+      // Get video duration
+      const meta = await mp4Clip.meta;
+      const videoDuration = meta.duration / 1e6; // Convert from microseconds to seconds
+      console.log('Video duration:', videoDuration, 'seconds');
+      
+      // Add to clips
+      const newClip: VideoClip = {
+        id: `clip-${Date.now()}`,
+        url,
+        startTime: 0,
+        duration: videoDuration,
+        track: 0,
+        sprite,
+      };
+      
+      setClips(prev => [...prev, newClip]);
+      setDuration(prev => Math.max(prev, videoDuration));
+      toast.success("Video loaded successfully");
+    } catch (error) {
+      console.error('Error loading video from URL:', error);
+      toast.error(`Failed to load video: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleImportVideo = async (file: File) => {
+    try {
+      // Create object URL for the file
+      const url = URL.createObjectURL(file);
+      await loadVideoFromUrl(url);
+    } catch (error) {
+      console.error('Error importing video:', error);
+      toast.error("Failed to import video");
+    }
+  };
 
   const handleFormatChange = (format: keyof typeof CANVAS_FORMATS) => {
     setSelectedFormat(format);
@@ -233,7 +275,7 @@ const VideoEditor = () => {
           onExport={handleExport}
           isExporting={isExporting}
           clips={clips}
-          onImportVideo={(file) => toast.info("Import feature coming soon")}
+          onImportVideo={handleImportVideo}
           onAddText={() => toast.info("Text overlay feature coming soon")}
           onAddImage={() => toast.info("Image overlay feature coming soon")}
           onSplit={() => toast.info("Split clip feature coming soon")}

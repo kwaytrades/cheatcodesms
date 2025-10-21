@@ -16,15 +16,19 @@ export const VideoEditorCanvas = ({ format, clips, currentTime, canvasRef }: Vid
   useEffect(() => {
     if (!htmlCanvasRef.current) return;
 
+    console.log('Initializing AVCanvas with dimensions:', format.width, 'x', format.height);
+    
     // Initialize AVCanvas with format dimensions
     const avCanvas = new AVCanvas(htmlCanvasRef.current, {
       width: format.width,
       height: format.height,
     } as any); // WebAV types may vary
 
+    console.log('AVCanvas initialized:', avCanvas);
     canvasRef.current = avCanvas;
 
     return () => {
+      console.log('Cleaning up AVCanvas');
       canvasRef.current = null;
     };
   }, [format, canvasRef]);
