@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { VideoClip } from "@/pages/content-studio/VideoEditor";
+import { VideoClip } from "@/lib/video-editor/legacy-types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Canvas as FabricCanvas, Rect, Line, Text, FabricObject } from "fabric";
 import { Button } from "@/components/ui/button";

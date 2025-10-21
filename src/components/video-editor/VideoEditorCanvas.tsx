@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Canvas as FabricCanvas, Text, Image as FabricImage } from "fabric";
-import { VideoClip } from "@/pages/content-studio/VideoEditor";
+import { VideoClip } from "@/lib/video-editor/legacy-types";
 
 interface VideoEditorCanvasProps {
   format: { name: string; width: number; height: number };

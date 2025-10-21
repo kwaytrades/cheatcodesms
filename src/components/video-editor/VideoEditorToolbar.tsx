@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Download, Upload, Type, Image, Scissors } from "lucide-react";
-import { VideoClip } from "@/pages/content-studio/VideoEditor";
+import { VideoClip } from "@/lib/video-editor/legacy-types";
 import { useRef } from "react";
 import { toast } from "sonner";
 

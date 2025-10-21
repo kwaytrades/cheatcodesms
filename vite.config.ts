@@ -15,4 +15,10 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    exclude: ["@remotion/player", "remotion"],
+  },
+  ssr: {
+    external: ["@remotion/player", "remotion"],
+  },
 }));
