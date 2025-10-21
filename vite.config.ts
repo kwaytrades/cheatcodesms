@@ -16,9 +16,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    exclude: ["@remotion/player", "remotion"],
-  },
-  ssr: {
-    external: ["@remotion/player", "remotion"],
+    include: ["react", "react-dom"],
+    exclude: [],
   },
 }));
