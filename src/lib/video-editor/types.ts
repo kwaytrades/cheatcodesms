@@ -106,3 +106,27 @@ export type SoundOverlay = BaseOverlay & {
 export type Overlay = TextOverlay | VideoOverlay | ImageOverlay | SoundOverlay;
 
 export type AspectRatio = "16:9" | "1:1" | "4:5" | "9:16";
+
+export interface ExportSettings {
+  resolution: "1080p" | "4K" | "720p";
+  quality: "high" | "medium" | "low";
+  preset: "slow" | "medium" | "fast";
+}
+
+export const RESOLUTION_PRESETS = {
+  "720p": { width: 1280, height: 720, label: "HD (720p)" },
+  "1080p": { width: 1920, height: 1080, label: "Full HD (1080p)" },
+  "4K": { width: 3840, height: 2160, label: "4K Ultra HD" },
+} as const;
+
+export const QUALITY_PRESETS = {
+  high: { crf: 18, label: "High Quality", description: "Best quality, larger file" },
+  medium: { crf: 23, label: "Medium Quality", description: "Balanced quality and size" },
+  low: { crf: 28, label: "Low Quality", description: "Smaller file, lower quality" },
+} as const;
+
+export const ENCODING_PRESETS = {
+  slow: { label: "Slow", description: "Best compression, takes longer" },
+  medium: { label: "Medium", description: "Balanced speed and compression" },
+  fast: { label: "Fast", description: "Quick export, larger file" },
+} as const;

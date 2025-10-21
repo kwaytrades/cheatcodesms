@@ -40,23 +40,20 @@ const EditorControls: React.FC = () => {
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
-  const handleExport = async () => {
+  const handleExport = async (settings: any) => {
     try {
       setExportInProgress(true);
-      const { width, height } = editorState.getAspectRatioDimensions();
       
       await exportVideo(
         editorState.playerRef,
         editorState.durationInFrames,
-        30, // FPS
-        width,
-        height,
+        30,
+        settings,
         (progress) => {
           console.log(`Export progress: ${progress}%`);
         }
       );
     } catch (error: any) {
-      // Only log if not cancelled
       if (error?.message !== "Export cancelled") {
         console.error("Export failed:", error);
       }

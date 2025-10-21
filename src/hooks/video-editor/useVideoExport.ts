@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { toast } from "sonner";
+import { ExportSettings, RESOLUTION_PRESETS, QUALITY_PRESETS } from "@/lib/video-editor/types";
 
 export const useVideoExport = () => {
   const [ffmpeg] = useState(() => new FFmpeg());
@@ -26,10 +27,10 @@ export const useVideoExport = () => {
     }
 
     try {
-      toast.info("Initializing video encoder...");
-      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+      toast.info("Loading video encoder...");
+      const baseURL = "/ffmpeg-core";
       
-      console.log("Loading FFmpeg from:", baseURL);
+      console.log("Loading FFmpeg from local files:", baseURL);
       
       // Check if cancelled
       if (signal.aborted) {
@@ -134,8 +135,7 @@ export const useVideoExport = () => {
     playerRef: any,
     durationInFrames: number,
     fps: number,
-    width: number,
-    height: number,
+    settings: ExportSettings,
     onProgress?: (progress: number) => void
   ): Promise<void> => {
     // Create new abort controller for this export
@@ -143,7 +143,19 @@ export const useVideoExport = () => {
     const signal = abortControllerRef.current.signal;
 
     try {
-      console.log("Starting export...", { durationInFrames, fps, width, height });
+      const { width, height } = RESOLUTION_PRESETS[settings.resolution];
+      const { crf } = QUALITY_PRESETS[settings.quality];
+      
+      console.log("Starting export...", { 
+        durationInFrames, 
+        fps, 
+        width, 
+        height,
+        resolution: settings.resolution,
+        quality: settings.quality,
+        crf,
+        preset: settings.preset,
+      });
       
       // Load FFmpeg first with detailed logging
       console.log("Step 1: Loading FFmpeg...");
@@ -225,17 +237,22 @@ export const useVideoExport = () => {
       onProgress?.(50);
 
       // Encode video with FFmpeg
-      console.log("Running FFmpeg command...");
+      console.log("Running FFmpeg command with settings:", {
+        resolution: `${width}x${height}`,
+        crf,
+        preset: settings.preset,
+      });
+      
       await ffmpeg.exec([
         "-framerate", fps.toString(),
         "-pattern_type", "glob",
         "-i", "frame*.png",
         "-c:v", "libx264",
-        "-preset", "medium", // Changed from "slow" for faster encoding
-        "-crf", "18", // High quality
+        "-preset", settings.preset,
+        "-crf", crf.toString(),
         "-pix_fmt", "yuv420p",
         "-s", `${width}x${height}`,
-        "-y", // Overwrite output file
+        "-y",
         "output.mp4"
       ]);
 
