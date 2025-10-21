@@ -17,13 +17,56 @@ export const useVideoExport = () => {
     }
   }, []);
 
-  const renderFrame = async (
+  const preloadAssets = async (
+    overlays: Overlay[]
+  ): Promise<{ videos: Map<number, HTMLVideoElement>; images: Map<number, HTMLImageElement> }> => {
+    const videos = new Map<number, HTMLVideoElement>();
+    const images = new Map<number, HTMLImageElement>();
+
+    const loadPromises: Promise<void>[] = [];
+
+    overlays.forEach((overlay) => {
+      if (overlay.type === 'video') {
+        const promise = new Promise<void>((resolve, reject) => {
+          const video = document.createElement('video');
+          video.src = overlay.src;
+          video.preload = 'auto';
+          video.muted = true;
+          video.onloadeddata = () => {
+            videos.set(overlay.id, video);
+            resolve();
+          };
+          video.onerror = () => reject(new Error(`Failed to load video: ${overlay.src}`));
+        });
+        loadPromises.push(promise);
+      } else if (overlay.type === 'image') {
+        const promise = new Promise<void>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            images.set(overlay.id, img);
+            resolve();
+          };
+          img.onerror = () => reject(new Error(`Failed to load image: ${overlay.src}`));
+          img.src = overlay.src;
+        });
+        loadPromises.push(promise);
+      }
+    });
+
+    await Promise.all(loadPromises);
+    return { videos, images };
+  };
+
+  const renderFrame = (
     canvas: HTMLCanvasElement,
     ctx: CanvasRenderingContext2D,
     overlays: Overlay[],
     frame: number,
-    fps: number
-  ): Promise<void> => {
+    fps: number,
+    videoAssets: Map<number, HTMLVideoElement>,
+    imageAssets: Map<number, HTMLImageElement>
+  ): void => {
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#111827';
@@ -40,32 +83,24 @@ export const useVideoExport = () => {
         const overlayTime = currentTime - startTime;
 
         if (overlay.type === 'video') {
-          // Create video element if needed
-          const video = document.createElement('video');
-          video.src = overlay.src;
-          video.currentTime = overlayTime + (overlay.videoStartTime || 0);
-          
-          await new Promise((resolve) => {
-            video.addEventListener('seeked', () => resolve(null), { once: true });
-          });
-
-          ctx.save();
-          ctx.translate(overlay.left + overlay.width / 2, overlay.top + overlay.height / 2);
-          ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
-          ctx.drawImage(video, -overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
-          ctx.restore();
+          const video = videoAssets.get(overlay.id);
+          if (video) {
+            video.currentTime = overlayTime + (overlay.videoStartTime || 0);
+            ctx.save();
+            ctx.translate(overlay.left + overlay.width / 2, overlay.top + overlay.height / 2);
+            ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
+            ctx.drawImage(video, -overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
+            ctx.restore();
+          }
         } else if (overlay.type === 'image') {
-          const img = new Image();
-          img.src = overlay.src;
-          await new Promise((resolve) => {
-            img.onload = () => resolve(null);
-          });
-
-          ctx.save();
-          ctx.translate(overlay.left + overlay.width / 2, overlay.top + overlay.height / 2);
-          ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
-          ctx.drawImage(img, -overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
-          ctx.restore();
+          const img = imageAssets.get(overlay.id);
+          if (img) {
+            ctx.save();
+            ctx.translate(overlay.left + overlay.width / 2, overlay.top + overlay.height / 2);
+            ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
+            ctx.drawImage(img, -overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
+            ctx.restore();
+          }
         } else if (overlay.type === 'text') {
           ctx.save();
           ctx.translate(overlay.left, overlay.top);
@@ -105,7 +140,12 @@ export const useVideoExport = () => {
 
       setProgress(0);
       onProgress?.(0);
-      toast.info("Preparing export...");
+      toast.info("Loading assets...");
+
+      // Pre-load all media assets
+      const { videos: videoAssets, images: imageAssets } = await preloadAssets(overlays);
+      
+      toast.info("Preparing canvas...");
 
       // Create offscreen canvas
       const canvas = document.createElement('canvas');
@@ -117,10 +157,18 @@ export const useVideoExport = () => {
         throw new Error("Could not get canvas context");
       }
 
-      // Create MediaRecorder
+      // Create MediaRecorder with fallback MIME types
       const stream = canvas.captureStream(fps);
+      let mimeType = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+      }
+
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
+        mimeType,
         videoBitsPerSecond: settings.quality === 'high' ? 8000000 : settings.quality === 'medium' ? 5000000 : 2500000,
       });
 
@@ -131,24 +179,56 @@ export const useVideoExport = () => {
         }
       };
 
-      mediaRecorder.start();
-      toast.info("Recording started...");
+      mediaRecorder.start(100); // Request data every 100ms
+      toast.info("Recording...");
 
-      // Render each frame
-      for (let frame = 0; frame < durationInFrames; frame++) {
-        if (signal.aborted) throw new Error("Export cancelled");
+      // Render frames using requestAnimationFrame for smooth capture
+      let currentFrame = 0;
+      const startTime = performance.now();
+      const frameDuration = 1000 / fps;
 
-        await renderFrame(canvas, ctx, overlays, frame, fps);
-        
-        const progress = Math.round((frame / durationInFrames) * 100);
-        setProgress(progress);
-        onProgress?.(progress);
+      await new Promise<void>((resolve, reject) => {
+        const renderNextFrame = () => {
+          if (signal.aborted) {
+            reject(new Error("Export cancelled"));
+            return;
+          }
 
-        // Wait for next frame
-        await new Promise(resolve => setTimeout(resolve, 1000 / fps));
-      }
+          if (currentFrame >= durationInFrames) {
+            resolve();
+            return;
+          }
 
-      // Stop recording
+          // Render the current frame
+          renderFrame(canvas, ctx, overlays, currentFrame, fps, videoAssets, imageAssets);
+          
+          // Update progress
+          const progress = Math.round((currentFrame / durationInFrames) * 100);
+          setProgress(progress);
+          onProgress?.(progress);
+
+          // Request data periodically to ensure chunks are captured
+          if (currentFrame % 30 === 0) {
+            mediaRecorder.requestData();
+          }
+
+          currentFrame++;
+
+          // Calculate when the next frame should be rendered
+          const elapsedTime = performance.now() - startTime;
+          const expectedTime = currentFrame * frameDuration;
+          const delay = Math.max(0, expectedTime - elapsedTime);
+
+          setTimeout(() => {
+            requestAnimationFrame(renderNextFrame);
+          }, delay);
+        };
+
+        requestAnimationFrame(renderNextFrame);
+      });
+
+      // Stop recording and request final data
+      mediaRecorder.requestData();
       mediaRecorder.stop();
 
       await new Promise<void>((resolve) => {
