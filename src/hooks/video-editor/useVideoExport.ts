@@ -9,7 +9,10 @@ export const useVideoExport = () => {
   const [progress, setProgress] = useState(0);
 
   const loadFFmpeg = useCallback(async () => {
-    if (isLoaded) return;
+    if (isLoaded) {
+      console.log("FFmpeg already loaded");
+      return;
+    }
 
     try {
       toast.info("Initializing video encoder...");
@@ -17,11 +20,7 @@ export const useVideoExport = () => {
       
       console.log("Loading FFmpeg from:", baseURL);
       
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-      });
-      
+      // Set up event listeners before loading
       ffmpeg.on("progress", ({ progress: p }) => {
         const progressPercent = Math.round(p * 100);
         console.log("FFmpeg encoding progress:", progressPercent);
@@ -31,13 +30,25 @@ export const useVideoExport = () => {
       ffmpeg.on("log", ({ message }) => {
         console.log("FFmpeg log:", message);
       });
+
+      // Load with timeout
+      const loadPromise = ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+      });
+
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("FFmpeg loading timed out after 30 seconds")), 30000)
+      );
+
+      await Promise.race([loadPromise, timeoutPromise]);
       
       setIsLoaded(true);
       console.log("FFmpeg loaded successfully");
       toast.success("Video encoder ready");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to load FFmpeg:", error);
-      toast.error(`Failed to initialize video encoder: ${error.message}`);
+      toast.error(`Failed to initialize video encoder: ${error?.message || "Unknown error"}`);
       throw error;
     }
   }, [ffmpeg, isLoaded]);
@@ -94,31 +105,37 @@ export const useVideoExport = () => {
     try {
       console.log("Starting export...", { durationInFrames, fps, width, height });
       
-      // Load FFmpeg first
+      // Load FFmpeg first with detailed logging
+      console.log("Step 1: Loading FFmpeg...");
       await loadFFmpeg();
+      console.log("Step 2: FFmpeg loaded successfully");
+      
       setProgress(0);
       onProgress?.(0);
 
       // Get canvas from player
+      console.log("Step 3: Getting canvas from player...");
       const container = playerRef.current?.getContainerNode();
       console.log("Player container:", container);
       
       if (!container) {
-        throw new Error("Player container not found");
+        throw new Error("Player container not found - make sure video is playing");
       }
 
       const canvas = container.querySelector("canvas") as HTMLCanvasElement;
       console.log("Canvas found:", canvas, "dimensions:", canvas?.width, canvas?.height);
       
       if (!canvas) {
-        throw new Error("Canvas not found in player");
+        throw new Error("Canvas not found in player - video may not be rendered");
       }
 
       // Verify canvas has dimensions
       if (canvas.width === 0 || canvas.height === 0) {
-        throw new Error("Canvas has no dimensions");
+        throw new Error("Canvas has no dimensions - try playing the video first");
       }
 
+      console.log("Step 4: Preparing for frame capture...");
+      
       // Pause playback
       const wasPlaying = playerRef.current?.isPlaying();
       if (wasPlaying) {
@@ -130,7 +147,7 @@ export const useVideoExport = () => {
 
       // Capture all frames
       toast.info(`Capturing ${durationInFrames} frames...`);
-      console.log(`Starting frame capture: ${durationInFrames} frames at ${fps} FPS`);
+      console.log(`Step 5: Starting frame capture - ${durationInFrames} frames at ${fps} FPS`);
       
       for (let frame = 0; frame < durationInFrames; frame++) {
         try {
@@ -149,9 +166,9 @@ export const useVideoExport = () => {
           const captureProgress = Math.round((frame / durationInFrames) * 50);
           setProgress(captureProgress);
           onProgress?.(captureProgress);
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Failed to capture frame ${frame}:`, error);
-          throw new Error(`Frame capture failed at frame ${frame}: ${error.message}`);
+          throw new Error(`Frame capture failed at frame ${frame}: ${error?.message}`);
         }
       }
 
