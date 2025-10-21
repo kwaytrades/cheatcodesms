@@ -7,13 +7,15 @@ interface VideoEditorCanvasProps {
   clips: VideoClip[];
   currentTime: number;
   isPlaying: boolean;
+  onClipsChange?: (clips: VideoClip[]) => void;
 }
 
 export const VideoEditorCanvas = ({ 
   format, 
   clips, 
   currentTime, 
-  isPlaying 
+  isPlaying,
+  onClipsChange
 }: VideoEditorCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -21,6 +23,25 @@ export const VideoEditorCanvas = ({
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const animationFrameRef = useRef<number>();
   const [activeClip, setActiveClip] = useState<VideoClip | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  // Track container size for scaling
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const container = entries[0];
+      if (container) {
+        setContainerSize({
+          width: container.contentRect.width,
+          height: container.contentRect.height,
+        });
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Initialize Fabric.js canvas for overlays
   useEffect(() => {
@@ -29,17 +50,56 @@ export const VideoEditorCanvas = ({
     const fabricCanvas = new FabricCanvas(overlayCanvasRef.current, {
       width: format.width,
       height: format.height,
-      selection: false,
+      selection: !isPlaying,
       renderOnAddRemove: true,
     });
 
     fabricCanvasRef.current = fabricCanvas;
+
+    // Handle object modifications
+    fabricCanvas.on('object:modified', (e) => {
+      if (!e.target || !onClipsChange) return;
+      
+      const obj = e.target as any;
+      const clipId = obj.clipId;
+      
+      if (!clipId) return;
+
+      const updatedClips = clips.map(clip => {
+        if (clip.id !== clipId) return clip;
+        
+        return {
+          ...clip,
+          transform: {
+            ...clip.transform!,
+            x: (obj.left! / format.width) * 100,
+            y: (obj.top! / format.height) * 100,
+            scale: obj.scaleX || 1,
+            rotation: obj.angle || 0,
+          }
+        };
+      });
+      
+      onClipsChange(updatedClips);
+    });
 
     return () => {
       fabricCanvas.dispose();
       fabricCanvasRef.current = null;
     };
   }, [format.width, format.height]);
+
+  // Update selection based on playback state
+  useEffect(() => {
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.selection = !isPlaying;
+      fabricCanvasRef.current.getObjects().forEach(obj => {
+        obj.selectable = !isPlaying;
+        obj.evented = !isPlaying;
+      });
+      fabricCanvasRef.current.renderAll();
+    }
+  }, [isPlaying]);
 
   // Find active video clip at current time
   useEffect(() => {
@@ -98,15 +158,18 @@ export const VideoEditorCanvas = ({
           textAlign: clip.textStyle.textAlign,
           originX: 'center',
           originY: 'center',
-          selectable: false,
+          selectable: !isPlaying,
+          hasControls: true,
+          hasBorders: true,
         });
+        (text as any).clipId = clip.id;
         fabricCanvas.add(text);
       }
 
       if (clip.type === 'image' && clip.url && clip.transform) {
-      FabricImage.fromURL(clip.url, {
-        crossOrigin: 'anonymous',
-      }).then((img) => {
+        FabricImage.fromURL(clip.url, {
+          crossOrigin: 'anonymous',
+        }).then((img) => {
           if (!img) return;
           
           img.set({
@@ -117,11 +180,14 @@ export const VideoEditorCanvas = ({
             angle: clip.transform!.rotation,
             originX: 'center',
             originY: 'center',
-            selectable: false,
+            selectable: !isPlaying,
+            hasControls: true,
+            hasBorders: true,
           });
-        fabricCanvas.add(img);
-        fabricCanvas.renderAll();
-      });
+          (img as any).clipId = clip.id;
+          fabricCanvas.add(img);
+          fabricCanvas.renderAll();
+        });
       }
     });
 
@@ -151,10 +217,10 @@ export const VideoEditorCanvas = ({
   }, [isPlaying, currentTime, clips, format]);
 
   // Calculate scale to fit in container
-  const scale = containerRef.current 
+  const scale = containerSize.width > 0 && containerSize.height > 0
     ? Math.min(
-        (containerRef.current.clientWidth - 32) / format.width,
-        (containerRef.current.clientHeight - 32) / format.height,
+        (containerSize.width - 32) / format.width,
+        (containerSize.height - 32) / format.height,
         1
       )
     : 0.5;
@@ -199,7 +265,7 @@ export const VideoEditorCanvas = ({
             left: 0,
             width: '100%',
             height: '100%',
-            pointerEvents: 'none',
+            pointerEvents: isPlaying ? 'none' : 'auto',
           }}
         />
 

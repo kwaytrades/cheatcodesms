@@ -27,8 +27,9 @@ export const VideoEditorTimeline = ({
   const [pixelsPerSecond, setPixelsPerSecond] = useState(50);
 
   const TRACK_HEIGHT = 60;
-  const TIMELINE_HEIGHT = 200;
   const RULER_HEIGHT = 30;
+  const maxTrackIndex = clips.length > 0 ? Math.max(...clips.map(c => c.track)) : 2;
+  const TIMELINE_HEIGHT = RULER_HEIGHT + (maxTrackIndex + 1) * TRACK_HEIGHT + 20;
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -75,8 +76,35 @@ export const VideoEditorTimeline = ({
 
     fabricCanvas.clear();
     fabricCanvas.backgroundColor = 'hsl(var(--muted))';
+    fabricCanvas.setHeight(TIMELINE_HEIGHT);
 
     const timelineWidth = Math.max(duration * pixelsPerSecond, 1000);
+
+    // Draw track backgrounds with labels
+    for (let track = 0; track <= maxTrackIndex; track++) {
+      const trackY = RULER_HEIGHT + track * TRACK_HEIGHT;
+      
+      const trackBg = new Rect({
+        left: 0,
+        top: trackY,
+        width: timelineWidth,
+        height: TRACK_HEIGHT,
+        fill: track % 2 === 0 ? 'hsl(var(--muted))' : 'hsl(var(--muted) / 0.5)',
+        selectable: false,
+        evented: false,
+      });
+      fabricCanvas.add(trackBg);
+
+      const trackLabel = new Text(`Track ${track}`, {
+        left: 4,
+        top: trackY + 8,
+        fontSize: 10,
+        fill: 'hsl(var(--muted-foreground) / 0.5)',
+        selectable: false,
+        evented: false,
+      });
+      fabricCanvas.add(trackLabel);
+    }
 
     // Draw time ruler
     const rulerCount = Math.ceil(duration) + 1;
@@ -268,7 +296,7 @@ export const VideoEditorTimeline = ({
         </div>
       </div>
       
-      <ScrollArea className="h-[200px]">
+      <ScrollArea style={{ height: `${Math.min(TIMELINE_HEIGHT + 40, 300)}px` }}>
         <div className="p-4">
           <canvas ref={canvasRef} />
           {clips.length === 0 && (

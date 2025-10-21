@@ -389,6 +389,7 @@ const VideoEditor = () => {
           clips={clips}
           currentTime={currentTime}
           isPlaying={isPlaying}
+          onClipsChange={handleClipsChange}
         />
 
         <VideoEditorControls
