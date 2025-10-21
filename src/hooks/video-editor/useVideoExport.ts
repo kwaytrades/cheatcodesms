@@ -29,6 +29,7 @@ export const useVideoExport = () => {
       if (overlay.type === 'video') {
         const promise = new Promise<void>((resolve, reject) => {
           const video = document.createElement('video');
+          video.crossOrigin = 'anonymous';
           video.src = overlay.src;
           video.preload = 'auto';
           video.muted = true;
