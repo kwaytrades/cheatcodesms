@@ -71,12 +71,15 @@ const VideoEditor = () => {
 
   // Load video into canvas when video data is provided and canvas is ready
   useEffect(() => {
+    let mounted = true;
+    
     const loadVideo = async () => {
       if (!videoData?.video_url) return;
       
       // Wait for canvas to be initialized
       if (!canvasRef.current) {
-        setTimeout(() => loadVideo(), 100);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (mounted) loadVideo();
         return;
       }
 
@@ -95,16 +98,22 @@ const VideoEditor = () => {
           return;
         }
 
-        if (data?.signedUrl) {
+        if (data?.signedUrl && mounted) {
           await loadVideoFromUrl(data.signedUrl);
         }
       } catch (error) {
         console.error('Error loading video:', error);
-        toast.error("Failed to load video. Please try again.");
+        if (mounted) {
+          toast.error("Failed to load video. Please try again.");
+        }
       }
     };
 
     loadVideo();
+    
+    return () => {
+      mounted = false;
+    };
   }, [videoData]);
 
   const loadVideoFromUrl = async (url: string) => {
@@ -263,10 +272,8 @@ const VideoEditor = () => {
 
   const handleFormatChange = (format: keyof typeof CANVAS_FORMATS) => {
     setSelectedFormat(format);
-    // Reinitialize canvas with new dimensions
-    if (canvasRef.current) {
-      canvasRef.current = null;
-    }
+    setIsPlaying(false);
+    // Note: Canvas will reinitialize automatically due to dependency change
   };
 
   const handleExport = async () => {
@@ -395,6 +402,7 @@ const VideoEditor = () => {
           duration={duration}
           onPlayPause={() => setIsPlaying(!isPlaying)}
           onSeek={setCurrentTime}
+          hasClips={clips.length > 0}
         />
         <VideoEditorTimeline
           clips={clips}

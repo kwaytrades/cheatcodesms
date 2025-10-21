@@ -8,6 +8,7 @@ interface VideoEditorControlsProps {
   duration: number;
   onPlayPause: () => void;
   onSeek: (time: number) => void;
+  hasClips: boolean;
 }
 
 export const VideoEditorControls = ({
@@ -16,6 +17,7 @@ export const VideoEditorControls = ({
   duration,
   onPlayPause,
   onSeek,
+  hasClips,
 }: VideoEditorControlsProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -37,6 +39,7 @@ export const VideoEditorControls = ({
           <Button
             size="icon"
             onClick={onPlayPause}
+            disabled={!hasClips}
           >
             {isPlaying ? (
               <Pause className="h-4 w-4" />

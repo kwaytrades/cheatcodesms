@@ -27,12 +27,8 @@ export const VideoEditorCanvas = ({ format, clips, currentTime, canvasRef }: Vid
     console.log('AVCanvas initialized');
     canvasRef.current = avCanvas;
 
-    // Start the rendering loop
-    (avCanvas as any).play?.();
-
     return () => {
       console.log('Cleaning up AVCanvas');
-      (avCanvas as any).destroy?.();
       canvasRef.current = null;
     };
   }, [htmlCanvasRef.current]);
