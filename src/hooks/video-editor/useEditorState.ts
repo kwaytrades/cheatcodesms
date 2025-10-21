@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { PlayerRef } from "@remotion/player";
-import { Overlay, AspectRatio } from "@/lib/video-editor/types";
+import { Overlay, AspectRatio, OverlayType } from "@/lib/video-editor/types";
 import { FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "@/lib/video-editor/constants";
 
 const ASPECT_RATIO_DIMENSIONS = {
@@ -125,16 +125,31 @@ export const useEditorState = () => {
   const splitOverlay = useCallback((id: number, splitPosition: number) => {
     const overlay = overlays.find((o) => o.id === id);
     if (overlay) {
+      const elapsedFrames = splitPosition - overlay.from;
+      
       const firstPart = {
         ...overlay,
-        durationInFrames: splitPosition - overlay.from,
+        durationInFrames: elapsedFrames,
       };
-      const secondPart = {
+      
+      const secondPart: Overlay = {
         ...overlay,
         id: Date.now(),
         from: splitPosition,
-        durationInFrames: overlay.durationInFrames - (splitPosition - overlay.from),
+        durationInFrames: overlay.durationInFrames - elapsedFrames,
       };
+      
+      // Update video/audio start times for second part
+      if (overlay.type === OverlayType.VIDEO) {
+        const videoStartOffset = overlay.videoStartTime;
+        (secondPart as any).videoStartTime = videoStartOffset + (elapsedFrames / 30);
+      }
+      
+      if (overlay.type === OverlayType.SOUND) {
+        const audioStartOffset = overlay.startFromSound;
+        (secondPart as any).startFromSound = audioStartOffset + (elapsedFrames / 30);
+      }
+      
       setOverlays((prev) =>
         prev.map((o) => (o.id === id ? firstPart : o)).concat([secondPart])
       );

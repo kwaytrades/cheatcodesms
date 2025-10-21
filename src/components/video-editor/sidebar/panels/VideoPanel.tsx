@@ -101,6 +101,7 @@ export const VideoPanel: React.FC = () => {
       height: 1080,
       src: url,
       content: "Video",
+      videoStartTime: 0,
       isDragging: false,
       rotation: 0,
       row: 0,

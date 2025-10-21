@@ -8,6 +8,7 @@ import { VideoPlayer } from "./VideoPlayer";
 import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
 import { ExportDialog } from "./export/ExportDialog";
+import { AspectRatioSelector } from "./AspectRatioSelector";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -196,11 +197,16 @@ const EditorContent: React.FC = () => {
               
               <SidebarInset className="flex flex-col overflow-hidden">
                 {/* Header */}
-                <header className="flex items-center gap-2 border-b p-2 shrink-0">
-                  <SidebarTrigger />
+                <header className="flex items-center justify-between gap-2 border-b p-2 shrink-0">
                   <div className="flex items-center gap-2">
+                    <SidebarTrigger />
                     <h1 className="text-xl font-semibold">Video Editor</h1>
                   </div>
+                  
+                  <AspectRatioSelector
+                    currentRatio={editorState.aspectRatio}
+                    onRatioChange={editorState.setAspectRatio}
+                  />
                 </header>
 
                 {/* Video Player - Takes most space */}

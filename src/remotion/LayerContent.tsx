@@ -20,10 +20,14 @@ export const LayerContent: React.FC<LayerContentProps> = ({ overlay }) => {
 
   switch (overlay.type) {
     case OverlayType.VIDEO:
+      const videoStartFrame = Math.round(overlay.videoStartTime * 30);
+      const videoEndFrame = videoStartFrame + overlay.durationInFrames;
       return (
         <div style={{ ...commonStyle, ...getStylesWithoutAnimation(overlay.styles) }}>
           <Video
             src={overlay.src}
+            startFrom={videoStartFrame}
+            endAt={videoEndFrame}
             style={{
               width: "100%",
               height: "100%",
@@ -74,7 +78,16 @@ export const LayerContent: React.FC<LayerContentProps> = ({ overlay }) => {
       );
 
     case OverlayType.SOUND:
-      return <Audio src={overlay.src} volume={overlay.styles.volume || 1} />;
+      const audioStartFrame = Math.round(overlay.startFromSound * 30);
+      const audioEndFrame = audioStartFrame + overlay.durationInFrames;
+      return (
+        <Audio
+          src={overlay.src}
+          startFrom={audioStartFrame}
+          endAt={audioEndFrame}
+          volume={overlay.styles.volume || 1}
+        />
+      );
 
     default:
       return null;

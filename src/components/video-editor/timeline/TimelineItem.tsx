@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Overlay } from "@/lib/video-editor/types";
+import { Overlay, OverlayType } from "@/lib/video-editor/types";
 import { GripVertical, Scissors } from "lucide-react";
 import {
   ContextMenu,
@@ -101,10 +101,23 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
         const newFrom = Math.max(0, resizeStartRef.current.from + frameDelta);
         const newDuration = resizeStartRef.current.duration - frameDelta;
         if (newDuration > 10) { // Min 10 frames
-          changeOverlay(overlay.id, {
+          const updates: any = {
             from: newFrom,
             durationInFrames: newDuration,
-          });
+          };
+          
+          // Update video/audio start time when trimming from left
+          if (overlay.type === OverlayType.VIDEO) {
+            const currentVideoStart = (overlay as any).videoStartTime || 0;
+            updates.videoStartTime = currentVideoStart + (frameDelta / 30);
+          }
+          
+          if (overlay.type === OverlayType.SOUND) {
+            const currentAudioStart = (overlay as any).startFromSound || 0;
+            updates.startFromSound = currentAudioStart + (frameDelta / 30);
+          }
+          
+          changeOverlay(overlay.id, updates);
         }
       } else {
         // Trim end

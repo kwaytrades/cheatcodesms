@@ -60,7 +60,7 @@ export type VideoOverlay = BaseOverlay & {
   type: OverlayType.VIDEO;
   content: string;
   src: string;
-  videoStartTime?: number;
+  videoStartTime: number;
   speed?: number;
   styles: BaseStyles & {
     objectFit?: "contain" | "cover" | "fill" | "none" | "scale-down";
@@ -97,7 +97,7 @@ export type SoundOverlay = BaseOverlay & {
   type: OverlayType.SOUND;
   content: string;
   src: string;
-  startFromSound?: number;
+  startFromSound: number;
   styles: BaseStyles & {
     volume?: number;
   };

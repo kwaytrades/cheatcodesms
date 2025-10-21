@@ -38,9 +38,9 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
         const compositionDeltaX = deltaX / playerScale;
         const compositionDeltaY = deltaY / playerScale;
         
-        // Apply constraints to keep within bounds
-        const newLeft = Math.max(0, Math.min(containerWidth - overlay.width, dragStartRef.current.left + compositionDeltaX));
-        const newTop = Math.max(0, Math.min(containerHeight - overlay.height, dragStartRef.current.top + compositionDeltaY));
+        // Allow off-canvas positioning
+        const newLeft = dragStartRef.current.left + compositionDeltaX;
+        const newTop = dragStartRef.current.top + compositionDeltaY;
         
         onChange({
           left: newLeft,
@@ -73,10 +73,6 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
           newHeight = Math.max(50, resizeStartRef.current.height - compositionDeltaY);
           newTop = resizeStartRef.current.top + compositionDeltaY;
         }
-
-        // Apply constraints
-        newWidth = Math.min(newWidth, containerWidth - newLeft);
-        newHeight = Math.min(newHeight, containerHeight - newTop);
 
         onChange({
           width: newWidth,

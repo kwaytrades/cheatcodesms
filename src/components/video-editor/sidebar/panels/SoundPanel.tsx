@@ -49,6 +49,7 @@ export const SoundPanel: React.FC = () => {
           type: OverlayType.SOUND,
           content: file.name,
           src: publicUrl,
+          startFromSound: 0,
           from: currentFrame,
           durationInFrames,
           left: 0,
