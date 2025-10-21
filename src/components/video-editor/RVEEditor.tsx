@@ -4,6 +4,7 @@ import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
 import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
 import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useEditorState } from "@/hooks/video-editor/useEditorState";
+import { useVideoExport } from "@/hooks/video-editor/useVideoExport";
 import { VideoPlayer } from "./VideoPlayer";
 import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
@@ -29,15 +30,34 @@ import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts"
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
+  const { exportVideo, progress: exportProgress } = useVideoExport();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportInProgress, setExportInProgress] = useState(false);
 
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
   const handleExport = async () => {
-    console.log("Exporting video...");
-    // TODO: Implement actual export using Remotion renderer
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    try {
+      setExportInProgress(true);
+      const { width, height } = editorState.getAspectRatioDimensions();
+      
+      await exportVideo(
+        editorState.playerRef,
+        editorState.durationInFrames,
+        30, // FPS
+        width,
+        height,
+        (progress) => {
+          console.log(`Export progress: ${progress}%`);
+        }
+      );
+    } catch (error) {
+      console.error("Export failed:", error);
+      throw error;
+    } finally {
+      setExportInProgress(false);
+    }
   };
 
   const skipBackward = () => {
@@ -179,6 +199,7 @@ const EditorControls: React.FC = () => {
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         onExport={handleExport}
+        currentProgress={exportProgress}
       />
     </>
   );

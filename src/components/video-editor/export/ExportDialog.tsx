@@ -9,12 +9,14 @@ interface ExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onExport: () => Promise<void>;
+  currentProgress?: number;
 }
 
 export const ExportDialog: React.FC<ExportDialogProps> = ({
   open,
   onOpenChange,
   onExport,
+  currentProgress = 0,
 }) => {
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -24,14 +26,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     setProgress(0);
 
     try {
-      // Simulate progress
-      const interval = setInterval(() => {
-        setProgress((prev) => Math.min(prev + 10, 90));
-      }, 500);
-
       await onExport();
-
-      clearInterval(interval);
+      
       setProgress(100);
       toast.success("Video exported successfully!");
       
@@ -47,6 +43,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
     }
   };
 
+  // Use current progress from parent if available
+  const displayProgress = exporting ? (currentProgress || progress) : 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -60,15 +59,20 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
         <div className="space-y-4 py-4">
           {exporting ? (
             <>
-              <Progress value={progress} />
+              <Progress value={displayProgress} />
               <p className="text-sm text-center text-muted-foreground">
-                Exporting... {progress}%
+                {displayProgress < 50 ? "Capturing frames..." : displayProgress < 90 ? "Encoding video..." : "Finalizing..."} {displayProgress}%
               </p>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Your video will be rendered with all overlays and effects applied.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Your video will be rendered with all overlays and effects applied.
+              </p>
+              <p className="text-sm text-muted-foreground font-medium">
+                Export settings: High quality MP4 (CRF 18)
+              </p>
+            </div>
           )}
         </div>
 
