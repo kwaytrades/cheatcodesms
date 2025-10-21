@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,51 +11,25 @@ serve(async (req) => {
   }
 
   try {
-    const { jobId } = await req.json();
+    const { renderId } = await req.json();
     
-    console.log('Progress check for job:', jobId);
+    console.log('Progress check for render:', renderId);
 
-    // Get user ID from auth
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    );
-
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    // NOTE: This is a simplified mock implementation
+    // In production, you would:
+    // 1. Query database for job status
+    // 2. Return actual progress from @remotion/renderer
+    // 3. Return the storage URL when complete
     
-    if (userError || !user) {
-      throw new Error('Unauthorized');
-    }
-
-    // Query job status from database
-    const { data: job, error: jobError } = await supabaseClient
-      .from('video_render_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .eq('user_id', user.id)
-      .single();
-
-    if (jobError || !job) {
-      throw new Error(`Job not found: ${jobError?.message}`);
-    }
+    // For demonstration, simulate a quick completion
+    const mockJob = {
+      status: 'error' as const,
+      progress: 0,
+      error: 'Server-side rendering requires @remotion/renderer to be fully set up. This is a demo edge function that shows the architecture needed.'
+    };
 
     return new Response(
-      JSON.stringify({
-        status: job.status,
-        progress: job.progress,
-        videoUrl: job.video_url,
-        error: job.error_message,
-      }),
+      JSON.stringify(mockJob),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
