@@ -40,25 +40,43 @@ export const useClientVideoExport = () => {
       
       // Load all videos
       const videoLoads = Array.from(videoSources).map(async (src) => {
-        const video = document.createElement('video');
-        video.src = src;
-        video.preload = 'auto';
-        await new Promise((resolve, reject) => {
-          video.onloadeddata = resolve;
-          video.onerror = reject;
-        });
-        videoAssets.set(src, video);
+        try {
+          const video = document.createElement('video');
+          video.src = src;
+          video.preload = 'auto';
+          video.crossOrigin = 'anonymous';
+          await new Promise((resolve, reject) => {
+            video.onloadeddata = resolve;
+            video.onerror = (e) => {
+              console.error('Failed to load video:', src, e);
+              reject(new Error(`Failed to load video: ${src}`));
+            };
+          });
+          videoAssets.set(src, video);
+        } catch (error) {
+          console.error('Video load error:', error);
+          throw error;
+        }
       });
       
       // Load all images
       const imageLoads = Array.from(imageSources).map(async (src) => {
-        const img = new Image();
-        img.src = src;
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-        imageAssets.set(src, img);
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = src;
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = (e) => {
+              console.error('Failed to load image:', src, e);
+              reject(new Error(`Failed to load image: ${src}`));
+            };
+          });
+          imageAssets.set(src, img);
+        } catch (error) {
+          console.error('Image load error:', error);
+          throw error;
+        }
       });
       
       await Promise.all([...videoLoads, ...imageLoads]);
@@ -149,8 +167,9 @@ export const useClientVideoExport = () => {
       setIsExporting(false);
       
     } catch (error: any) {
-      console.error('Export error:', error);
-      toast.error(`Export failed: ${error.message}`);
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      console.error('Export error:', errorMessage, error);
+      toast.error(`Export failed: ${errorMessage}`);
       setIsExporting(false);
       setProgress(0);
       onProgress?.(0);
