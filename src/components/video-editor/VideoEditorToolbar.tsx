@@ -7,17 +7,19 @@ import { toast } from "sonner";
 interface VideoEditorToolbarProps {
   onExport: () => void;
   isExporting: boolean;
-  clips: VideoClip[];
+  hasClips: boolean;
   onImportVideo?: (file: File) => void;
   onAddText?: () => void;
   onAddImage?: () => void;
   onSplit?: () => void;
+  selectedFormat?: string;
+  onFormatChange?: (format: any) => void;
 }
 
 export const VideoEditorToolbar = ({ 
   onExport, 
   isExporting, 
-  clips,
+  hasClips,
   onImportVideo,
   onAddText,
   onAddImage,
@@ -65,7 +67,7 @@ export const VideoEditorToolbar = ({
         variant="outline" 
         size="sm" 
         onClick={onSplit}
-        disabled={clips.length === 0}
+        disabled={!hasClips}
       >
         <Scissors className="h-4 w-4 mr-2" />
         Split
@@ -73,7 +75,7 @@ export const VideoEditorToolbar = ({
       <div className="w-px h-6 bg-border mx-2" />
       <Button 
         onClick={onExport} 
-        disabled={isExporting || clips.length === 0}
+        disabled={isExporting || !hasClips}
         size="sm"
       >
         <Download className="h-4 w-4 mr-2" />
