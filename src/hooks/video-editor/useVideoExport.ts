@@ -87,7 +87,13 @@ export const useVideoExport = () => {
       console.log('Starting server-side video render:', { width, height, fps, durationInFrames });
       toast.info('Submitting render job...');
 
-      // Call render-video edge function
+      // Ensure we have a valid session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session. Please log in again.');
+      }
+
+      // Call render-video edge function with explicit auth
       const { data, error } = await supabase.functions.invoke('render-video', {
         body: {
           composition: {
