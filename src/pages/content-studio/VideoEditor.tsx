@@ -3,11 +3,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AVCanvas } from "@webav/av-canvas";
-import { Combinator, MP4Clip, OffscreenSprite, VisibleSprite } from "@webav/av-cliper";
+import { Combinator, MP4Clip, OffscreenSprite, VisibleSprite, renderTxt2ImgBitmap, ImgClip } from "@webav/av-cliper";
 import { VideoEditorCanvas } from "@/components/video-editor/VideoEditorCanvas";
 import { VideoEditorTimeline } from "@/components/video-editor/VideoEditorTimeline";
 import { VideoEditorControls } from "@/components/video-editor/VideoEditorControls";
 import { VideoEditorToolbar } from "@/components/video-editor/VideoEditorToolbar";
+import { TextOverlayDialog } from "@/components/video-editor/TextOverlayDialog";
+import { ImageOverlayDialog } from "@/components/video-editor/ImageOverlayDialog";
 import { 
   Select,
   SelectContent,
@@ -47,6 +49,8 @@ const VideoEditor = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [showTextDialog, setShowTextDialog] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
   const canvasRef = useRef<AVCanvas | null>(null);
   const combinatorRef = useRef<Combinator | null>(null);
 
@@ -113,25 +117,32 @@ const VideoEditor = () => {
         return;
       }
 
-      console.log('Fetching video...');
-      // Fetch video and create clip
+      console.log('Fetching video blob...');
       const response = await fetch(url);
       const videoBlob = await response.blob();
-      console.log('Video blob created:', videoBlob.size, 'bytes');
+      console.log('Video blob created:', videoBlob.size, 'bytes, type:', videoBlob.type);
       
       // Create MP4Clip from blob stream
       console.log('Creating MP4Clip...');
       const mp4Clip = new MP4Clip(videoBlob.stream());
-      await mp4Clip.ready;
+      
+      // Wait for clip to be ready with timeout
+      await Promise.race([
+        mp4Clip.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for clip ready')), 10000))
+      ]);
+      
       console.log('MP4Clip ready');
-
+      
       // Create sprite and add to canvas
-      console.log('Creating sprite...');
       const sprite = new VisibleSprite(mp4Clip);
+      sprite.rect.w = CANVAS_FORMATS[selectedFormat].width;
+      sprite.rect.h = CANVAS_FORMATS[selectedFormat].height;
+      
       console.log('Adding sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
       console.log('Sprite added successfully');
-
+      
       // Get video duration
       const meta = await mp4Clip.meta;
       const videoDuration = meta.duration / 1e6; // Convert from microseconds to seconds
@@ -143,7 +154,7 @@ const VideoEditor = () => {
         url,
         startTime: 0,
         duration: videoDuration,
-        track: 0,
+        track: clips.length,
         sprite,
       };
       
@@ -164,6 +175,89 @@ const VideoEditor = () => {
     } catch (error) {
       console.error('Error importing video:', error);
       toast.error("Failed to import video");
+    }
+  };
+
+  const handleAddText = async (text: string, fontSize: number, color: string) => {
+    try {
+      if (!canvasRef.current) {
+        toast.error("Canvas not initialized");
+        return;
+      }
+
+      // Create text image bitmap
+      const textBitmap = await renderTxt2ImgBitmap(
+        text,
+        `font-size:${fontSize}px; color: ${color}; text-shadow: 2px 2px 6px rgba(0,0,0,0.5);`
+      );
+
+      // Create image clip and sprite
+      const imgClip = new ImgClip(textBitmap);
+      const sprite = new VisibleSprite(imgClip);
+      
+      // Position in center
+      sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - sprite.rect.w) / 2;
+      sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - sprite.rect.h) / 2;
+
+      await (canvasRef.current as any).addSprite(sprite);
+
+      const newClip: VideoClip = {
+        id: `text-${Date.now()}`,
+        url: '',
+        startTime: currentTime,
+        duration: 5, // 5 seconds default
+        track: clips.length,
+        sprite,
+      };
+
+      setClips(prev => [...prev, newClip]);
+      toast.success("Text overlay added");
+    } catch (error) {
+      console.error('Error adding text:', error);
+      toast.error("Failed to add text overlay");
+    }
+  };
+
+  const handleAddImage = async (imageUrl: string) => {
+    try {
+      if (!canvasRef.current) {
+        toast.error("Canvas not initialized");
+        return;
+      }
+
+      // Load image
+      const img = await createImageBitmap(await (await fetch(imageUrl)).blob());
+
+      // Create image clip and sprite
+      const imgClip = new ImgClip(img);
+      const sprite = new VisibleSprite(imgClip);
+      
+      // Scale to fit canvas (max 30% of canvas size)
+      const maxSize = Math.min(CANVAS_FORMATS[selectedFormat].width, CANVAS_FORMATS[selectedFormat].height) * 0.3;
+      const scale = Math.min(maxSize / img.width, maxSize / img.height);
+      sprite.rect.w = img.width * scale;
+      sprite.rect.h = img.height * scale;
+      
+      // Position in center
+      sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - sprite.rect.w) / 2;
+      sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - sprite.rect.h) / 2;
+
+      await (canvasRef.current as any).addSprite(sprite);
+
+      const newClip: VideoClip = {
+        id: `image-${Date.now()}`,
+        url: imageUrl,
+        startTime: currentTime,
+        duration: 5, // 5 seconds default
+        track: clips.length,
+        sprite,
+      };
+
+      setClips(prev => [...prev, newClip]);
+      toast.success("Image overlay added");
+    } catch (error) {
+      console.error('Error adding image:', error);
+      toast.error("Failed to add image overlay");
     }
   };
 
@@ -276,8 +370,8 @@ const VideoEditor = () => {
           isExporting={isExporting}
           clips={clips}
           onImportVideo={handleImportVideo}
-          onAddText={() => toast.info("Text overlay feature coming soon")}
-          onAddImage={() => toast.info("Image overlay feature coming soon")}
+          onAddText={() => setShowTextDialog(true)}
+          onAddImage={() => setShowImageDialog(true)}
           onSplit={() => toast.info("Split clip feature coming soon")}
         />
       </div>
@@ -310,6 +404,18 @@ const VideoEditor = () => {
           onTimeChange={setCurrentTime}
         />
       </div>
+
+      {/* Dialogs */}
+      <TextOverlayDialog
+        open={showTextDialog}
+        onOpenChange={setShowTextDialog}
+        onAdd={handleAddText}
+      />
+      <ImageOverlayDialog
+        open={showImageDialog}
+        onOpenChange={setShowImageDialog}
+        onAdd={handleAddImage}
+      />
     </div>
   );
 };

@@ -14,7 +14,7 @@ export const VideoEditorCanvas = ({ format, clips, currentTime, canvasRef }: Vid
   const htmlCanvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!htmlCanvasRef.current) return;
+    if (!htmlCanvasRef.current || canvasRef.current) return;
 
     console.log('Initializing AVCanvas with dimensions:', format.width, 'x', format.height);
     
@@ -24,14 +24,18 @@ export const VideoEditorCanvas = ({ format, clips, currentTime, canvasRef }: Vid
       height: format.height,
     } as any); // WebAV types may vary
 
-    console.log('AVCanvas initialized:', avCanvas);
+    console.log('AVCanvas initialized');
     canvasRef.current = avCanvas;
+
+    // Start the rendering loop
+    (avCanvas as any).play?.();
 
     return () => {
       console.log('Cleaning up AVCanvas');
+      (avCanvas as any).destroy?.();
       canvasRef.current = null;
     };
-  }, [format, canvasRef]);
+  }, [htmlCanvasRef.current]);
 
   // Calculate scale to fit canvas in container
   const scale = containerRef.current 
