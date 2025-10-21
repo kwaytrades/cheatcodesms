@@ -21,7 +21,48 @@ export const useClientVideoExport = () => {
       onProgress?.(0);
       
       console.log('Starting client-side video export:', { width, height, fps, durationInFrames });
-      toast.info('Preparing video export...');
+      toast.info('Loading media assets...');
+
+      // Pre-load all media assets
+      const videoAssets = new Map<string, HTMLVideoElement>();
+      const imageAssets = new Map<string, HTMLImageElement>();
+      
+      const videoSources = new Set<string>();
+      const imageSources = new Set<string>();
+      
+      overlays.forEach(overlay => {
+        if (overlay.type === 'video' && overlay.src) {
+          videoSources.add(overlay.src);
+        } else if (overlay.type === 'image' && overlay.src) {
+          imageSources.add(overlay.src);
+        }
+      });
+      
+      // Load all videos
+      const videoLoads = Array.from(videoSources).map(async (src) => {
+        const video = document.createElement('video');
+        video.src = src;
+        video.preload = 'auto';
+        await new Promise((resolve, reject) => {
+          video.onloadeddata = resolve;
+          video.onerror = reject;
+        });
+        videoAssets.set(src, video);
+      });
+      
+      // Load all images
+      const imageLoads = Array.from(imageSources).map(async (src) => {
+        const img = new Image();
+        img.src = src;
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+        imageAssets.set(src, img);
+      });
+      
+      await Promise.all([...videoLoads, ...imageLoads]);
+      toast.info('Rendering video...');
 
       // Create canvas for rendering
       const canvas = document.createElement('canvas');
@@ -55,16 +96,13 @@ export const useClientVideoExport = () => {
         }
       };
 
-      // Start recording
-      mediaRecorder.start();
+      // Start recording with timeslice
+      mediaRecorder.start(100);
       
-      const frameDuration = 1000 / fps;
       const totalFrames = durationInFrames;
       
       // Render each frame
       for (let frame = 0; frame < totalFrames; frame++) {
-        const currentTime = frame / fps;
-        
         // Clear canvas
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, width, height);
@@ -72,7 +110,7 @@ export const useClientVideoExport = () => {
         // Render overlays for this frame
         for (const overlay of overlays) {
           if (frame >= overlay.from && frame < (overlay.from + overlay.durationInFrames)) {
-            await renderOverlay(ctx, overlay, frame - overlay.from, fps);
+            renderOverlaySync(ctx, overlay, frame - overlay.from, fps, videoAssets, imageAssets);
           }
         }
         
@@ -80,16 +118,16 @@ export const useClientVideoExport = () => {
         const progressPercent = Math.round((frame / totalFrames) * 100);
         setProgress(progressPercent);
         onProgress?.(progressPercent);
-        
-        // Wait for next frame
-        await new Promise(resolve => setTimeout(resolve, frameDuration));
       }
       
       // Stop recording
       mediaRecorder.stop();
       
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Recording timeout')), 5000);
+        
         mediaRecorder.onstop = () => {
+          clearTimeout(timeout);
           const blob = new Blob(chunks, { type: mimeType });
           
           // Download the video
@@ -134,56 +172,50 @@ export const useClientVideoExport = () => {
   };
 };
 
-async function renderOverlay(
+function renderOverlaySync(
   ctx: CanvasRenderingContext2D,
   overlay: Overlay,
   frameIndex: number,
-  fps: number
+  fps: number,
+  videoAssets: Map<string, HTMLVideoElement>,
+  imageAssets: Map<string, HTMLImageElement>
 ) {
-  if (overlay.type === 'video' && overlay.src) {
-    // For video overlays, we need to load and draw the video frame
-    const video = document.createElement('video');
-    video.src = overlay.src;
-    video.currentTime = frameIndex / fps + (overlay.videoStartTime || 0);
-    
-    await new Promise((resolve) => {
-      video.onseeked = resolve;
-    });
-    
-    ctx.save();
-    ctx.translate(overlay.left, overlay.top);
-    ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
-    ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
-    ctx.restore();
-    
-  } else if (overlay.type === 'image' && overlay.src) {
-    // For image overlays
-    const img = new Image();
-    img.src = overlay.src;
-    
-    await new Promise((resolve) => {
-      img.onload = resolve;
-    });
-    
-    ctx.save();
-    ctx.translate(overlay.left, overlay.top);
-    ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
-    ctx.drawImage(img, 0, 0, overlay.width, overlay.height);
-    ctx.restore();
-    
-  } else if (overlay.type === 'text' && overlay.content) {
-    // For text overlays
-    ctx.save();
-    ctx.translate(overlay.left, overlay.top);
-    ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
-    
-    const fontSize = parseInt(overlay.styles?.fontSize || '24px');
-    const fontFamily = overlay.styles?.fontFamily || 'Arial';
-    ctx.font = `${fontSize}px ${fontFamily}`;
-    ctx.fillStyle = overlay.styles?.color || '#ffffff';
-    ctx.textAlign = (overlay.styles?.textAlign as CanvasTextAlign) || 'left';
-    ctx.fillText(overlay.content, 0, 0);
-    
-    ctx.restore();
+  try {
+    if (overlay.type === 'video' && overlay.src) {
+      const video = videoAssets.get(overlay.src);
+      if (video) {
+        video.currentTime = frameIndex / fps + (overlay.videoStartTime || 0);
+        
+        ctx.save();
+        ctx.translate(overlay.left, overlay.top);
+        ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
+        ctx.drawImage(video, 0, 0, overlay.width, overlay.height);
+        ctx.restore();
+      }
+    } else if (overlay.type === 'image' && overlay.src) {
+      const img = imageAssets.get(overlay.src);
+      if (img) {
+        ctx.save();
+        ctx.translate(overlay.left, overlay.top);
+        ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
+        ctx.drawImage(img, 0, 0, overlay.width, overlay.height);
+        ctx.restore();
+      }
+    } else if (overlay.type === 'text' && overlay.content) {
+      ctx.save();
+      ctx.translate(overlay.left, overlay.top);
+      ctx.rotate((overlay.rotation || 0) * Math.PI / 180);
+      
+      const fontSize = parseInt(overlay.styles?.fontSize || '24px');
+      const fontFamily = overlay.styles?.fontFamily || 'Arial';
+      ctx.font = `${fontSize}px ${fontFamily}`;
+      ctx.fillStyle = overlay.styles?.color || '#ffffff';
+      ctx.textAlign = (overlay.styles?.textAlign as CanvasTextAlign) || 'left';
+      ctx.fillText(overlay.content, 0, 0);
+      
+      ctx.restore();
+    }
+  } catch (error) {
+    console.error('Error rendering overlay:', error);
   }
 }
