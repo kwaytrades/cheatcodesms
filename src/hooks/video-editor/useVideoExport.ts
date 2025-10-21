@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
+import html2canvas from "html2canvas";
 import { ExportSettings, RESOLUTION_PRESETS, QUALITY_PRESETS } from "@/lib/video-editor/types";
 
 // Bitrate presets for MediaRecorder (in bits per second)
@@ -43,27 +44,6 @@ export const useVideoExport = () => {
     }
   }, []);
 
-  const createScaledCanvas = (sourceCanvas: HTMLCanvasElement, targetWidth: number, targetHeight: number): HTMLCanvasElement => {
-    const scaledCanvas = document.createElement('canvas');
-    scaledCanvas.width = targetWidth;
-    scaledCanvas.height = targetHeight;
-    
-    const ctx = scaledCanvas.getContext('2d', { 
-      alpha: false,
-      desynchronized: true 
-    });
-    
-    if (!ctx) {
-      throw new Error("Failed to get 2D context for scaled canvas");
-    }
-
-    // Use high-quality scaling
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    return scaledCanvas;
-  };
-
   const exportVideo = useCallback(async (
     playerRef: any,
     durationInFrames: number,
@@ -74,14 +54,14 @@ export const useVideoExport = () => {
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    let scaledCanvas: HTMLCanvasElement | null = null;
-    let animationFrameId: number | null = null;
+    let recordingCanvas: HTMLCanvasElement | null = null;
+    let captureInterval: NodeJS.Timeout | null = null;
 
     try {
       const { width: targetWidth, height: targetHeight } = RESOLUTION_PRESETS[settings.resolution];
       const bitrate = BITRATE_PRESETS[settings.resolution][settings.quality];
       
-      console.log("Starting MediaRecorder export...", { 
+      console.log("Starting frame-by-frame export...", { 
         durationInFrames, 
         fps, 
         targetWidth, 
@@ -94,82 +74,40 @@ export const useVideoExport = () => {
       setProgress(0);
       onProgress?.(0);
 
-      // Ensure player is initialized and canvas exists
-      // Play for a brief moment to force canvas creation
-      const wasPlaying = playerRef.current?.isPlaying();
-      if (!wasPlaying) {
-        playerRef.current?.play();
-        await new Promise(resolve => setTimeout(resolve, 200));
-        playerRef.current?.pause();
-      }
-      
-      // Get canvas from player - wait for it to be ready
+      // Get player container
       const container = playerRef.current?.getContainerNode();
       if (!container) {
         throw new Error("Player container not found");
       }
 
-      console.log("Looking for canvas in container...");
+      // Find the player element (the div with the video rendering)
+      const playerElement = container.querySelector('[data-remotion-canvas="true"]') || 
+                           container.querySelector('div[style*="position"]') ||
+                           container.firstElementChild;
       
-      // Wait for canvas to be available with multiple attempts
-      let sourceCanvas: HTMLCanvasElement | null = null;
-      let attempts = 0;
-      const maxAttempts = 20;
-      
-      while (!sourceCanvas && attempts < maxAttempts) {
-        // Try multiple selectors
-        sourceCanvas = container.querySelector("canvas") as HTMLCanvasElement;
-        
-        if (!sourceCanvas) {
-          // Try searching in the entire document as fallback
-          const allCanvases = document.querySelectorAll("canvas");
-          console.log(`Found ${allCanvases.length} canvas elements in document`);
-          
-          // Find the one that's inside our player
-          for (let i = 0; i < allCanvases.length; i++) {
-            const canvas = allCanvases[i];
-            if (container.contains(canvas)) {
-              sourceCanvas = canvas as HTMLCanvasElement;
-              console.log("Found canvas inside player container");
-              break;
-            }
-          }
-        }
-        
-        if (!sourceCanvas) {
-          attempts++;
-          console.log(`Canvas not found, attempt ${attempts}/${maxAttempts}`);
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-      
-      if (!sourceCanvas) {
-        throw new Error("Canvas not found in player after multiple attempts. Make sure the video is loaded.");
+      if (!playerElement) {
+        throw new Error("Player rendering element not found");
       }
 
-      if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
-        throw new Error("Canvas has no dimensions - try playing the video first");
-      }
+      console.log("Found player element for capture");
 
-      console.log("Source canvas dimensions:", sourceCanvas.width, "x", sourceCanvas.height);
-      console.log("Target dimensions:", targetWidth, "x", targetHeight);
-
-      // Seek to start
-      playerRef.current?.pause();
-      playerRef.current?.seekTo(0);
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      if (signal.aborted) throw new Error("Export cancelled");
-
-      // Determine if we need to scale
-      const needsScaling = sourceCanvas.width !== targetWidth || sourceCanvas.height !== targetHeight;
-      let recordingCanvas = sourceCanvas;
+      // Create recording canvas
+      recordingCanvas = document.createElement('canvas');
+      recordingCanvas.width = targetWidth;
+      recordingCanvas.height = targetHeight;
+      const ctx = recordingCanvas.getContext('2d', { 
+        alpha: false,
+        desynchronized: true 
+      });
       
-      if (needsScaling) {
-        console.log("Creating scaled canvas for recording...");
-        scaledCanvas = createScaledCanvas(sourceCanvas, targetWidth, targetHeight);
-        recordingCanvas = scaledCanvas;
+      if (!ctx) {
+        throw new Error("Failed to get 2D context for recording canvas");
       }
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      console.log("Created recording canvas:", targetWidth, "x", targetHeight);
 
       // Get supported MIME types
       const mimeTypes = [
@@ -198,7 +136,6 @@ export const useVideoExport = () => {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunks.push(event.data);
-          console.log("Received chunk:", event.data.size, "bytes");
         }
       };
 
@@ -224,78 +161,68 @@ export const useVideoExport = () => {
       // Start recording
       console.log("Starting MediaRecorder...");
       mediaRecorder.start(100); // Collect data every 100ms
-      toast.info("Recording video...");
+      toast.info("Capturing frames...");
 
-      // If we're scaling, continuously copy source to scaled canvas
-      if (needsScaling && scaledCanvas) {
-        const ctx = scaledCanvas.getContext('2d');
-        if (!ctx) throw new Error("Failed to get scaled canvas context");
-
-        const updateScaledCanvas = () => {
-          if (signal.aborted) return;
-          ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
-          animationFrameId = requestAnimationFrame(updateScaledCanvas);
-        };
-        updateScaledCanvas();
-      }
-
-      // Play through the timeline and track progress
-      const startTime = Date.now();
-      const durationInSeconds = durationInFrames / fps;
-      
-      playerRef.current?.play();
-
-      // Progress tracking interval
-      const progressInterval = setInterval(() => {
-        if (signal.aborted) {
-          clearInterval(progressInterval);
-          return;
-        }
-
-        const currentFrame = playerRef.current?.getCurrentFrame() || 0;
-        const progressPercent = Math.min(Math.round((currentFrame / durationInFrames) * 100), 99);
-        setProgress(progressPercent);
-        onProgress?.(progressPercent);
-      }, 100);
-
-      // Wait for video to finish playing
-      await new Promise<void>((resolve) => {
-        const checkProgress = () => {
-          if (signal.aborted) {
-            clearInterval(progressInterval);
-            resolve();
-            return;
-          }
-
-          const currentFrame = playerRef.current?.getCurrentFrame() || 0;
-          
-          if (currentFrame >= durationInFrames - 1) {
-            clearInterval(progressInterval);
-            resolve();
-          } else {
-            setTimeout(checkProgress, 50);
-          }
-        };
-        checkProgress();
-      });
-
-      clearInterval(progressInterval);
+      // Seek to start and pause
+      const wasPlaying = playerRef.current?.isPlaying();
+      playerRef.current?.pause();
+      playerRef.current?.seekTo(0);
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       if (signal.aborted) throw new Error("Export cancelled");
 
-      // Stop recording
-      console.log("Stopping recording...");
-      mediaRecorder.stop();
-      
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      // Capture frames frame by frame
+      const frameDelay = 1000 / fps;
+      let currentFrame = 0;
 
-      // Wait for recording to finalize
-      toast.info("Finalizing video...");
-      setProgress(95);
-      onProgress?.(95);
-      
+      const captureFrame = async () => {
+        if (signal.aborted || currentFrame >= durationInFrames) {
+          return;
+        }
+
+        try {
+          // Seek to current frame
+          playerRef.current?.seekTo(currentFrame);
+          await new Promise(resolve => setTimeout(resolve, 50)); // Wait for render
+
+          // Capture the player element
+          const canvas = await html2canvas(playerElement as HTMLElement, {
+            backgroundColor: null,
+            scale: targetWidth / (playerElement as HTMLElement).offsetWidth,
+            logging: false,
+            useCORS: true,
+          });
+
+          // Draw to recording canvas
+          ctx.clearRect(0, 0, targetWidth, targetHeight);
+          ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+          // Update progress
+          const progressPercent = Math.min(Math.round((currentFrame / durationInFrames) * 100), 99);
+          setProgress(progressPercent);
+          onProgress?.(progressPercent);
+
+          currentFrame++;
+
+          // Continue to next frame
+          if (currentFrame < durationInFrames) {
+            setTimeout(captureFrame, frameDelay);
+          } else {
+            // Finished capturing all frames
+            console.log("All frames captured");
+            mediaRecorder.stop();
+          }
+        } catch (error) {
+          console.error("Error capturing frame:", error);
+          mediaRecorder.stop();
+        }
+      };
+
+      // Start capturing
+      captureFrame();
+
+      // Wait for recording to complete
+      toast.info("Processing video...");
       const videoBlob = await recordingComplete;
       
       if (signal.aborted) throw new Error("Export cancelled");
@@ -324,9 +251,9 @@ export const useVideoExport = () => {
       }
     } catch (error: any) {
       console.error("Export failed:", error);
-      
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
+
+      if (captureInterval) {
+        clearInterval(captureInterval);
       }
 
       setProgress(0);
@@ -340,7 +267,7 @@ export const useVideoExport = () => {
     } finally {
       mediaRecorderRef.current = null;
       abortControllerRef.current = null;
-      scaledCanvas = null;
+      recordingCanvas = null;
     }
   }, []);
 
