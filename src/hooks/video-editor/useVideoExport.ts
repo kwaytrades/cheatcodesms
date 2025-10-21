@@ -28,9 +28,9 @@ export const useVideoExport = () => {
 
     try {
       toast.info("Loading video encoder...");
-      const baseURL = "/ffmpeg-core";
+      const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
       
-      console.log("Loading FFmpeg from local files:", baseURL);
+      console.log("Loading FFmpeg from:", baseURL);
       
       // Check if cancelled
       if (signal.aborted) {
@@ -55,7 +55,7 @@ export const useVideoExport = () => {
       });
 
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("FFmpeg loading timed out after 30 seconds")), 30000)
+        setTimeout(() => reject(new Error("FFmpeg loading timed out after 60 seconds")), 60000)
       );
 
       await Promise.race([loadPromise, timeoutPromise]);
