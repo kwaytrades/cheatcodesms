@@ -94,6 +94,15 @@ export const useVideoExport = () => {
       setProgress(0);
       onProgress?.(0);
 
+      // Ensure player is initialized and canvas exists
+      // Play for a brief moment to force canvas creation
+      const wasPlaying = playerRef.current?.isPlaying();
+      if (!wasPlaying) {
+        playerRef.current?.play();
+        await new Promise(resolve => setTimeout(resolve, 200));
+        playerRef.current?.pause();
+      }
+      
       // Get canvas from player - wait for it to be ready
       const container = playerRef.current?.getContainerNode();
       if (!container) {
@@ -145,11 +154,8 @@ export const useVideoExport = () => {
       console.log("Source canvas dimensions:", sourceCanvas.width, "x", sourceCanvas.height);
       console.log("Target dimensions:", targetWidth, "x", targetHeight);
 
-      // Pause playback and seek to start
-      const wasPlaying = playerRef.current?.isPlaying();
-      if (wasPlaying) {
-        playerRef.current?.pause();
-      }
+      // Seek to start
+      playerRef.current?.pause();
       playerRef.current?.seekTo(0);
       await new Promise(resolve => setTimeout(resolve, 100));
 
