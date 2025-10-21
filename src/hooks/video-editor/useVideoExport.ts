@@ -1,143 +1,68 @@
 import { useState, useCallback, useRef } from "react";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 import { toast } from "sonner";
 import { ExportSettings, RESOLUTION_PRESETS, QUALITY_PRESETS } from "@/lib/video-editor/types";
 
+// Bitrate presets for MediaRecorder (in bits per second)
+const BITRATE_PRESETS = {
+  "4K": {
+    high: 25_000_000,    // 25 Mbps
+    medium: 15_000_000,  // 15 Mbps
+    low: 8_000_000,      // 8 Mbps
+  },
+  "1080p": {
+    high: 10_000_000,    // 10 Mbps
+    medium: 5_000_000,   // 5 Mbps
+    low: 2_500_000,      // 2.5 Mbps
+  },
+  "720p": {
+    high: 5_000_000,     // 5 Mbps
+    medium: 2_500_000,   // 2.5 Mbps
+    low: 1_500_000,      // 1.5 Mbps
+  },
+};
+
 export const useVideoExport = () => {
-  const [ffmpeg] = useState(() => new FFmpeg());
-  const [isLoaded, setIsLoaded] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isLoaded] = useState(true); // MediaRecorder is always available
   const abortControllerRef = useRef<AbortController | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const cancelExport = useCallback(() => {
     if (abortControllerRef.current) {
       console.log("Cancelling export...");
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+      
       setProgress(0);
       toast.info("Export cancelled");
     }
   }, []);
 
-  const loadFFmpeg = useCallback(async (signal: AbortSignal) => {
-    if (isLoaded) {
-      console.log("FFmpeg already loaded");
-      return;
-    }
-
-    try {
-      toast.info("Loading video encoder...");
-      const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd";
-      
-      console.log("Loading FFmpeg from:", baseURL);
-      
-      // Check if cancelled
-      if (signal.aborted) {
-        throw new Error("Export cancelled");
-      }
-
-      // Set up event listeners before loading
-      ffmpeg.on("progress", ({ progress: p }) => {
-        const progressPercent = Math.round(p * 100);
-        console.log("FFmpeg encoding progress:", progressPercent);
-        setProgress(50 + Math.round(p * 40)); // 50-90% for encoding
-      });
-      
-      ffmpeg.on("log", ({ message }) => {
-        console.log("FFmpeg log:", message);
-      });
-
-      // Load directly from CDN without toBlobURL
-      console.log("Loading FFmpeg directly from CDN...");
-      
-      const coreURL = `${baseURL}/ffmpeg-core.js`;
-      const wasmURL = `${baseURL}/ffmpeg-core.wasm`;
-      
-      console.log("Core URL:", coreURL);
-      console.log("WASM URL:", wasmURL);
-
-      const loadPromise = ffmpeg.load({
-        coreURL: await toBlobURL(coreURL, "text/javascript"),
-        wasmURL: await toBlobURL(wasmURL, "application/wasm"),
-      });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("FFmpeg loading timed out after 60 seconds")), 60000)
-      );
-
-      await Promise.race([loadPromise, timeoutPromise]);
-      
-      // Check again after loading
-      if (signal.aborted) {
-        throw new Error("Export cancelled");
-      }
-      
-      setIsLoaded(true);
-      console.log("FFmpeg loaded successfully");
-      toast.success("Video encoder ready");
-    } catch (error: any) {
-      if (error?.message === "Export cancelled") {
-        throw error;
-      }
-      console.error("Failed to load FFmpeg:", error);
-      toast.error(`Failed to initialize video encoder: ${error?.message || "Unknown error"}`);
-      throw error;
-    }
-  }, [ffmpeg, isLoaded]);
-
-  const captureFrame = useCallback(async (
-    canvas: HTMLCanvasElement,
-    frameNumber: number,
-    totalFrames: number,
-    signal: AbortSignal
-  ): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      // Check if cancelled
-      if (signal.aborted) {
-        reject(new Error("Export cancelled"));
-        return;
-      }
-
-      try {
-        // Validate canvas has content
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error("Cannot get canvas context"));
-          return;
-        }
-
-        canvas.toBlob(async (blob) => {
-          try {
-            if (signal.aborted) {
-              reject(new Error("Export cancelled"));
-              return;
-            }
-
-            if (!blob) {
-              reject(new Error(`Failed to capture frame ${frameNumber}`));
-              return;
-            }
-            
-            const data = await blob.arrayBuffer();
-            const filename = `frame${frameNumber.toString().padStart(5, "0")}.png`;
-            
-            await ffmpeg.writeFile(filename, new Uint8Array(data));
-            
-            if (frameNumber % 30 === 0 || frameNumber === totalFrames - 1) {
-              console.log(`Captured ${frameNumber + 1}/${totalFrames} frames`);
-            }
-            
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        }, "image/png", 0.95);
-      } catch (error) {
-        reject(error);
-      }
+  const createScaledCanvas = (sourceCanvas: HTMLCanvasElement, targetWidth: number, targetHeight: number): HTMLCanvasElement => {
+    const scaledCanvas = document.createElement('canvas');
+    scaledCanvas.width = targetWidth;
+    scaledCanvas.height = targetHeight;
+    
+    const ctx = scaledCanvas.getContext('2d', { 
+      alpha: false,
+      desynchronized: true 
     });
-  }, [ffmpeg]);
+    
+    if (!ctx) {
+      throw new Error("Failed to get 2D context for scaled canvas");
+    }
+
+    // Use high-quality scaling
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    return scaledCanvas;
+  };
 
   const exportVideo = useCallback(async (
     playerRef: any,
@@ -146,161 +71,206 @@ export const useVideoExport = () => {
     settings: ExportSettings,
     onProgress?: (progress: number) => void
   ): Promise<void> => {
-    // Create new abort controller for this export
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
+    let scaledCanvas: HTMLCanvasElement | null = null;
+    let animationFrameId: number | null = null;
+
     try {
-      const { width, height } = RESOLUTION_PRESETS[settings.resolution];
-      const { crf } = QUALITY_PRESETS[settings.quality];
+      const { width: targetWidth, height: targetHeight } = RESOLUTION_PRESETS[settings.resolution];
+      const bitrate = BITRATE_PRESETS[settings.resolution][settings.quality];
       
-      console.log("Starting export...", { 
+      console.log("Starting MediaRecorder export...", { 
         durationInFrames, 
         fps, 
-        width, 
-        height,
+        targetWidth, 
+        targetHeight,
         resolution: settings.resolution,
         quality: settings.quality,
-        crf,
-        preset: settings.preset,
+        bitrate: `${(bitrate / 1_000_000).toFixed(1)} Mbps`,
       });
-      
-      // Load FFmpeg first with detailed logging
-      console.log("Step 1: Loading FFmpeg...");
-      await loadFFmpeg(signal);
-      console.log("Step 2: FFmpeg loaded successfully");
-      
-      if (signal.aborted) throw new Error("Export cancelled");
       
       setProgress(0);
       onProgress?.(0);
 
       // Get canvas from player
-      console.log("Step 3: Getting canvas from player...");
       const container = playerRef.current?.getContainerNode();
-      console.log("Player container:", container);
-      
       if (!container) {
-        throw new Error("Player container not found - make sure video is playing");
+        throw new Error("Player container not found");
       }
 
-      const canvas = container.querySelector("canvas") as HTMLCanvasElement;
-      console.log("Canvas found:", canvas, "dimensions:", canvas?.width, canvas?.height);
-      
-      if (!canvas) {
-        throw new Error("Canvas not found in player - video may not be rendered");
+      const sourceCanvas = container.querySelector("canvas") as HTMLCanvasElement;
+      if (!sourceCanvas) {
+        throw new Error("Canvas not found in player");
       }
 
-      // Verify canvas has dimensions
-      if (canvas.width === 0 || canvas.height === 0) {
+      if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
         throw new Error("Canvas has no dimensions - try playing the video first");
       }
 
-      console.log("Step 4: Preparing for frame capture...");
-      
-      // Pause playback
+      console.log("Source canvas dimensions:", sourceCanvas.width, "x", sourceCanvas.height);
+      console.log("Target dimensions:", targetWidth, "x", targetHeight);
+
+      // Pause playback and seek to start
       const wasPlaying = playerRef.current?.isPlaying();
       if (wasPlaying) {
         playerRef.current?.pause();
       }
-
-      // Wait for player to be ready
-      await new Promise(resolve => setTimeout(resolve, 500));
+      playerRef.current?.seekTo(0);
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       if (signal.aborted) throw new Error("Export cancelled");
 
-      // Capture all frames
-      toast.info(`Capturing ${durationInFrames} frames...`);
-      console.log(`Step 5: Starting frame capture - ${durationInFrames} frames at ${fps} FPS`);
+      // Determine if we need to scale
+      const needsScaling = sourceCanvas.width !== targetWidth || sourceCanvas.height !== targetHeight;
+      let recordingCanvas = sourceCanvas;
       
-      for (let frame = 0; frame < durationInFrames; frame++) {
-        if (signal.aborted) throw new Error("Export cancelled");
-
-        try {
-          // Seek to frame
-          playerRef.current?.seekTo(frame);
-          
-          // Wait longer for frame to render (100ms + requestAnimationFrame)
-          await new Promise(resolve => requestAnimationFrame(() => {
-            setTimeout(resolve, 100);
-          }));
-          
-          // Capture frame
-          await captureFrame(canvas, frame, durationInFrames, signal);
-          
-          // Update progress (0-50% for capture)
-          const captureProgress = Math.round((frame / durationInFrames) * 50);
-          setProgress(captureProgress);
-          onProgress?.(captureProgress);
-        } catch (error: any) {
-          if (error?.message === "Export cancelled") throw error;
-          console.error(`Failed to capture frame ${frame}:`, error);
-          throw new Error(`Frame capture failed at frame ${frame}: ${error?.message}`);
-        }
+      if (needsScaling) {
+        console.log("Creating scaled canvas for recording...");
+        scaledCanvas = createScaledCanvas(sourceCanvas, targetWidth, targetHeight);
+        recordingCanvas = scaledCanvas;
       }
 
-      console.log("All frames captured, starting encoding...");
-      toast.info("Encoding video...");
-      setProgress(50);
-      onProgress?.(50);
+      // Get supported MIME types
+      const mimeTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm',
+      ];
+      
+      const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+      console.log("Using MIME type:", mimeType);
 
-      // Encode video with FFmpeg
-      console.log("Running FFmpeg command with settings:", {
-        resolution: `${width}x${height}`,
-        crf,
-        preset: settings.preset,
+      // Create MediaStream from canvas
+      const stream = recordingCanvas.captureStream(fps);
+      console.log("Created canvas stream at", fps, "FPS");
+
+      // Set up MediaRecorder
+      const chunks: Blob[] = [];
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: bitrate,
       });
       
-      await ffmpeg.exec([
-        "-framerate", fps.toString(),
-        "-pattern_type", "glob",
-        "-i", "frame*.png",
-        "-c:v", "libx264",
-        "-preset", settings.preset,
-        "-crf", crf.toString(),
-        "-pix_fmt", "yuv420p",
-        "-s", `${width}x${height}`,
-        "-y",
-        "output.mp4"
-      ]);
+      mediaRecorderRef.current = mediaRecorder;
 
-      console.log("Encoding complete, reading output file...");
-      setProgress(90);
-      onProgress?.(90);
+      // Collect data chunks
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+          console.log("Received chunk:", event.data.size, "bytes");
+        }
+      };
 
-      // Read the output file
-      const data = await ffmpeg.readFile("output.mp4");
-      
-      // Convert to standard Uint8Array for blob creation
-      const uint8Data = data instanceof Uint8Array ? data : new Uint8Array();
-      
-      if (!uint8Data || uint8Data.length === 0) {
-        throw new Error("Output video file is empty");
+      // Handle recording completion
+      const recordingComplete = new Promise<Blob>((resolve, reject) => {
+        mediaRecorder.onstop = () => {
+          console.log("Recording stopped, total chunks:", chunks.length);
+          if (chunks.length === 0) {
+            reject(new Error("No video data recorded"));
+            return;
+          }
+          const blob = new Blob(chunks, { type: mimeType });
+          console.log("Created blob:", blob.size, "bytes");
+          resolve(blob);
+        };
+
+        mediaRecorder.onerror = (event: any) => {
+          console.error("MediaRecorder error:", event);
+          reject(new Error(`Recording failed: ${event.error?.message || "Unknown error"}`));
+        };
+      });
+
+      // Start recording
+      console.log("Starting MediaRecorder...");
+      mediaRecorder.start(100); // Collect data every 100ms
+      toast.info("Recording video...");
+
+      // If we're scaling, continuously copy source to scaled canvas
+      if (needsScaling && scaledCanvas) {
+        const ctx = scaledCanvas.getContext('2d');
+        if (!ctx) throw new Error("Failed to get scaled canvas context");
+
+        const updateScaledCanvas = () => {
+          if (signal.aborted) return;
+          ctx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
+          animationFrameId = requestAnimationFrame(updateScaledCanvas);
+        };
+        updateScaledCanvas();
       }
+
+      // Play through the timeline and track progress
+      const startTime = Date.now();
+      const durationInSeconds = durationInFrames / fps;
       
-      console.log("Output file size:", uint8Data.length, "bytes");
+      playerRef.current?.play();
+
+      // Progress tracking interval
+      const progressInterval = setInterval(() => {
+        if (signal.aborted) {
+          clearInterval(progressInterval);
+          return;
+        }
+
+        const currentFrame = playerRef.current?.getCurrentFrame() || 0;
+        const progressPercent = Math.min(Math.round((currentFrame / durationInFrames) * 100), 99);
+        setProgress(progressPercent);
+        onProgress?.(progressPercent);
+      }, 100);
+
+      // Wait for video to finish playing
+      await new Promise<void>((resolve) => {
+        const checkProgress = () => {
+          if (signal.aborted) {
+            clearInterval(progressInterval);
+            resolve();
+            return;
+          }
+
+          const currentFrame = playerRef.current?.getCurrentFrame() || 0;
+          
+          if (currentFrame >= durationInFrames - 1) {
+            clearInterval(progressInterval);
+            resolve();
+          } else {
+            setTimeout(checkProgress, 50);
+          }
+        };
+        checkProgress();
+      });
+
+      clearInterval(progressInterval);
+
+      if (signal.aborted) throw new Error("Export cancelled");
+
+      // Stop recording
+      console.log("Stopping recording...");
+      mediaRecorder.stop();
       
-      // Create blob - use slice to get a clean ArrayBuffer
-      const blob = new Blob([uint8Data.slice()], { type: "video/mp4" });
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      // Wait for recording to finalize
+      toast.info("Finalizing video...");
+      setProgress(95);
+      onProgress?.(95);
       
+      const videoBlob = await recordingComplete;
+      
+      if (signal.aborted) throw new Error("Export cancelled");
+
       // Download the file
-      const url = URL.createObjectURL(blob);
+      console.log("Downloading video...");
+      const url = URL.createObjectURL(videoBlob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `video-export-${Date.now()}.mp4`;
+      a.download = `video-export-${settings.resolution}-${Date.now()}.webm`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      console.log("Cleaning up temporary files...");
-      // Cleanup
-      const files = await ffmpeg.listDir("/");
-      for (const file of files) {
-        if (file.name.startsWith("frame") || file.name === "output.mp4") {
-          await ffmpeg.deleteFile(file.name);
-        }
-      }
 
       setProgress(100);
       onProgress?.(100);
@@ -308,37 +278,32 @@ export const useVideoExport = () => {
       console.log("Export complete!");
 
       // Restore playback state
+      playerRef.current?.pause();
+      playerRef.current?.seekTo(0);
       if (wasPlaying) {
         playerRef.current?.play();
       }
     } catch (error: any) {
-      console.error("Export failed with error:", error);
+      console.error("Export failed:", error);
       
-      // Cleanup on error or cancellation
-      try {
-        const files = await ffmpeg.listDir("/");
-        for (const file of files) {
-          if (file.name.startsWith("frame") || file.name === "output.mp4") {
-            await ffmpeg.deleteFile(file.name);
-          }
-        }
-      } catch (cleanupError) {
-        console.error("Cleanup error:", cleanupError);
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
       }
 
       setProgress(0);
       onProgress?.(0);
       
-      // Only show error toast if not cancelled
       if (error?.message !== "Export cancelled") {
         toast.error(`Export failed: ${error?.message || "Unknown error"}`);
       }
       
       throw error;
     } finally {
+      mediaRecorderRef.current = null;
       abortControllerRef.current = null;
+      scaledCanvas = null;
     }
-  }, [ffmpeg, loadFFmpeg, captureFrame]);
+  }, []);
 
   return {
     exportVideo,

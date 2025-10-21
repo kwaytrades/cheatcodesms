@@ -1,8 +1,8 @@
 export const FPS = 30;
 export const COMP_NAME = "VideoEditorComposition";
 export const DURATION_IN_FRAMES = 900; // 30 seconds default
-export const VIDEO_WIDTH = 1920;
-export const VIDEO_HEIGHT = 1080;
+export const VIDEO_WIDTH = 3840;
+export const VIDEO_HEIGHT = 2160;
 export const INITIAL_ROWS = 5;
 export const MAX_ROWS = 8;
 export const ROW_HEIGHT = 48;
