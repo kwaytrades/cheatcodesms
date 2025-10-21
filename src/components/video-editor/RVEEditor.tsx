@@ -4,7 +4,7 @@ import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
 import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
 import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useEditorState } from "@/hooks/video-editor/useEditorState";
-import { useVideoExport } from "@/hooks/video-editor/useVideoExport";
+import { useClientVideoExport } from "@/hooks/video-editor/useClientVideoExport";
 import { VideoPlayer } from "./VideoPlayer";
 import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
@@ -33,7 +33,7 @@ import { formatDistanceToNow } from "date-fns";
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
-  const { exportVideo, cancelExport, progress: exportProgress } = useVideoExport();
+  const { exportVideo, cancelExport, progress: exportProgress } = useClientVideoExport();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportInProgress, setExportInProgress] = useState(false);
 
