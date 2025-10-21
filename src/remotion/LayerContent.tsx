@@ -1,5 +1,5 @@
 import React from "react";
-import { Audio } from "remotion";
+import { Audio, Video } from "remotion";
 import { Overlay, OverlayType } from "@/lib/video-editor/types";
 
 interface LayerContentProps {
@@ -22,7 +22,7 @@ export const LayerContent: React.FC<LayerContentProps> = ({ overlay }) => {
     case OverlayType.VIDEO:
       return (
         <div style={{ ...commonStyle, ...getStylesWithoutAnimation(overlay.styles) }}>
-          <video
+          <Video
             src={overlay.src}
             style={{
               width: "100%",
@@ -31,9 +31,6 @@ export const LayerContent: React.FC<LayerContentProps> = ({ overlay }) => {
               filter: overlay.styles.filter,
               borderRadius: overlay.styles.borderRadius,
             }}
-            autoPlay
-            loop
-            playsInline
           />
         </div>
       );

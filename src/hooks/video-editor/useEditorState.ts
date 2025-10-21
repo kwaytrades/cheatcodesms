@@ -23,10 +23,13 @@ export const useEditorState = () => {
 
   const playerRef = useRef<PlayerRef>(null);
 
-  const durationInFrames = Math.max(
-    ...overlays.map((o) => o.from + o.durationInFrames),
-    FPS * 30
-  );
+  const maxOverlayEnd = overlays.length > 0
+    ? Math.max(...overlays.map((o) => o.from + o.durationInFrames))
+    : 0;
+
+  const durationInFrames = maxOverlayEnd > 0
+    ? maxOverlayEnd + FPS * 2  // Add 2 seconds padding after last overlay
+    : FPS * 5; // Default 5 seconds for empty timeline
 
   const durationInSeconds = durationInFrames / FPS;
 

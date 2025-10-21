@@ -15,6 +15,7 @@ import { useSidebarContext } from "@/contexts/video-editor/SidebarContext";
 import { TextPanel } from "./panels/TextPanel";
 import { VideoPanel } from "./panels/VideoPanel";
 import { ImagePanel } from "./panels/ImagePanel";
+import { SoundPanel } from "./panels/SoundPanel";
 
 const panels = [
   { title: "Text", icon: Type, type: OverlayType.TEXT },
@@ -35,7 +36,7 @@ export function EditorSidebar() {
       case OverlayType.IMAGE:
         return <ImagePanel />;
       case OverlayType.SOUND:
-        return <div className="p-4">Sound panel coming soon</div>;
+        return <SoundPanel />;
       default:
         return null;
     }
