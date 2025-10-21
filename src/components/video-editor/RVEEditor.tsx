@@ -19,7 +19,8 @@ import {
   Download,
   ZoomIn,
   ZoomOut,
-  Scissors
+  Scissors,
+  Trash2
 } from "lucide-react";
 import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
@@ -111,6 +112,17 @@ const EditorControls: React.FC = () => {
           >
             <Scissors className="h-4 w-4 mr-2" />
             Split
+          </Button>
+
+          {/* Delete Button */}
+          <Button
+            variant="outline"
+            onClick={() => editorState.selectedOverlayId && editorState.deleteOverlay(editorState.selectedOverlayId)}
+            disabled={!editorState.selectedOverlayId}
+            title="Delete selected overlay (Delete)"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
           </Button>
 
           {/* Timeline Progress */}

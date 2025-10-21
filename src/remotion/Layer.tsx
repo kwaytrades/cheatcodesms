@@ -8,8 +8,11 @@ export const Layer: React.FC<{
   selectedOverlayId: number | null;
 }> = ({ overlay, selectedOverlayId }) => {
   const style: React.CSSProperties = useMemo(() => {
-    const zIndex = 100 - (overlay.row || 0) * 10;
+    // Higher row numbers appear on top (row 9 has highest z-index)
+    const baseZIndex = (overlay.row || 0) * 10;
     const isSelected = overlay.id === selectedOverlayId;
+    // Add extra z-index if selected to bring it to front
+    const zIndex = isSelected ? baseZIndex + 1000 : baseZIndex;
 
     return {
       position: "absolute",

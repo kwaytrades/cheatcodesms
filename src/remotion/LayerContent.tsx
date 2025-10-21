@@ -31,6 +31,8 @@ export const LayerContent: React.FC<LayerContentProps> = ({ overlay }) => {
               filter: overlay.styles.filter,
               borderRadius: overlay.styles.borderRadius,
             }}
+            autoPlay
+            loop
             muted
             playsInline
           />
