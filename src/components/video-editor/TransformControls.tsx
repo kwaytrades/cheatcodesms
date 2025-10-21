@@ -7,6 +7,9 @@ interface TransformControlsProps {
   onChange: (updates: Partial<Overlay>) => void;
   containerWidth: number;
   containerHeight: number;
+  playerScale: number;
+  playerOffsetX: number;
+  playerOffsetY: number;
 }
 
 export const TransformControls: React.FC<TransformControlsProps> = ({
@@ -14,6 +17,9 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
   onChange,
   containerWidth,
   containerHeight,
+  playerScale,
+  playerOffsetX,
+  playerOffsetY,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState<string | null>(null);
@@ -28,13 +34,25 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
         const deltaX = e.clientX - dragStartRef.current.x;
         const deltaY = e.clientY - dragStartRef.current.y;
         
+        // Convert screen delta to composition coordinates
+        const compositionDeltaX = deltaX / playerScale;
+        const compositionDeltaY = deltaY / playerScale;
+        
+        // Apply constraints to keep within bounds
+        const newLeft = Math.max(0, Math.min(containerWidth - overlay.width, dragStartRef.current.left + compositionDeltaX));
+        const newTop = Math.max(0, Math.min(containerHeight - overlay.height, dragStartRef.current.top + compositionDeltaY));
+        
         onChange({
-          left: dragStartRef.current.left + deltaX,
-          top: dragStartRef.current.top + deltaY,
+          left: newLeft,
+          top: newTop,
         });
       } else if (isResizing && resizeStartRef.current) {
         const deltaX = e.clientX - resizeStartRef.current.x;
         const deltaY = e.clientY - resizeStartRef.current.y;
+        
+        // Convert screen delta to composition coordinates
+        const compositionDeltaX = deltaX / playerScale;
+        const compositionDeltaY = deltaY / playerScale;
         
         let newWidth = resizeStartRef.current.width;
         let newHeight = resizeStartRef.current.height;
@@ -42,19 +60,23 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
         let newTop = resizeStartRef.current.top;
 
         if (isResizing.includes("right")) {
-          newWidth = Math.max(50, resizeStartRef.current.width + deltaX);
+          newWidth = Math.max(50, resizeStartRef.current.width + compositionDeltaX);
         }
         if (isResizing.includes("left")) {
-          newWidth = Math.max(50, resizeStartRef.current.width - deltaX);
-          newLeft = resizeStartRef.current.left + deltaX;
+          newWidth = Math.max(50, resizeStartRef.current.width - compositionDeltaX);
+          newLeft = resizeStartRef.current.left + compositionDeltaX;
         }
         if (isResizing.includes("bottom")) {
-          newHeight = Math.max(50, resizeStartRef.current.height + deltaY);
+          newHeight = Math.max(50, resizeStartRef.current.height + compositionDeltaY);
         }
         if (isResizing.includes("top")) {
-          newHeight = Math.max(50, resizeStartRef.current.height - deltaY);
-          newTop = resizeStartRef.current.top + deltaY;
+          newHeight = Math.max(50, resizeStartRef.current.height - compositionDeltaY);
+          newTop = resizeStartRef.current.top + compositionDeltaY;
         }
+
+        // Apply constraints
+        newWidth = Math.min(newWidth, containerWidth - newLeft);
+        newHeight = Math.min(newHeight, containerHeight - newTop);
 
         onChange({
           width: newWidth,
@@ -134,10 +156,10 @@ export const TransformControls: React.FC<TransformControlsProps> = ({
 
   const boxStyle: React.CSSProperties = {
     position: "absolute",
-    left: overlay.left,
-    top: overlay.top,
-    width: overlay.width,
-    height: overlay.height,
+    left: overlay.left * playerScale + playerOffsetX,
+    top: overlay.top * playerScale + playerOffsetY,
+    width: overlay.width * playerScale,
+    height: overlay.height * playerScale,
     transform: `rotate(${overlay.rotation || 0}deg)`,
     transformOrigin: "center center",
     border: "2px solid hsl(var(--primary))",

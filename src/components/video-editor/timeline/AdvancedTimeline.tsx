@@ -97,6 +97,7 @@ export const AdvancedTimeline: React.FC<TimelineProps> = ({ onTimelineClick }) =
                     isSelected={selectedOverlayId === overlay.id}
                     onSelect={() => setSelectedOverlayId(overlay.id)}
                     rowHeight={ROW_HEIGHT}
+                    timelineWidth={timelineWidth}
                   />
                 ))}
             </div>

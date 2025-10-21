@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Overlay } from "@/lib/video-editor/types";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Scissors } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from "@/components/ui/context-menu";
+import { useEditorContext } from "@/contexts/video-editor/EditorContext";
 
 interface TimelineItemProps {
   overlay: Overlay;
@@ -10,6 +18,7 @@ interface TimelineItemProps {
   isSelected: boolean;
   onSelect: () => void;
   rowHeight: number;
+  timelineWidth: number;
 }
 
 const getOverlayColor = (overlay: Overlay) => {
@@ -33,7 +42,12 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   isSelected,
   onSelect,
   rowHeight,
+  timelineWidth,
 }) => {
+  const { changeOverlay, splitOverlay, duplicateOverlay, deleteOverlay, currentFrame } = useEditorContext();
+  const [isResizing, setIsResizing] = useState<'left' | 'right' | null>(null);
+  const resizeStartRef = useRef<{ x: number; from: number; duration: number } | null>(null);
+
   const {
     attributes,
     listeners,
@@ -47,6 +61,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
       type: "timeline-item",
       overlay,
     },
+    disabled: isResizing !== null,
   });
 
   const style: React.CSSProperties = {
@@ -61,28 +76,121 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
     zIndex: isDragging ? 1000 : isSelected ? 100 : 1,
   };
 
+  const handleResizeStart = (edge: 'left' | 'right') => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsResizing(edge);
+    resizeStartRef.current = {
+      x: e.clientX,
+      from: overlay.from,
+      duration: overlay.durationInFrames,
+    };
+  };
+
+  useEffect(() => {
+    if (!isResizing || !resizeStartRef.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeStartRef.current) return;
+
+      const deltaX = e.clientX - resizeStartRef.current.x;
+      const pixelsPerFrame = timelineWidth / durationInFrames;
+      const frameDelta = Math.round(deltaX / pixelsPerFrame);
+
+      if (isResizing === 'left') {
+        // Trim start
+        const newFrom = Math.max(0, resizeStartRef.current.from + frameDelta);
+        const newDuration = resizeStartRef.current.duration - frameDelta;
+        if (newDuration > 10) { // Min 10 frames
+          changeOverlay(overlay.id, {
+            from: newFrom,
+            durationInFrames: newDuration,
+          });
+        }
+      } else {
+        // Trim end
+        const newDuration = Math.max(10, resizeStartRef.current.duration + frameDelta);
+        changeOverlay(overlay.id, {
+          durationInFrames: newDuration,
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      resizeStartRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, overlay.id, changeOverlay, durationInFrames, timelineWidth]);
+
+  const canSplit = currentFrame >= overlay.from && currentFrame < overlay.from + overlay.durationInFrames;
+
+  const handleSplit = () => {
+    if (canSplit) {
+      splitOverlay(overlay.id, currentFrame);
+    }
+  };
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`rounded px-2 py-1 text-xs cursor-move flex items-center gap-1 transition-all ${getOverlayColor(
-        overlay
-      )} ${
-        isSelected
-          ? "ring-2 ring-primary shadow-lg"
-          : "opacity-80 hover:opacity-100"
-      }`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect();
-      }}
-      {...attributes}
-      {...listeners}
-    >
-      <GripVertical className="h-3 w-3 text-white/50 flex-none" />
-      <span className="text-white font-medium truncate block flex-1">
-        {overlay.type === "text" ? overlay.content : overlay.type}
-      </span>
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <div
+          ref={setNodeRef}
+          style={style}
+          className={`rounded px-2 py-1 text-xs flex items-center gap-1 transition-all relative ${getOverlayColor(
+            overlay
+          )} ${
+            isSelected
+              ? "ring-2 ring-primary shadow-lg"
+              : "opacity-80 hover:opacity-100"
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect();
+          }}
+        >
+          {/* Left resize handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-white/50 transition-colors z-10"
+            onMouseDown={handleResizeStart('left')}
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {/* Main content with drag handle */}
+          <div className="flex items-center gap-1 flex-1 min-w-0 cursor-move" {...attributes} {...listeners}>
+            <GripVertical className="h-3 w-3 text-white/50 flex-none" />
+            <span className="text-white font-medium truncate block flex-1">
+              {overlay.type === "text" ? overlay.content : overlay.type}
+            </span>
+          </div>
+
+          {/* Right resize handle */}
+          <div
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-white/50 transition-colors z-10"
+            onMouseDown={handleResizeStart('right')}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </ContextMenuTrigger>
+      
+      <ContextMenuContent>
+        <ContextMenuItem onClick={handleSplit} disabled={!canSplit}>
+          <Scissors className="h-4 w-4 mr-2" />
+          Split at Playhead
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => duplicateOverlay(overlay.id)}>
+          Duplicate
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => deleteOverlay(overlay.id)} className="text-destructive">
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };

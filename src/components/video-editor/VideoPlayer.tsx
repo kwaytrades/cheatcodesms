@@ -84,14 +84,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef }) => {
             />
             
             {/* Transform Controls for Selected Overlay */}
-            {selectedOverlay && selectedOverlay.type !== "sound" && (
-              <TransformControls
-                overlay={selectedOverlay}
-                onChange={(updates) => changeOverlay(selectedOverlayId!, updates)}
-                containerWidth={compositionWidth}
-                containerHeight={compositionHeight}
-              />
-            )}
+            {selectedOverlayId && selectedOverlay && selectedOverlay.type !== "sound" && (() => {
+              const playerScale = Math.min(
+                playerDimensions.width / compositionWidth,
+                playerDimensions.height / compositionHeight
+              );
+              const playerRenderedWidth = compositionWidth * playerScale;
+              const playerRenderedHeight = compositionHeight * playerScale;
+              const playerOffsetX = (playerDimensions.width - playerRenderedWidth) / 2;
+              const playerOffsetY = (playerDimensions.height - playerRenderedHeight) / 2;
+
+              return (
+                <TransformControls
+                  overlay={selectedOverlay}
+                  onChange={(updates) => changeOverlay(selectedOverlayId, updates)}
+                  containerWidth={compositionWidth}
+                  containerHeight={compositionHeight}
+                  playerScale={playerScale}
+                  playerOffsetX={playerOffsetX}
+                  playerOffsetY={playerOffsetY}
+                />
+              );
+            })()}
           </div>
         </div>
       </div>

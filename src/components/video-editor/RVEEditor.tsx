@@ -18,14 +18,19 @@ import {
   SkipForward,
   Download,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  Scissors
 } from "lucide-react";
 import { useTimeline } from "@/contexts/video-editor/TimelineContext";
+import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
 
 const EditorControls: React.FC = () => {
   const editorState = useEditorState();
   const { zoomScale, handleZoom } = useTimeline();
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
 
   const handleExport = async () => {
     console.log("Exporting video...");
@@ -45,6 +50,21 @@ const EditorControls: React.FC = () => {
         Math.min(editorState.durationInFrames, editorState.currentFrame + 30)
       );
     }
+  };
+
+  const handleSplit = () => {
+    if (editorState.selectedOverlayId) {
+      const overlay = editorState.overlays.find(o => o.id === editorState.selectedOverlayId);
+      if (overlay && editorState.currentFrame >= overlay.from && editorState.currentFrame < overlay.from + overlay.durationInFrames) {
+        editorState.splitOverlay(editorState.selectedOverlayId, editorState.currentFrame);
+      }
+    }
+  };
+
+  const canSplitAtPlayhead = () => {
+    if (!editorState.selectedOverlayId) return false;
+    const overlay = editorState.overlays.find(o => o.id === editorState.selectedOverlayId);
+    return overlay ? editorState.currentFrame >= overlay.from && editorState.currentFrame < overlay.from + overlay.durationInFrames : false;
   };
 
   return (
@@ -81,6 +101,17 @@ const EditorControls: React.FC = () => {
               <SkipForward className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* Split Button */}
+          <Button
+            variant="outline"
+            onClick={handleSplit}
+            disabled={!canSplitAtPlayhead()}
+            title="Split at playhead (S)"
+          >
+            <Scissors className="h-4 w-4 mr-2" />
+            Split
+          </Button>
 
           {/* Timeline Progress */}
           <div className="flex-1">

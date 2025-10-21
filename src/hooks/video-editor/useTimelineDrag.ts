@@ -23,7 +23,7 @@ export const useTimelineDrag = ({
     if (!overlay) return;
 
     // Calculate frame delta from pixel delta
-    const pixelsPerFrame = timelineWidth / durationInFrames;
+    const pixelsPerFrame = timelineWidth > 0 ? timelineWidth / durationInFrames : 1;
     const frameDelta = Math.round(delta.x / pixelsPerFrame);
     
     // Calculate new position
