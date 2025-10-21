@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AVCanvas } from "@webav/av-canvas";
-import { Combinator, MP4Clip, OffscreenSprite } from "@webav/av-cliper";
+import { Combinator, MP4Clip, OffscreenSprite, VisibleSprite } from "@webav/av-cliper";
 import { VideoEditorCanvas } from "@/components/video-editor/VideoEditorCanvas";
 import { VideoEditorTimeline } from "@/components/video-editor/VideoEditorTimeline";
 import { VideoEditorControls } from "@/components/video-editor/VideoEditorControls";
@@ -33,7 +33,7 @@ export interface VideoClip {
   startTime: number;
   duration: number;
   track: number;
-  sprite?: OffscreenSprite;
+  sprite?: VisibleSprite;
 }
 
 const VideoEditor = () => {
@@ -59,43 +59,71 @@ const VideoEditor = () => {
         return;
       }
 
-      // Load video if provided
-      if (videoData?.video_url) {
-        try {
-          const storagePath = videoData.video_url.includes('content-videos/') 
-            ? videoData.video_url.split('content-videos/')[1]
-            : videoData.video_url;
-
-          const { data, error } = await supabase.storage
-            .from('content-videos')
-            .createSignedUrl(storagePath, 3600);
-
-          if (error) {
-            console.error('Error getting signed URL:', error);
-            toast.error("Failed to load video");
-          } else if (data?.signedUrl) {
-            // Add video as first clip
-            const newClip: VideoClip = {
-              id: `clip-${Date.now()}`,
-              url: data.signedUrl,
-              startTime: 0,
-              duration: 0, // Will be set after loading
-              track: 0,
-            };
-            setClips([newClip]);
-            toast.success("Video loaded successfully");
-          }
-        } catch (error) {
-          console.error('Error loading video:', error);
-          toast.error("Failed to load video");
-        }
-      }
-
       setIsLoading(false);
     };
 
     initialize();
-  }, [navigate, videoData]);
+  }, [navigate]);
+
+  // Load video into canvas when video data is provided
+  useEffect(() => {
+    const loadVideo = async () => {
+      if (!videoData?.video_url || !canvasRef.current) return;
+
+      try {
+        const storagePath = videoData.video_url.includes('content-videos/') 
+          ? videoData.video_url.split('content-videos/')[1]
+          : videoData.video_url;
+
+        const { data, error } = await supabase.storage
+          .from('content-videos')
+          .createSignedUrl(storagePath, 3600);
+
+        if (error) {
+          console.error('Error getting signed URL:', error);
+          toast.error("Failed to load video");
+          return;
+        }
+
+        if (data?.signedUrl) {
+          // Fetch video and create clip
+          const response = await fetch(data.signedUrl);
+          const videoBlob = await response.blob();
+          
+          // Create MP4Clip from blob
+          const mp4Clip = new MP4Clip(videoBlob.stream());
+          await mp4Clip.ready;
+
+          // Create sprite and add to canvas
+          const sprite = new VisibleSprite(mp4Clip);
+          await (canvasRef.current as any).add(sprite);
+
+          // Get video duration
+          const meta = await mp4Clip.meta;
+          const videoDuration = meta.duration / 1e6; // Convert from microseconds to seconds
+          
+          // Add to clips
+          const newClip: VideoClip = {
+            id: `clip-${Date.now()}`,
+            url: data.signedUrl,
+            startTime: 0,
+            duration: videoDuration,
+            track: 0,
+            sprite,
+          };
+          
+          setClips([newClip]);
+          setDuration(videoDuration);
+          toast.success("Video loaded successfully");
+        }
+      } catch (error) {
+        console.error('Error loading video:', error);
+        toast.error("Failed to load video. Please try again.");
+      }
+    };
+
+    loadVideo();
+  }, [videoData, canvasRef.current]);
 
   const handleFormatChange = (format: keyof typeof CANVAS_FORMATS) => {
     setSelectedFormat(format);
@@ -205,6 +233,10 @@ const VideoEditor = () => {
           onExport={handleExport}
           isExporting={isExporting}
           clips={clips}
+          onImportVideo={(file) => toast.info("Import feature coming soon")}
+          onAddText={() => toast.info("Text overlay feature coming soon")}
+          onAddImage={() => toast.info("Image overlay feature coming soon")}
+          onSplit={() => toast.info("Split clip feature coming soon")}
         />
       </div>
 

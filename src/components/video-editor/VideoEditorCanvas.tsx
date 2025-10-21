@@ -58,9 +58,9 @@ export const VideoEditorCanvas = ({ format, clips, currentTime, canvasRef }: Vid
         />
         {clips.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-center text-muted-foreground">
+            <div className="text-center text-muted-foreground bg-background/80 backdrop-blur-sm p-6 rounded-lg">
               <p className="text-lg font-medium">No clips added</p>
-              <p className="text-sm">Import a video to get started</p>
+              <p className="text-sm">Navigate from Content Library or use Import button</p>
             </div>
           </div>
         )}
