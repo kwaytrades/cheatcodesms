@@ -229,27 +229,40 @@ export const useVideoExport = () => {
 
       // Stop recording and request final data
       mediaRecorder.requestData();
-      mediaRecorder.stop();
-
+      
       await new Promise<void>((resolve) => {
         mediaRecorder.onstop = () => {
-          const blob = new Blob(chunks, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `video-export-${settings.resolution}-${Date.now()}.webm`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          
-          URL.revokeObjectURL(url);
-          
-          setProgress(100);
-          onProgress?.(100);
-          toast.success("Video exported successfully!");
-          resolve();
+          // Wait for all pending data chunks to arrive
+          setTimeout(() => {
+            console.log(`Creating blob from ${chunks.length} chunks`);
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            console.log(`Blob size: ${blob.size} bytes`);
+            
+            if (blob.size === 0) {
+              toast.error("Export failed: No video data captured");
+              resolve();
+              return;
+            }
+            
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `video-export-${settings.resolution}-${Date.now()}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(url);
+            
+            setProgress(100);
+            onProgress?.(100);
+            toast.success("Video exported successfully!");
+            resolve();
+          }, 500);
         };
+        
+        mediaRecorder.stop();
       });
 
     } catch (error: any) {
