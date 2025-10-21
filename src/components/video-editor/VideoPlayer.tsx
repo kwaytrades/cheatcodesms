@@ -3,6 +3,7 @@ import { Player, PlayerRef } from "@remotion/player";
 import { Main } from "@/remotion/Main";
 import { useEditorContext } from "@/contexts/video-editor/EditorContext";
 import { FPS } from "@/lib/video-editor/constants";
+import { TransformControls } from "./TransformControls";
 
 interface VideoPlayerProps {
   playerRef: React.RefObject<PlayerRef>;
@@ -40,6 +41,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef }) => {
 
   const { width: compositionWidth, height: compositionHeight } =
     getAspectRatioDimensions();
+
+  const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
 
   return (
     <div className="w-full h-full overflow-hidden">
@@ -79,6 +82,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef }) => {
               errorFallback={() => <></>}
               overflowVisible
             />
+            
+            {/* Transform Controls for Selected Overlay */}
+            {selectedOverlay && selectedOverlay.type !== "sound" && (
+              <TransformControls
+                overlay={selectedOverlay}
+                onChange={(updates) => changeOverlay(selectedOverlayId!, updates)}
+                containerWidth={compositionWidth}
+                containerHeight={compositionHeight}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -1,52 +1,49 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEditorContext } from "@/contexts/video-editor/EditorContext";
+import { Overlay, OverlayType } from "@/lib/video-editor/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Upload, Video as VideoIcon } from "lucide-react";
-import { useEditorContext } from "@/contexts/video-editor/EditorContext";
-import { OverlayType } from "@/lib/video-editor/types";
-import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Upload, Link as LinkIcon, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
 
 export const VideoPanel: React.FC = () => {
-  const { addOverlay, currentFrame } = useEditorContext();
-  const [url, setUrl] = useState("");
+  const { addOverlay, durationInFrames } = useEditorContext();
+  const [videoUrl, setVideoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [contentVideos, setContentVideos] = useState<Array<{ name: string; url: string }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load content library videos
-  React.useEffect(() => {
-    loadContentVideos();
-  }, []);
-
-  const loadContentVideos = async () => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('content-videos')
-        .list();
-
+  // Fetch videos from content_videos database table
+  const { data: contentVideos, isLoading } = useQuery({
+    queryKey: ['content-videos-library'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('content_videos')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
       if (error) throw error;
-
-      const videos = await Promise.all(
-        (data || []).map(async (file) => {
-          const { data: urlData } = await supabase.storage
+      
+      // Get signed URLs for each video
+      const videosWithUrls = await Promise.all(
+        data.map(async (video) => {
+          const { data: signedData } = await supabase.storage
             .from('content-videos')
-            .createSignedUrl(file.name, 3600);
+            .createSignedUrl(video.video_url, 3600);
           
           return {
-            name: file.name,
-            url: urlData?.signedUrl || '',
+            ...video,
+            signedUrl: signedData?.signedUrl || video.video_url
           };
         })
       );
-
-      setContentVideos(videos.filter(v => v.url));
-    } catch (error) {
-      console.error('Error loading videos:', error);
-    }
-  };
+      
+      return videosWithUrls;
+    },
+  });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,131 +51,168 @@ export const VideoPanel: React.FC = () => {
 
     setUploading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
       const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('content-videos')
         .upload(fileName, file);
 
-      if (error) throw error;
+      if (uploadError) throw uploadError;
 
-      const { data: urlData } = await supabase.storage
+      // Get signed URL
+      const { data: signedData } = await supabase.storage
         .from('content-videos')
         .createSignedUrl(fileName, 3600);
 
-      if (urlData?.signedUrl) {
-        addVideoOverlay(urlData.signedUrl);
-        toast.success('Video uploaded successfully!');
-        loadContentVideos();
-      }
+      if (!signedData) throw new Error("Failed to get signed URL");
+
+      // Create database entry
+      const { error: dbError } = await supabase
+        .from('content_videos')
+        .insert({
+          user_id: user.id,
+          video_url: fileName,
+          file_size_bytes: file.size,
+        });
+
+      if (dbError) throw dbError;
+
+      addVideoOverlay(signedData.signedUrl);
+      toast.success("Video uploaded and added to timeline");
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload video');
+      console.error("Upload error:", error);
+      toast.error("Failed to upload video");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
-  const addVideoOverlay = (videoUrl: string) => {
-    addOverlay({
+  const addVideoOverlay = (url: string) => {
+    const newOverlay: Overlay = {
       id: Date.now(),
       type: OverlayType.VIDEO,
-      src: videoUrl,
-      content: "",
-      from: currentFrame,
-      durationInFrames: 150,
+      from: 0,
+      durationInFrames: Math.min(300, durationInFrames), // 10 seconds at 30fps
       left: 0,
       top: 0,
       width: 1920,
       height: 1080,
-      row: 0,
-      rotation: 0,
+      src: url,
+      content: "Video",
       isDragging: false,
-      videoStartTime: 0,
+      rotation: 0,
+      row: 0,
       styles: {
-        objectFit: "cover",
-        opacity: 1,
+        volume: 1,
       },
-    });
+    };
+    addOverlay(newOverlay);
+    toast.success("Video added to timeline");
   };
 
   const handleAddFromUrl = () => {
-    if (!url) return;
-    addVideoOverlay(url);
-    setUrl("");
-    toast.success('Video added to timeline');
+    if (!videoUrl.trim()) {
+      toast.error("Please enter a video URL");
+      return;
+    }
+    addVideoOverlay(videoUrl);
+    setVideoUrl("");
+  };
+
+  const handleAddFromLibrary = (video: any) => {
+    addVideoOverlay(video.signedUrl);
   };
 
   return (
-    <div className="p-4 space-y-4">
-      <Tabs defaultValue="library">
+    <div className="space-y-4">
+      <Tabs defaultValue="library" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="library">Library</TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="library" className="space-y-2">
-          <p className="text-sm text-muted-foreground">Select from content library</p>
-          <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-auto">
-            {contentVideos.length === 0 ? (
-              <p className="col-span-2 text-center text-sm text-muted-foreground py-8">
-                No videos in library. Upload one to get started!
-              </p>
-            ) : (
-              contentVideos.map((video, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => addVideoOverlay(video.url)}
-                  className="aspect-video bg-muted rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all group"
+        <TabsContent value="library" className="space-y-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : contentVideos && contentVideos.length > 0 ? (
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {contentVideos.map((video) => (
+                <Card
+                  key={video.id}
+                  className="p-3 hover:bg-accent cursor-pointer transition-colors"
+                  onClick={() => handleAddFromLibrary(video)}
                 >
-                  <div className="w-full h-full flex items-center justify-center bg-muted">
-                    <VideoIcon className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <div className="flex items-center gap-3">
+                    <div className="flex-none w-16 h-16 bg-muted rounded flex items-center justify-center">
+                      <Video className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">Video {video.take_number}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{new Date(video.created_at).toLocaleDateString()}</span>
+                        {video.duration_seconds && (
+                          <span>• {Math.floor(video.duration_seconds / 60)}:{(video.duration_seconds % 60).toString().padStart(2, '0')}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-xs truncate p-1">{video.name}</p>
-                </button>
-              ))
-            )}
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Video className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No videos in library</p>
+              <p className="text-xs mt-1">Record videos in the Video Recorder</p>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="upload" className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="video-upload">Upload Video File</Label>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors">
+              <input
+                id="video-upload"
+                type="file"
+                accept="video/*"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+              <label htmlFor="video-upload" className="cursor-pointer">
+                {uploading ? (
+                  <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-primary" />
+                ) : (
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                )}
+                <p className="text-sm font-medium">
+                  {uploading ? "Uploading..." : "Click to upload video"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">MP4, MOV, or WebM</p>
+              </label>
+            </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="upload" className="space-y-4">
-          <div>
-            <Label>Upload Video File</Label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full"
-              disabled={uploading}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              {uploading ? 'Uploading...' : 'Choose Video File'}
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">
-              Supports MP4, WebM, MOV formats
-            </p>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="url" className="space-y-4">
-          <div>
-            <Label>Video URL</Label>
+        <TabsContent value="url" className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="video-url">Video URL</Label>
             <Input
+              id="video-url"
               placeholder="https://example.com/video.mp4"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddFromUrl()}
             />
           </div>
-          <Button onClick={handleAddFromUrl} className="w-full" disabled={!url}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={handleAddFromUrl} className="w-full">
+            <LinkIcon className="h-4 w-4 mr-2" />
             Add from URL
           </Button>
         </TabsContent>
