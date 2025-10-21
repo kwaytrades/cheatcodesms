@@ -1042,6 +1042,45 @@ export type Database = {
           },
         ]
       }
+      video_render_jobs: {
+        Row: {
+          composition_data: Json
+          created_at: string | null
+          error_message: string | null
+          id: string
+          progress: number | null
+          settings: Json
+          status: string
+          updated_at: string | null
+          user_id: string
+          video_url: string | null
+        }
+        Insert: {
+          composition_data: Json
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          progress?: number | null
+          settings: Json
+          status?: string
+          updated_at?: string | null
+          user_id: string
+          video_url?: string | null
+        }
+        Update: {
+          composition_data?: Json
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          progress?: number | null
+          settings?: Json
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

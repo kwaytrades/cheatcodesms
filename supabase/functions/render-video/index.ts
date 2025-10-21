@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,38 +14,61 @@ serve(async (req) => {
   try {
     const { composition, settings } = await req.json();
     
-    console.log('Received render request:', {
-      compositionId: composition.id,
-      durationInFrames: composition.durationInFrames,
-      fps: composition.fps,
-      resolution: settings.resolution,
-      quality: settings.quality,
+    console.log('Render request received:', {
+      overlays: composition?.overlays?.length,
+      settings
     });
 
-    // Generate a unique render ID
-    const renderId = `render_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    
-    // NOTE: This is a simplified implementation
-    // In production, you would:
-    // 1. Store job in database with status 'queued'
-    // 2. Use @remotion/renderer with the composition data to render
-    // 3. Upload rendered video to Supabase Storage
-    // 4. Update job status to 'done' with the video URL
-    // 5. Handle errors appropriately
-    
-    console.log(`Created render job ${renderId}`);
-    console.log('Composition data:', {
-      overlays: composition.inputProps?.overlays?.length || 0,
-      width: composition.width,
-      height: composition.height,
-    });
+    // Get user ID from auth
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
 
-    // For now, just return the render ID
-    // The progress function will simulate completion
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    // Create job entry in database
+    const { data: job, error: jobError } = await supabaseClient
+      .from('video_render_jobs')
+      .insert({
+        user_id: user.id,
+        composition_data: composition,
+        settings: settings,
+        status: 'queued',
+        progress: 0,
+      })
+      .select()
+      .single();
+
+    if (jobError || !job) {
+      throw new Error(`Failed to create job: ${jobError?.message}`);
+    }
+
+    console.log('Job created:', job.id);
+
+    // Invoke process-render function asynchronously
+    supabaseClient.functions.invoke('process-render', {
+      body: { jobId: job.id },
+    }).catch(err => console.error('Failed to invoke process-render:', err));
+
     return new Response(
       JSON.stringify({ 
-        renderId,
-        message: 'Render job created. Note: Server-side rendering requires @remotion/renderer setup.'
+        jobId: job.id,
+        message: 'Render job created successfully'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
