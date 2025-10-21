@@ -1,91 +1,66 @@
-import React from "react";
+import React, { useState } from "react";
 import { EditorProvider } from "@/contexts/video-editor/EditorContext";
+import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
+import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
+import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useEditorState } from "@/hooks/video-editor/useEditorState";
 import { VideoPlayer } from "./VideoPlayer";
+import { EditorSidebar } from "./sidebar/EditorSidebar";
+import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
+import { ExportDialog } from "./export/ExportDialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Play, Pause, Plus, Download } from "lucide-react";
-import { OverlayType } from "@/lib/video-editor/types";
+import { Slider } from "@/components/ui/slider";
+import { 
+  Play, 
+  Pause, 
+  SkipBack, 
+  SkipForward,
+  Download,
+  ZoomIn,
+  ZoomOut
+} from "lucide-react";
+import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 
-export const RVEEditor: React.FC = () => {
+const EditorControls: React.FC = () => {
   const editorState = useEditorState();
+  const { zoomScale, handleZoom } = useTimeline();
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
-  const handleAddText = () => {
-    editorState.addOverlay({
-      id: Date.now(),
-      type: OverlayType.TEXT,
-      content: "New Text",
-      from: editorState.currentFrame,
-      durationInFrames: 90,
-      left: 100,
-      top: 100,
-      width: 300,
-      height: 100,
-      row: 0,
-      rotation: 0,
-      isDragging: false,
-      styles: {
-        fontSize: "32px",
-        fontWeight: "bold",
-        color: "#ffffff",
-        backgroundColor: "transparent",
-        fontFamily: "Arial",
-        fontStyle: "normal",
-        textDecoration: "none",
-        textAlign: "center",
-        opacity: 1,
-      },
-    });
+  const handleExport = async () => {
+    console.log("Exporting video...");
+    // TODO: Implement actual export using Remotion renderer
+    await new Promise(resolve => setTimeout(resolve, 2000));
   };
 
-  const handleAddImage = () => {
-    const url = prompt("Enter image URL:");
-    if (url) {
-      editorState.addOverlay({
-        id: Date.now(),
-        type: OverlayType.IMAGE,
-        src: url,
-        from: editorState.currentFrame,
-        durationInFrames: 90,
-        left: 100,
-        top: 100,
-        width: 400,
-        height: 300,
-        row: 1,
-        rotation: 0,
-        isDragging: false,
-        styles: {
-          objectFit: "contain",
-          opacity: 1,
-        },
-      });
+  const skipBackward = () => {
+    if (editorState.playerRef.current) {
+      editorState.playerRef.current.seekTo(Math.max(0, editorState.currentFrame - 30));
     }
   };
 
-  const handleExport = () => {
-    console.log("Export not implemented yet");
+  const skipForward = () => {
+    if (editorState.playerRef.current) {
+      editorState.playerRef.current.seekTo(
+        Math.min(editorState.durationInFrames, editorState.currentFrame + 30)
+      );
+    }
   };
 
   return (
-    <EditorProvider value={editorState}>
-      <div className="flex flex-col h-screen bg-background">
-        {/* Header */}
-        <div className="border-b p-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Video Editor</h1>
-          <Button onClick={handleExport} disabled={editorState.overlays.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
-        
-        {/* Video Player */}
-        <div className="flex-1 flex items-center justify-center p-4">
-          <VideoPlayer playerRef={editorState.playerRef} />
-        </div>
-
-        {/* Controls */}
-        <Card className="p-4 space-y-4">
-          <div className="flex items-center gap-4">
+    <>
+      <Card className="p-4 space-y-4">
+        {/* Playback Controls */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={skipBackward}
+            >
+              <SkipBack className="h-4 w-4" />
+            </Button>
+            
             <Button
               variant="outline"
               size="icon"
@@ -98,33 +73,116 @@ export const RVEEditor: React.FC = () => {
               )}
             </Button>
 
-            <div className="flex-1">
-              <div className="text-sm font-medium">
-                {editorState.formatTime(editorState.currentFrame)} / {editorState.formatTime(editorState.durationInFrames)}
-              </div>
-              <div className="w-full h-2 bg-muted rounded-full mt-2 cursor-pointer" onClick={editorState.handleTimelineClick}>
-                <div
-                  className="h-full bg-primary rounded-full transition-all"
-                  style={{
-                    width: `${(editorState.currentFrame / editorState.durationInFrames) * 100}%`,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleAddText}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Text
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleAddImage}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Image
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={skipForward}
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
           </div>
-        </Card>
-      </div>
+
+          {/* Timeline Progress */}
+          <div className="flex-1">
+            <div className="text-sm font-medium mb-2">
+              {editorState.formatTime(editorState.currentFrame)} / {editorState.formatTime(editorState.durationInFrames)}
+            </div>
+            <Slider
+              value={[editorState.currentFrame]}
+              max={editorState.durationInFrames}
+              step={1}
+              onValueChange={([value]) => {
+                if (editorState.playerRef.current) {
+                  editorState.playerRef.current.seekTo(value);
+                }
+              }}
+            />
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => handleZoom(-0.2)}
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium min-w-[50px] text-center">
+              {Math.round(zoomScale * 100)}%
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => handleZoom(0.2)}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Export Button */}
+          <Button 
+            onClick={() => setExportDialogOpen(true)}
+            disabled={editorState.overlays.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
+      </Card>
+
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onExport={handleExport}
+      />
+    </>
+  );
+};
+
+const EditorContent: React.FC = () => {
+  const editorState = useEditorState();
+
+  return (
+    <EditorProvider value={editorState}>
+      <SidebarProvider>
+        <TimelineProvider>
+          <UISidebarProvider>
+            <div className="flex h-screen w-full">
+              <EditorSidebar />
+              
+              <SidebarInset className="flex flex-col overflow-hidden">
+                {/* Header */}
+                <header className="flex items-center gap-2 border-b p-4">
+                  <SidebarTrigger />
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-semibold">Video Editor</h1>
+                  </div>
+                </header>
+
+                {/* Video Player */}
+                <div className="flex-1 p-4 overflow-auto">
+                  <VideoPlayer playerRef={editorState.playerRef} />
+                </div>
+
+                {/* Controls */}
+                <div className="p-4">
+                  <EditorControls />
+                </div>
+
+                {/* Timeline */}
+                <div className="p-4 border-t">
+                  <AdvancedTimeline onTimelineClick={editorState.handleTimelineClick} />
+                </div>
+              </SidebarInset>
+            </div>
+          </UISidebarProvider>
+        </TimelineProvider>
+      </SidebarProvider>
     </EditorProvider>
   );
+};
+
+export const RVEEditor: React.FC = () => {
+  return <EditorContent />;
 };

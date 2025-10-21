@@ -22,3 +22,4 @@ export const SNAPPING_CONFIG = {
 };
 export const DISABLE_MOBILE_LAYOUT = false;
 export const AUTO_SAVE_INTERVAL = 10000;
+export const SHOW_LOADING_PROJECT_ALERT = false;

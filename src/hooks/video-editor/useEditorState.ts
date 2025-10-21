@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { PlayerRef } from "@remotion/player";
 import { Overlay, AspectRatio } from "@/lib/video-editor/types";
 import { FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "@/lib/video-editor/constants";
@@ -29,6 +29,19 @@ export const useEditorState = () => {
   );
 
   const durationInSeconds = durationInFrames / FPS;
+
+  // Track current frame from player
+  useEffect(() => {
+    if (playerRef.current) {
+      const handleFrameUpdate = () => {
+        const frame = playerRef.current?.getCurrentFrame() || 0;
+        setCurrentFrame(frame);
+      };
+
+      const interval = setInterval(handleFrameUpdate, 1000 / FPS);
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   const togglePlayPause = useCallback(() => {
     if (playerRef.current) {
