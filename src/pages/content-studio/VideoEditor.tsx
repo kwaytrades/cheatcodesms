@@ -6,6 +6,25 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Monitor } from "lucide-react";
+
+const CANVAS_FORMATS = {
+  youtube: { name: "YouTube (16:9)", width: 1920, height: 1080 },
+  tiktok: { name: "TikTok (9:16)", width: 1080, height: 1920 },
+  instagram: { name: "Instagram Square (1:1)", width: 1080, height: 1080 },
+  instagramStory: { name: "Instagram Story (9:16)", width: 1080, height: 1920 },
+  facebook: { name: "Facebook (16:9)", width: 1920, height: 1080 },
+  twitter: { name: "Twitter (16:9)", width: 1280, height: 720 },
+  linkedin: { name: "LinkedIn (1:1)", width: 1080, height: 1080 },
+};
 
 const VideoEditor = () => {
   const navigate = useNavigate();
@@ -13,6 +32,8 @@ const VideoEditor = () => {
   const videoData = location.state?.video;
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState(INITIAL_TIMELINE_DATA);
+  const [selectedFormat, setSelectedFormat] = useState<keyof typeof CANVAS_FORMATS>("youtube");
+  const [showFormatSelector, setShowFormatSelector] = useState(true);
 
   useEffect(() => {
     const initialize = async () => {
@@ -40,8 +61,11 @@ const VideoEditor = () => {
             toast.error("Failed to load video");
           } else if (data?.signedUrl) {
             toast.success("Video loaded successfully");
-            // TODO: Load video into Twick timeline
-            // You can customize INITIAL_TIMELINE_DATA here with the video URL
+            // Update project data with video and selected canvas dimensions
+            setProjectData({
+              ...INITIAL_TIMELINE_DATA,
+              // Add video source or other configuration here
+            });
           }
         } catch (error) {
           console.error('Error loading video:', error);
@@ -55,6 +79,14 @@ const VideoEditor = () => {
     initialize();
   }, [navigate, videoData]);
 
+  // Update project data when format changes
+  useEffect(() => {
+    setProjectData(prev => ({
+      ...prev,
+      // Update with selected format dimensions if needed
+    }));
+  }, [selectedFormat]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -66,13 +98,44 @@ const VideoEditor = () => {
     );
   }
 
+  const currentFormat = CANVAS_FORMATS[selectedFormat];
+
   return (
-    <div className="h-screen w-full bg-background">
-      <TimelineProvider contextId="twick-video-editor" initialData={projectData}>
-        <LivePlayerProvider>
-          <TwickStudio />
-        </LivePlayerProvider>
-      </TimelineProvider>
+    <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
+      {/* Format Selector Bar */}
+      <div className="flex items-center gap-4 p-4 border-b border-border bg-card">
+        <div className="flex items-center gap-2">
+          <Monitor className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm font-medium">Canvas Format:</span>
+        </div>
+        <Select value={selectedFormat} onValueChange={(value) => setSelectedFormat(value as keyof typeof CANVAS_FORMATS)}>
+          <SelectTrigger className="w-[250px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(CANVAS_FORMATS).map(([key, format]) => (
+              <SelectItem key={key} value={key}>
+                {format.name} - {format.width}x{format.height}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground">
+          {currentFormat.width} × {currentFormat.height}px
+        </span>
+      </div>
+
+      {/* Editor Container - Fixed height to fit screen */}
+      <div className="flex-1 overflow-hidden">
+        <TimelineProvider 
+          contextId="twick-video-editor" 
+          initialData={projectData}
+        >
+          <LivePlayerProvider>
+            <TwickStudio />
+          </LivePlayerProvider>
+        </TimelineProvider>
+      </div>
     </div>
   );
 };
