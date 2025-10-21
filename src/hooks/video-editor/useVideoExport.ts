@@ -29,14 +29,18 @@ export const useVideoExport = () => {
       if (overlay.type === 'video') {
         const promise = new Promise<void>((resolve, reject) => {
           const video = document.createElement('video');
-          video.src = overlay.src;
+          video.crossOrigin = 'anonymous';
           video.preload = 'auto';
           video.muted = true;
           video.onloadeddata = () => {
             videos.set(overlay.id, video);
             resolve();
           };
-          video.onerror = () => reject(new Error(`Failed to load video: ${overlay.src}`));
+          video.onerror = (e) => {
+            console.error('Video load error:', e, overlay.src);
+            reject(new Error(`Failed to load video: ${overlay.src}`));
+          };
+          video.src = overlay.src;
         });
         loadPromises.push(promise);
       } else if (overlay.type === 'image') {
