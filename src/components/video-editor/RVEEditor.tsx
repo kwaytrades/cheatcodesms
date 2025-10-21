@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { EditorProvider, useEditorContext } from "@/contexts/video-editor/EditorContext";
 import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
 import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
@@ -10,6 +10,7 @@ import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
 import { ExportDialog } from "./export/ExportDialog";
 import { AspectRatioSelector } from "./AspectRatioSelector";
+import { ProjectManager, ProjectData } from "./ProjectManager";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -26,6 +27,8 @@ import {
 } from "lucide-react";
 import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
@@ -207,6 +210,71 @@ const EditorControls: React.FC = () => {
 
 const EditorContent: React.FC = () => {
   const editorState = useEditorState();
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState("Untitled Project");
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    if (!currentProjectId || editorState.overlays.length === 0) return;
+
+    const autoSave = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const maxEnd = editorState.overlays.reduce((max, o) => 
+          Math.max(max, o.from + o.durationInFrames), 0
+        );
+        const durationSeconds = Math.ceil(maxEnd / 30);
+
+        await supabase
+          .from("video_projects")
+          .update({
+            timeline_data: {
+              overlays: editorState.overlays,
+              aspectRatio: editorState.aspectRatio,
+            },
+            duration_seconds: durationSeconds,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", currentProjectId);
+
+        setLastSaved(new Date());
+        console.log("Project auto-saved");
+      } catch (error) {
+        console.error("Auto-save failed:", error);
+      }
+    };
+
+    const interval = setInterval(autoSave, 30000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [currentProjectId, editorState.overlays, editorState.aspectRatio]);
+
+  const handleSaveProject = (projectId: string) => {
+    setCurrentProjectId(projectId);
+    setLastSaved(new Date());
+  };
+
+  const handleLoadProject = (projectId: string, data: ProjectData) => {
+    setCurrentProjectId(projectId);
+    setProjectName(data.project_name);
+    editorState.setOverlays(data.timeline_data.overlays);
+    editorState.setAspectRatio(data.timeline_data.aspectRatio);
+    setLastSaved(new Date());
+  };
+
+  const handleNewProject = () => {
+    if (editorState.overlays.length > 0) {
+      if (!confirm("Start a new project? Unsaved changes will be lost.")) {
+        return;
+      }
+    }
+    setCurrentProjectId(null);
+    setProjectName("Untitled Project");
+    editorState.resetOverlays();
+    editorState.setAspectRatio("16:9");
+  };
 
   return (
     <EditorProvider value={editorState}>
@@ -221,13 +289,31 @@ const EditorContent: React.FC = () => {
                 <header className="flex items-center justify-between gap-2 border-b p-2 shrink-0">
                   <div className="flex items-center gap-2">
                     <SidebarTrigger />
-                    <h1 className="text-xl font-semibold">Video Editor</h1>
+                    <h1 className="text-xl font-semibold">{projectName}</h1>
+                    {lastSaved && (
+                      <span className="text-xs text-muted-foreground">
+                        Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}
+                      </span>
+                    )}
                   </div>
                   
-                  <AspectRatioSelector
-                    currentRatio={editorState.aspectRatio}
-                    onRatioChange={editorState.setAspectRatio}
-                  />
+                  <div className="flex items-center gap-2">
+                    <ProjectManager
+                      currentProjectId={currentProjectId}
+                      currentProjectName={projectName}
+                      overlays={editorState.overlays}
+                      aspectRatio={editorState.aspectRatio}
+                      onProjectNameChange={setProjectName}
+                      onSave={handleSaveProject}
+                      onLoad={handleLoadProject}
+                      onNew={handleNewProject}
+                    />
+                    
+                    <AspectRatioSelector
+                      currentRatio={editorState.aspectRatio}
+                      onRatioChange={editorState.setAspectRatio}
+                    />
+                  </div>
                 </header>
 
                 {/* Video Player - Takes most space */}
