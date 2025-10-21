@@ -94,15 +94,48 @@ export const useVideoExport = () => {
       setProgress(0);
       onProgress?.(0);
 
-      // Get canvas from player
+      // Get canvas from player - wait for it to be ready
       const container = playerRef.current?.getContainerNode();
       if (!container) {
         throw new Error("Player container not found");
       }
 
-      const sourceCanvas = container.querySelector("canvas") as HTMLCanvasElement;
+      console.log("Looking for canvas in container...");
+      
+      // Wait for canvas to be available with multiple attempts
+      let sourceCanvas: HTMLCanvasElement | null = null;
+      let attempts = 0;
+      const maxAttempts = 20;
+      
+      while (!sourceCanvas && attempts < maxAttempts) {
+        // Try multiple selectors
+        sourceCanvas = container.querySelector("canvas") as HTMLCanvasElement;
+        
+        if (!sourceCanvas) {
+          // Try searching in the entire document as fallback
+          const allCanvases = document.querySelectorAll("canvas");
+          console.log(`Found ${allCanvases.length} canvas elements in document`);
+          
+          // Find the one that's inside our player
+          for (let i = 0; i < allCanvases.length; i++) {
+            const canvas = allCanvases[i];
+            if (container.contains(canvas)) {
+              sourceCanvas = canvas as HTMLCanvasElement;
+              console.log("Found canvas inside player container");
+              break;
+            }
+          }
+        }
+        
+        if (!sourceCanvas) {
+          attempts++;
+          console.log(`Canvas not found, attempt ${attempts}/${maxAttempts}`);
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
       if (!sourceCanvas) {
-        throw new Error("Canvas not found in player");
+        throw new Error("Canvas not found in player after multiple attempts. Make sure the video is loaded.");
       }
 
       if (sourceCanvas.width === 0 || sourceCanvas.height === 0) {
