@@ -126,37 +126,37 @@ const VideoEditor = () => {
         return;
       }
 
-      console.log('Creating HTML5 video element...');
-      // Use native HTML5 video element - works with all formats (MP4, WebM, MOV, etc.)
-      const video = document.createElement('video');
-      video.src = url;
-      video.crossOrigin = 'anonymous';
-      video.loop = false;
-      video.muted = false;
+      console.log('Fetching video as stream...');
+      // Fetch video as ReadableStream for MP4Clip
+      const response = await fetch(url);
+      if (!response.ok || !response.body) {
+        throw new Error('Failed to fetch video');
+      }
       
-      // Wait for video metadata to load
-      await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => {
-          console.log('Video metadata loaded - duration:', video.duration, 'size:', video.videoWidth, 'x', video.videoHeight);
-          resolve();
-        };
-        video.onerror = (e) => {
-          console.error('Video loading error:', e);
-          reject(new Error('Failed to load video'));
-        };
-        // Trigger loading
-        video.load();
-      });
+      console.log('Creating MP4Clip from stream...');
+      const mp4Clip = new MP4Clip(response.body);
       
-      // Create sprite from native video element
-      console.log('Creating VisibleSprite from video element...');
-      const sprite = new VisibleSprite(video as any);
+      // Wait for clip to be ready
+      console.log('Waiting for clip to be ready...');
+      await mp4Clip.ready;
       
-      // Set sprite dimensions to match canvas
+      const { width, height, duration } = mp4Clip.meta;
+      console.log('Video metadata:', { width, height, duration });
+      
+      // Create VisibleSprite from MP4Clip
+      console.log('Creating VisibleSprite...');
+      const sprite = new VisibleSprite(mp4Clip);
+      await sprite.ready;
+      
+      // Set sprite dimensions and position
       sprite.rect.w = CANVAS_FORMATS[selectedFormat].width;
       sprite.rect.h = CANVAS_FORMATS[selectedFormat].height;
       sprite.rect.x = 0;
       sprite.rect.y = 0;
+      sprite.zIndex = 1;
+      
+      // Set time offset in microseconds
+      sprite.time = { offset: 0, duration: duration };
       
       console.log('Adding sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
@@ -167,40 +167,77 @@ const VideoEditor = () => {
         id: `clip-${Date.now()}`,
         url,
         startTime: 0,
-        duration: video.duration,
+        duration: duration / 1e6, // Convert microseconds to seconds
         track: clips.length,
         sprite,
       };
       
       setClips(prev => [...prev, newClip]);
-      setDuration(prev => Math.max(prev, video.duration));
-      toast.success("Video loaded successfully - click Play to start");
+      setDuration(prev => Math.max(prev, duration / 1e6));
+      toast.success("Video loaded successfully!");
     } catch (error) {
       console.error('Error loading video from URL:', error);
       toast.error(`Failed to load video: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleSplitClip = () => {
+  const handleSplitClip = async () => {
     if (clips.length === 0) {
       toast.error("No clips to split");
       return;
     }
 
     // Find the clip at current time
-    const clipToSplit = clips.find(
+    const clipIndex = clips.findIndex(
       clip => currentTime >= clip.startTime && currentTime < clip.startTime + clip.duration
     );
 
-    if (!clipToSplit) {
+    if (clipIndex === -1) {
       toast.error("No clip at current playhead position");
       return;
     }
 
-    // Calculate split point relative to clip start
-    const splitPoint = currentTime - clipToSplit.startTime;
+    try {
+      const clipToSplit = clips[clipIndex];
+      const splitPoint = currentTime - clipToSplit.startTime;
+      
+      if (splitPoint <= 0.1 || splitPoint >= clipToSplit.duration - 0.1) {
+        toast.error("Cannot split at clip edges");
+        return;
+      }
 
-    toast.info(`Split at ${splitPoint.toFixed(2)}s - Feature in development`);
+      if (!clipToSplit.sprite || !canvasRef.current) {
+        toast.error("Cannot split this clip type");
+        return;
+      }
+
+      // Remove original sprite
+      await (canvasRef.current as any).removeSprite(clipToSplit.sprite);
+
+      // Create two new clips with adjusted durations
+      const clip1: VideoClip = {
+        ...clipToSplit,
+        id: `${clipToSplit.id}-part1`,
+        duration: splitPoint,
+      };
+
+      const clip2: VideoClip = {
+        ...clipToSplit,
+        id: `${clipToSplit.id}-part2`,
+        startTime: clipToSplit.startTime + splitPoint,
+        duration: clipToSplit.duration - splitPoint,
+      };
+
+      // Update clips array
+      const newClips = [...clips];
+      newClips.splice(clipIndex, 1, clip1, clip2);
+      setClips(newClips);
+      
+      toast.success(`Clip split at ${splitPoint.toFixed(2)}s`);
+    } catch (error) {
+      console.error('Error splitting clip:', error);
+      toast.error("Failed to split clip");
+    }
   };
 
   const handleImportVideo = async (file: File) => {
@@ -228,7 +265,7 @@ const VideoEditor = () => {
         return;
       }
 
-      // Create text image bitmap
+      console.log('Creating text bitmap...');
       const textBitmap = await renderTxt2ImgBitmap(
         text,
         `font-size:${fontSize}px; color: ${color}; font-weight: bold; text-shadow: 2px 2px 6px rgba(0,0,0,0.8);`
@@ -236,18 +273,25 @@ const VideoEditor = () => {
 
       console.log('Text bitmap created:', textBitmap.width, 'x', textBitmap.height);
 
-      // Create image clip and sprite
+      // Create ImgClip and VisibleSprite
       const imgClip = new ImgClip(textBitmap);
       await imgClip.ready;
       
       const sprite = new VisibleSprite(imgClip);
+      await sprite.ready;
       
       // Position in center
       sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - textBitmap.width) / 2;
       sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - textBitmap.height) / 2;
       sprite.rect.w = textBitmap.width;
       sprite.rect.h = textBitmap.height;
-      sprite.zIndex = 100; // Put text on top
+      sprite.zIndex = 100;
+      
+      // Set time offset in microseconds (start at currentTime, 5 seconds duration)
+      sprite.time = { 
+        offset: currentTime * 1e6, 
+        duration: 5 * 1e6 
+      };
 
       console.log('Adding text sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
@@ -257,12 +301,13 @@ const VideoEditor = () => {
         id: `text-${Date.now()}`,
         url: '',
         startTime: currentTime,
-        duration: 5, // 5 seconds default
+        duration: 5,
         track: clips.length,
         sprite,
       };
 
       setClips(prev => [...prev, newClip]);
+      setDuration(prev => Math.max(prev, currentTime + 5));
       toast.success("Text overlay added");
     } catch (error) {
       console.error('Error adding text:', error);
@@ -277,18 +322,19 @@ const VideoEditor = () => {
         return;
       }
 
-      // Load image as bitmap
+      console.log('Loading image...');
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       const imgBitmap = await createImageBitmap(blob);
 
       console.log('Image bitmap created:', imgBitmap.width, 'x', imgBitmap.height);
 
-      // Create image clip and sprite
+      // Create ImgClip and VisibleSprite
       const imgClip = new ImgClip(imgBitmap);
       await imgClip.ready;
       
       const sprite = new VisibleSprite(imgClip);
+      await sprite.ready;
       
       // Scale to fit canvas (max 30% of canvas size)
       const maxSize = Math.min(CANVAS_FORMATS[selectedFormat].width, CANVAS_FORMATS[selectedFormat].height) * 0.3;
@@ -299,7 +345,13 @@ const VideoEditor = () => {
       // Position in center
       sprite.rect.x = (CANVAS_FORMATS[selectedFormat].width - sprite.rect.w) / 2;
       sprite.rect.y = (CANVAS_FORMATS[selectedFormat].height - sprite.rect.h) / 2;
-      sprite.zIndex = 100; // Put image on top
+      sprite.zIndex = 100;
+      
+      // Set time offset in microseconds (start at currentTime, 5 seconds duration)
+      sprite.time = { 
+        offset: currentTime * 1e6, 
+        duration: 5 * 1e6 
+      };
 
       console.log('Adding image sprite to canvas...');
       await (canvasRef.current as any).addSprite(sprite);
@@ -309,12 +361,13 @@ const VideoEditor = () => {
         id: `image-${Date.now()}`,
         url: imageUrl,
         startTime: currentTime,
-        duration: 5, // 5 seconds default
+        duration: 5,
         track: clips.length,
         sprite,
       };
 
       setClips(prev => [...prev, newClip]);
+      setDuration(prev => Math.max(prev, currentTime + 5));
       toast.success("Image overlay added");
     } catch (error) {
       console.error('Error adding image:', error);
@@ -347,19 +400,42 @@ const VideoEditor = () => {
     }
 
     setIsExporting(true);
+    toast.info("Starting export... This may take a while");
+    
     try {
-      // Use AVCanvas to create combinator for export
       if (!canvasRef.current) {
         toast.error("Canvas not initialized");
         return;
       }
 
-      const combinator = await canvasRef.current.createCombinator();
+      console.log('Creating combinator for export...');
+      // Create a new combinator with all sprites
+      const combinator = new Combinator({
+        width: CANVAS_FORMATS[selectedFormat].width,
+        height: CANVAS_FORMATS[selectedFormat].height,
+        videoCodec: 'avc1.42E032', // H.264 baseline profile
+        audio: false, // Can be enabled if needed
+      });
+
+      // Add all sprites to combinator with their time offsets
+      for (const clip of clips) {
+        if (clip.sprite) {
+          console.log(`Adding clip ${clip.id} to combinator`);
+          await (combinator as any).addSprite(clip.sprite, { 
+            offset: clip.startTime * 1e6, // Convert to microseconds
+            duration: clip.duration * 1e6 
+          });
+        }
+      }
+
+      console.log('Rendering video...');
       const outputStream = await combinator.output();
       
       // Convert stream to blob
+      console.log('Converting stream to blob...');
       const chunks: Uint8Array[] = [];
       const reader = outputStream.getReader();
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -367,12 +443,17 @@ const VideoEditor = () => {
       }
       
       const blob = new Blob(chunks as BlobPart[], { type: 'video/mp4' });
+      console.log('Export blob created, size:', blob.size);
       
       // Upload to Supabase
       const fileName = `export-${Date.now()}.mp4`;
+      toast.info("Uploading to cloud storage...");
+      
       const { data, error } = await supabase.storage
         .from('content-videos')
-        .upload(fileName, blob);
+        .upload(fileName, blob, {
+          contentType: 'video/mp4',
+        });
 
       if (error) throw error;
 
@@ -387,11 +468,13 @@ const VideoEditor = () => {
         const a = document.createElement('a');
         a.href = urlData.signedUrl;
         a.download = fileName;
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
       }
     } catch (error) {
       console.error('Export error:', error);
-      toast.error("Failed to export video");
+      toast.error(`Failed to export video: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
     }
