@@ -37,6 +37,18 @@ export const useVideoExport = () => {
               toast.info(job.error_message);
             } else {
               toast.success('Video rendered successfully!');
+              
+              // Trigger download if video URL is available
+              if (job.video_url) {
+                console.log('Downloading video from:', job.video_url);
+                const link = document.createElement('a');
+                link.href = job.video_url;
+                link.download = `video-${Date.now()}.mp4`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast.success('Video download started!');
+              }
             }
             setIsExporting(false);
             setCurrentJobId(null);
