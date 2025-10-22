@@ -142,15 +142,30 @@ ${toneInstructions[tone]}
 HOOK STYLE:
 ${hookTemplates[hook_style]}${marketDataSection}${styleGuideSection}
 
-TARGET LENGTH: ${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)
+TARGET LENGTH: ${format === 'carousel' ? `${length_seconds} slides` : `${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)`}
 
-${include_timestamps ? 'TIMESTAMPS: Include timestamps like [HOOK - 0:00-0:05], [MAIN - 0:05-4:30], etc.' : ''}
+${include_timestamps && format !== 'carousel' ? 'TIMESTAMPS: Include timestamps like [HOOK - 0:00-0:05], [MAIN - 0:05-4:30], etc.' : ''}
 
-${include_broll ? 'B-ROLL NOTES: Add suggestions for B-roll footage as [B-roll: description of visual]' : ''}
+${include_broll && format !== 'carousel' ? 'B-ROLL NOTES: Add suggestions for B-roll footage as [B-roll: description of visual]' : ''}
 
 ${include_cta ? 'CTA: Include a clear call-to-action at the end (e.g., "Join our Discord for real-time trade alerts" or "Download the free Algo V6 guide")' : ''}
 
-STRUCTURE YOUR RESPONSE AS:
+${format === 'carousel' ? `STRUCTURE YOUR RESPONSE AS:
+Slide 1:
+(Your attention-grabbing hook here)
+
+Slide 2:
+(First key point)
+
+Slide 3:
+(Second key point)
+
+...continue with remaining slides...
+
+Slide ${length_seconds}:
+(Strong closing takeaway or CTA)
+
+CRITICAL: Output EXACTLY in the format "Slide X:" followed by the text. NO other formatting, NO timestamps, NO [HOOK] labels.` : `STRUCTURE YOUR RESPONSE AS:
 ${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
 
 [INTRO - X:XX-X:XX]
@@ -161,7 +176,7 @@ ${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
 ${include_broll ? '[B-roll: relevant visual]' : ''}
 
 [CTA - X:XX-X:XX]
-(Call to action)
+(Call to action)`}
 
 Return ONLY the formatted script. Do not include any meta-commentary or explanations outside the script.`;
 
