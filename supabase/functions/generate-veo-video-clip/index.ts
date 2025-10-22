@@ -14,20 +14,10 @@ serve(async (req) => {
   let clipId: string | undefined;
   
   try {
-    // Parse body once and store it
-    let body;
-    try {
-      const rawBody = await req.text();
-      console.log('Raw request body:', rawBody);
-      body = JSON.parse(rawBody);
-    } catch (parseError) {
-      console.error('Failed to parse request body:', parseError);
-      throw new Error('Invalid JSON in request body');
-    }
-
+    const body = await req.json();
     clipId = body.clipId;
     const prompt = body.prompt;
-    const duration = body.duration || 10;
+    const duration = body.duration || 8;
 
     if (!clipId || !prompt) {
       throw new Error('Clip ID and prompt are required');
@@ -35,122 +25,149 @@ serve(async (req) => {
 
     console.log('Processing clip:', { clipId, promptLength: prompt.length, duration });
 
-    const projectId = Deno.env.get('GOOGLE_CLOUD_PROJECT_ID');
-    const serviceAccountKey = Deno.env.get('GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY');
-
-    if (!projectId || !serviceAccountKey) {
-      throw new Error('Google Cloud credentials not configured');
+    const apiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
+    if (!apiKey) {
+      throw new Error('GOOGLE_GEMINI_API_KEY not configured');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Parse service account key
-    const credentials = JSON.parse(serviceAccountKey);
-
-    // Get access token
-    const accessToken = await getAccessToken(credentials);
-
-    // Call Veo 3 API
-    const location = 'us-central1';
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/veo-3.0-generate-001:predict`;
-
-    console.log('Calling Veo API:', endpoint);
-
-    const veoResponse = await fetch(endpoint, {
+    // Start video generation using Gemini API
+    console.log('Starting Veo 3.1 video generation...');
+    
+    const generateResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:generateVideos', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        instances: [{
-          prompt: prompt,
-        }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: '16:9',
-          durationSeconds: duration
+        prompt: prompt,
+        config: {
+          durationSeconds: duration.toString(),
+          aspectRatio: "16:9",
+          resolution: "720p"
         }
       })
     });
 
-    if (!veoResponse.ok) {
-      const errorText = await veoResponse.text();
-      console.error('Veo API error:', veoResponse.status, errorText);
-      throw new Error(`Veo API error: ${veoResponse.status} - ${errorText}`);
+    if (!generateResponse.ok) {
+      const errorText = await generateResponse.text();
+      console.error('Veo API error:', generateResponse.status, errorText);
+      throw new Error(`Veo API error: ${generateResponse.status} - ${errorText}`);
     }
 
-    const veoData = await veoResponse.json();
-    console.log('Veo response:', JSON.stringify(veoData).substring(0, 200));
-
-    // Extract video data (base64 or URL)
-    const videoData = veoData.predictions?.[0]?.video || veoData.predictions?.[0];
+    const operationData = await generateResponse.json();
+    const operationName = operationData.name;
     
-    if (!videoData) {
-      throw new Error('No video data in Veo response');
+    if (!operationName) {
+      throw new Error('No operation name returned from Veo API');
     }
+
+    console.log('Operation started:', operationName);
+
+    // Update clip with operation ID
+    await supabase
+      .from('ai_video_clips')
+      .update({
+        veo_task_id: operationName,
+        status: 'processing'
+      })
+      .eq('id', clipId);
+
+    // Poll until done (with timeout)
+    const maxPollingTime = 360000; // 6 minutes (max according to docs)
+    const pollInterval = 10000; // 10 seconds
+    const startTime = Date.now();
+    
+    let isDone = false;
+    let videoData: any = null;
+
+    while (!isDone && (Date.now() - startTime) < maxPollingTime) {
+      console.log('Polling operation status...');
+      
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      
+      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+
+      if (!statusResponse.ok) {
+        const errorText = await statusResponse.text();
+        console.error('Poll error:', statusResponse.status, errorText);
+        continue; // Keep trying
+      }
+
+      const statusData = await statusResponse.json();
+      
+      if (statusData.done) {
+        isDone = true;
+        console.log('Video generation complete!');
+        
+        if (statusData.error) {
+          throw new Error(`Veo generation failed: ${JSON.stringify(statusData.error)}`);
+        }
+        
+        videoData = statusData.response?.generatedVideos?.[0];
+        
+        if (!videoData?.video?.uri) {
+          throw new Error('No video URI in completed operation');
+        }
+        
+        break;
+      }
+      
+      console.log('Operation still in progress...');
+    }
+
+    if (!videoData) {
+      throw new Error('Video generation timed out after 6 minutes');
+    }
+
+    // Download video from Google
+    console.log('Downloading video from:', videoData.video.uri);
+    const videoResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${videoData.video.name}?alt=media`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.status}`);
+    }
+
+    const videoBlob = await videoResponse.blob();
+    const videoBuffer = await videoBlob.arrayBuffer();
 
     // Upload to Supabase Storage
     const fileName = `${clipId}.mp4`;
-    let videoUrl;
-
-    if (typeof videoData === 'string' && videoData.startsWith('gs://')) {
-      // Google Cloud Storage URL - download and re-upload
-      const gsUrl = videoData;
-      const downloadUrl = gsUrl.replace('gs://', 'https://storage.googleapis.com/');
-      
-      const videoResponse = await fetch(downloadUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
+    const { error: uploadError } = await supabase.storage
+      .from('content-videos')
+      .upload(`ai-clips/${fileName}`, videoBuffer, {
+        contentType: 'video/mp4',
+        upsert: true
       });
-      
-      const videoBlob = await videoResponse.blob();
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('content-videos')
-        .upload(`ai-clips/${fileName}`, videoBlob, {
-          contentType: 'video/mp4',
-          upsert: true
-        });
 
-      if (uploadError) throw uploadError;
+    if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('content-videos')
-        .getPublicUrl(`ai-clips/${fileName}`);
+    const { data: urlData } = supabase.storage
+      .from('content-videos')
+      .getPublicUrl(`ai-clips/${fileName}`);
 
-      videoUrl = urlData.publicUrl;
-    } else if (typeof videoData === 'string' && videoData.startsWith('data:')) {
-      // Base64 data
-      const base64Data = videoData.split(',')[1];
-      const videoBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('content-videos')
-        .upload(`ai-clips/${fileName}`, videoBuffer, {
-          contentType: 'video/mp4',
-          upsert: true
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('content-videos')
-        .getPublicUrl(`ai-clips/${fileName}`);
-
-      videoUrl = urlData.publicUrl;
-    } else {
-      throw new Error('Unsupported video data format');
-    }
+    const videoUrl = urlData.publicUrl;
 
     // Update clip record
     await supabase
       .from('ai_video_clips')
       .update({
         status: 'completed',
-        clip_url: videoUrl,
-        veo_task_id: veoData.metadata?.operationId || null
+        clip_url: videoUrl
       })
       .eq('id', clipId);
 
@@ -166,28 +183,20 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error generating clip:', error);
-    console.error('Error details:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error in generate-veo-video-clip:', error);
     
-    // Update clip status to failed if clipId is available
     if (clipId) {
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        
-        await supabase
-          .from('ai_video_clips')
-          .update({
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error'
-          })
-          .eq('id', clipId);
-        
-        console.log('Updated clip status to failed:', clipId);
-      } catch (e) {
-        console.error('Failed to update clip status:', e);
-      }
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      await supabase
+        .from('ai_video_clips')
+        .update({
+          status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        })
+        .eq('id', clipId);
     }
 
     return new Response(
