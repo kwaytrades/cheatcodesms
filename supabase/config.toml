@@ -1,5 +1,8 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
+[functions.post-twitter-thread]
+verify_jwt = false
+
 [functions.get-funnel-step]
 verify_jwt = false
 

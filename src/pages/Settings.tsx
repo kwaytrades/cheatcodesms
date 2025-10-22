@@ -32,7 +32,7 @@ const Settings = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentSecret, setCurrentSecret] = useState<SecretConfig | null>(null);
   const [configuredSecrets, setConfiguredSecrets] = useState<Set<string>>(
-    new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER"])
+    new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "TWITTER_CONSUMER_KEY", "TWITTER_CONSUMER_SECRET", "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_TOKEN_SECRET"])
   );
   
   const form = useForm<SecretFormValues>({
@@ -106,6 +106,34 @@ const Settings = () => {
       description: "AWS region for SES (e.g., us-east-1, us-west-2)",
       required: true,
       configured: configuredSecrets.has("AWS_REGION")
+    },
+    {
+      name: "TWITTER_CONSUMER_KEY",
+      displayName: "Twitter API Key",
+      description: "Your Twitter app's API key (Consumer Key)",
+      required: false,
+      configured: configuredSecrets.has("TWITTER_CONSUMER_KEY")
+    },
+    {
+      name: "TWITTER_CONSUMER_SECRET",
+      displayName: "Twitter API Secret",
+      description: "Your Twitter app's API secret (Consumer Secret)",
+      required: false,
+      configured: configuredSecrets.has("TWITTER_CONSUMER_SECRET")
+    },
+    {
+      name: "TWITTER_ACCESS_TOKEN",
+      displayName: "Twitter Access Token",
+      description: "Your Twitter account access token",
+      required: false,
+      configured: configuredSecrets.has("TWITTER_ACCESS_TOKEN")
+    },
+    {
+      name: "TWITTER_ACCESS_TOKEN_SECRET",
+      displayName: "Twitter Access Token Secret",
+      description: "Your Twitter account access token secret",
+      required: false,
+      configured: configuredSecrets.has("TWITTER_ACCESS_TOKEN_SECRET")
     }
   ];
 
@@ -274,6 +302,21 @@ const Settings = () => {
             </div>
             <Badge variant={configuredSecrets.has("AWS_ACCESS_KEY_ID") ? "default" : "secondary"}>
               {configuredSecrets.has("AWS_ACCESS_KEY_ID") ? "Active" : "Not Configured"}
+            </Badge>
+          </div>
+
+          <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <span className="text-lg font-bold text-blue-500">𝕏</span>
+              </div>
+              <div>
+                <h4 className="font-medium">Twitter/X</h4>
+                <p className="text-sm text-muted-foreground">Social Media Posting</p>
+              </div>
+            </div>
+            <Badge variant={configuredSecrets.has("TWITTER_CONSUMER_KEY") ? "default" : "secondary"}>
+              {configuredSecrets.has("TWITTER_CONSUMER_KEY") ? "Active" : "Not Configured"}
             </Badge>
           </div>
         </CardContent>

@@ -71,18 +71,44 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
   const exportToTwitter = async () => {
     setExporting(true);
     try {
-      // TODO: Integrate with Twitter API
-      // For now, just show success and copy thread text
-      const threadText = slides.map((slide, i) => 
-        `${i + 1}/${slides.length}\n\n${slide.text}`
-      ).join('\n\n---\n\n');
+      // Convert slides to API format with base64 image data
+      const slidesData = await Promise.all(
+        slides.map(async (slide) => {
+          let imageData = slide.imagePreview;
+          
+          // If there's a file, ensure it's in base64 format
+          if (slide.image && !slide.imagePreview) {
+            imageData = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(slide.image!);
+            });
+          }
 
-      await navigator.clipboard.writeText(threadText);
-      toast.success(`Thread text copied! Ready to post ${slides.length} tweets${slides.some(s => s.image) ? ' with images' : ''}.`);
+          return {
+            text: slide.text,
+            imageData: imageData || null,
+          };
+        })
+      );
+
+      const { supabase } = await import('@/integrations/supabase/client');
       
-    } catch (error) {
+      const { data, error } = await supabase.functions.invoke('post-twitter-thread', {
+        body: { slides: slidesData },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Successfully posted ${slides.length} tweets as a thread!`);
+      } else {
+        throw new Error(data?.error || 'Failed to post thread');
+      }
+      
+    } catch (error: any) {
       console.error('Export error:', error);
-      toast.error('Failed to export thread');
+      toast.error(error.message || 'Failed to export thread to Twitter');
     } finally {
       setExporting(false);
     }
