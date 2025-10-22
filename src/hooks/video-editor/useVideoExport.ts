@@ -202,8 +202,8 @@ export const useVideoExport = (
       console.log(`WebM created: ${finalBlob.size} bytes at 20 Mbps`);
       setProgress(92);
 
-      // Upload to Supabase Storage
-      const fileName = `${job.id}.${finalExtension}`;
+      // Upload to Supabase Storage with user ID folder
+      const fileName = `${session.user.id}/${job.id}.${finalExtension}`;
       const { error: uploadError } = await supabase.storage
         .from('content-videos')
         .upload(fileName, finalBlob, {
