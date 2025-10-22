@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
 import { CanvasRenderer } from "@/lib/video-editor/canvas-renderer";
+import { convertWebMToMP4 } from "@/lib/video-editor/ffmpeg-converter";
 
 export const useVideoExport = (
   overlays: Overlay[],
@@ -94,29 +95,55 @@ export const useVideoExport = (
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         if (cancelExportRef.current) {
           renderer.destroy();
           return;
         }
 
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        
-        // Download the video
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `video-export-${Date.now()}.webm`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        URL.revokeObjectURL(url);
-        renderer.destroy();
-        
-        toast.success("Video exported successfully!", { id: toastId });
-        setIsLoading(false);
-        setProgress(100);
+        try {
+          const webmBlob = new Blob(chunks, { type: 'video/webm' });
+          
+          toast.loading("Converting to MP4...", { id: toastId });
+          setProgress(50);
+
+          // Convert WebM to MP4
+          const mp4Blob = await convertWebMToMP4(webmBlob, (conversionProgress) => {
+            // Map conversion progress from 50% to 95%
+            const totalProgress = 50 + (conversionProgress * 0.45);
+            setProgress(Math.round(totalProgress));
+          });
+
+          if (cancelExportRef.current) {
+            renderer.destroy();
+            return;
+          }
+
+          toast.loading("Preparing download...", { id: toastId });
+          setProgress(95);
+
+          // Download the MP4
+          const url = URL.createObjectURL(mp4Blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `video-export-${Date.now()}.mp4`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          URL.revokeObjectURL(url);
+          renderer.destroy();
+          
+          toast.success("Video exported successfully!", { id: toastId });
+          setIsLoading(false);
+          setProgress(100);
+        } catch (error) {
+          console.error('Conversion error:', error);
+          toast.error("Failed to convert video to MP4", { id: toastId });
+          renderer.destroy();
+          setIsLoading(false);
+          setProgress(0);
+        }
       };
 
       mediaRecorder.onerror = (e) => {
@@ -144,18 +171,18 @@ export const useVideoExport = (
 
         await renderer.renderFrame(overlays, frame, fps);
         
-        // Update progress (15% to 95%)
-        const frameProgress = 15 + ((frame / totalFrames) * 80);
+        // Update progress (15% to 45% for recording phase)
+        const frameProgress = 15 + ((frame / totalFrames) * 30);
         setProgress(Math.round(frameProgress));
         
         // Wait for next frame time
         await new Promise(resolve => setTimeout(resolve, frameInterval));
       }
 
-      toast.loading("Finalizing video...", { id: toastId });
-      setProgress(95);
+      toast.loading("Finishing recording...", { id: toastId });
+      setProgress(45);
       
-      // Stop recording
+      // Stop recording (this triggers conversion in onstop handler)
       mediaRecorder.stop();
 
     } catch (error) {

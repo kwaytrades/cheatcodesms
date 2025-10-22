@@ -97,15 +97,17 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
           <div className="space-y-4 py-4">
             <Progress value={displayProgress} />
             <p className="text-sm text-center text-muted-foreground">
-              {displayProgress < 50 
+              {displayProgress < 45 
                 ? "Capturing frames..." 
-                : displayProgress < 90 
-                ? "Encoding video..." 
-                : "Finalizing..."
+                : displayProgress < 50 
+                ? "Finishing recording..."
+                : displayProgress < 95 
+                ? "Converting to MP4..." 
+                : "Preparing download..."
               } {displayProgress}%
             </p>
             <p className="text-xs text-center text-muted-foreground">
-              Exporting at {resolutionData.label} • {qualityData.label}
+              Exporting as MP4 (H.264) • {resolutionData.label} • {qualityData.label}
             </p>
           </div>
         ) : (
