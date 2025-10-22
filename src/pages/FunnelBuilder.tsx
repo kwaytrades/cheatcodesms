@@ -198,12 +198,212 @@ export default function FunnelBuilder() {
   };
 
   const getUniversalTrackingCode = () => {
-    const currentDomain = window.location.origin;
-    
-    return `<!-- Universal Funnel Tracking Code -->
-<!-- Add this to <head> section of ALL funnel pages across ALL projects -->
-<script src="${currentDomain}/funnel-tracker.js"></script>
+    // We need to provide instructions for both options
+    return `<!-- Universal Funnel Tracking Code - Option 1: Use Hosted Script -->
+<!-- Add this to <head> section of ALL funnel pages -->
 <script>
+  // Inline tracker for immediate use (no external file needed)
+  window.FunnelTracker = {
+    config: {},
+    sessionId: null,
+    
+    init: function(options) {
+      this.config = options || {};
+      this.sessionId = this.getOrCreateSessionId();
+      this.detectFunnelStep();
+      this.trackPageView();
+      this.trackTimeOnPage();
+      this.trackScrollDepth();
+      this.trackExitIntent();
+    },
+    
+    getOrCreateSessionId: function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionFromUrl = urlParams.get('session_id');
+      if (sessionFromUrl) {
+        localStorage.setItem('funnel_session_id', sessionFromUrl);
+        return sessionFromUrl;
+      }
+      
+      let sessionId = localStorage.getItem('funnel_session_id');
+      if (!sessionId) {
+        sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('funnel_session_id', sessionId);
+      }
+      return sessionId;
+    },
+    
+    detectFunnelStep: async function() {
+      try {
+        const response = await fetch(this.config.apiEndpoint + '/get-funnel-step', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pageUrl: window.location.href,
+            domain: window.location.hostname,
+            path: window.location.pathname
+          })
+        });
+        
+        if (response.ok) {
+          this.currentStep = await response.json();
+        }
+      } catch (error) {
+        console.error('FunnelTracker: Error detecting step', error);
+      }
+    },
+    
+    trackPageView: function() {
+      if (!this.currentStep) return;
+      
+      this.sendEvent({
+        funnel_id: this.currentStep.funnel_id,
+        step_name: this.currentStep.step_name,
+        session_id: this.sessionId,
+        event_type: 'page_view',
+        utm_params: this.getUTMParams(),
+        device_info: {
+          device_type: this.getDeviceType(),
+          browser: this.getBrowser()
+        },
+        referrer: document.referrer,
+        metadata: this.collectMetadata()
+      });
+    },
+    
+    sendEvent: async function(eventData) {
+      try {
+        await fetch(this.config.apiEndpoint + '/track-funnel-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventData)
+        });
+      } catch (error) {
+        console.error('FunnelTracker: Error sending event', error);
+      }
+    },
+    
+    getUTMParams: function() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        utm_source: params.get('utm_source'),
+        utm_medium: params.get('utm_medium'),
+        utm_campaign: params.get('utm_campaign'),
+        utm_content: params.get('utm_content'),
+        utm_term: params.get('utm_term')
+      };
+    },
+    
+    getDeviceType: function() {
+      const width = window.innerWidth;
+      if (width < 768) return 'mobile';
+      if (width < 1024) return 'tablet';
+      return 'desktop';
+    },
+    
+    getBrowser: function() {
+      const ua = navigator.userAgent;
+      if (ua.indexOf('Firefox') > -1) return 'Firefox';
+      if (ua.indexOf('Chrome') > -1) return 'Chrome';
+      if (ua.indexOf('Safari') > -1) return 'Safari';
+      if (ua.indexOf('Edge') > -1) return 'Edge';
+      return 'Unknown';
+    },
+    
+    collectMetadata: function() {
+      return {
+        screen_width: window.screen.width,
+        screen_height: window.screen.height,
+        user_agent: navigator.userAgent,
+        language: navigator.language,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+    },
+    
+    trackTimeOnPage: function() {
+      const startTime = Date.now();
+      window.addEventListener('beforeunload', () => {
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        if (this.currentStep) {
+          navigator.sendBeacon(
+            this.config.apiEndpoint + '/track-funnel-event',
+            JSON.stringify({
+              funnel_id: this.currentStep.funnel_id,
+              step_name: this.currentStep.step_name,
+              session_id: this.sessionId,
+              event_type: 'time_on_page',
+              duration: duration
+            })
+          );
+        }
+      });
+    },
+    
+    trackScrollDepth: function() {
+      let maxScroll = 0;
+      const thresholds = [25, 50, 75, 100];
+      
+      window.addEventListener('scroll', () => {
+        const scrollPercent = Math.round((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100);
+        
+        thresholds.forEach(threshold => {
+          if (scrollPercent >= threshold && maxScroll < threshold) {
+            maxScroll = threshold;
+            if (this.currentStep) {
+              this.sendEvent({
+                funnel_id: this.currentStep.funnel_id,
+                step_name: this.currentStep.step_name,
+                session_id: this.sessionId,
+                event_type: 'scroll_depth',
+                metadata: { depth: threshold }
+              });
+            }
+          }
+        });
+      });
+    },
+    
+    trackExitIntent: function() {
+      document.addEventListener('mouseleave', (e) => {
+        if (e.clientY < 0 && this.currentStep) {
+          this.sendEvent({
+            funnel_id: this.currentStep.funnel_id,
+            step_name: this.currentStep.step_name,
+            session_id: this.sessionId,
+            event_type: 'exit_intent'
+          });
+        }
+      });
+    },
+    
+    identify: async function(data) {
+      const response = await fetch(this.config.apiEndpoint + '/identify-funnel-visitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          funnel_id: this.currentStep?.funnel_id,
+          ...data
+        })
+      });
+      return response.json();
+    },
+    
+    conversion: async function(data) {
+      const response = await fetch(this.config.apiEndpoint + '/track-funnel-conversion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          funnel_id: this.currentStep?.funnel_id,
+          ...data
+        })
+      });
+      return response.json();
+    }
+  };
+
+  // Auto-initialize
   window.FunnelTracker.init({
     apiEndpoint: '${import.meta.env.VITE_SUPABASE_URL}/functions/v1'
   });
@@ -214,6 +414,7 @@ export default function FunnelBuilder() {
 <script>
   // After successful purchase
   FunnelTracker.conversion({
+    contact_id: 'contact-uuid-here',
     orderValue: 297.00,
     productId: 'your-product-id',
     conversionType: 'purchase'
