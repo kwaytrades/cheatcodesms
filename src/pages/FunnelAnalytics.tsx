@@ -99,7 +99,7 @@ export default function FunnelAnalytics() {
       const totalVisitors = visits?.length || 0;
       const completedVisits = visits?.filter(v => v.completed) || [];
       const totalConversions = completedVisits.length;
-      const totalRevenue = completedVisits.reduce((sum, v) => sum + (parseFloat(v.total_value) || 0), 0);
+      const totalRevenue = completedVisits.reduce((sum, v) => sum + (Number(v.total_value) || 0), 0);
       const avgOrderValue = totalConversions > 0 ? totalRevenue / totalConversions : 0;
       const conversionRate = totalVisitors > 0 ? (totalConversions / totalVisitors) * 100 : 0;
 
@@ -160,7 +160,7 @@ export default function FunnelAnalytics() {
         sourceBreakdown[source].visits++;
         if (visit.completed) {
           sourceBreakdown[source].conversions++;
-          sourceBreakdown[source].revenue += parseFloat(visit.total_value) || 0;
+          sourceBreakdown[source].revenue += Number(visit.total_value) || 0;
         }
       });
 
