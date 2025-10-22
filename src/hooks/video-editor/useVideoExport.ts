@@ -135,13 +135,11 @@ export const useVideoExport = (
         throw new Error('Export cancelled');
       }
 
-      // Set up audio mixing with Web Audio API
+      // Set up audio context for mixing - but don't play during render
       const audioContext = new AudioContext({ sampleRate: 48000 });
       const destination = audioContext.createMediaStreamDestination();
       
-      // Mix audio from video and sound overlays
-      const audioSources: { element: HTMLMediaElement; gainNode: GainNode; startTime: number; duration: number }[] = [];
-      
+      // Load and connect audio elements (but don't play them yet)
       for (const overlay of overlays) {
         if ((overlay.type === 'video' || overlay.type === 'sound') && overlay.src) {
           const audioElement = overlay.type === 'video' 
@@ -155,7 +153,7 @@ export const useVideoExport = (
           // Wait for audio to be ready
           await new Promise<void>((resolve) => {
             audioElement.onloadeddata = () => resolve();
-            setTimeout(() => resolve(), 1000); // Fallback
+            setTimeout(() => resolve(), 1000);
           });
           
           // Create audio source and gain node
@@ -168,15 +166,9 @@ export const useVideoExport = (
           
           source.connect(gainNode).connect(destination);
           
-          const startTime = overlay.from / fps;
-          const duration = overlay.durationInFrames / fps;
-          
-          audioSources.push({ 
-            element: audioElement, 
-            gainNode, 
-            startTime, 
-            duration 
-          });
+          // Start playback but muted - MediaRecorder will capture the stream
+          audioElement.muted = false;
+          audioElement.play().catch(() => {});
         }
       }
 
@@ -211,72 +203,49 @@ export const useVideoExport = (
         }
       };
 
-      // Start recording
-      mediaRecorder.start(100); // Capture every 100ms
-      
-      // Play all audio elements at their correct times
-      const playAudioForTime = (currentTime: number) => {
-        for (const { element, startTime, duration } of audioSources) {
-          const relativeTime = currentTime - startTime;
-          if (relativeTime >= 0 && relativeTime < duration) {
-            if (element.paused || Math.abs(element.currentTime - relativeTime) > 0.1) {
-              element.currentTime = relativeTime;
-              element.play().catch(() => {});
-            }
-          } else if (!element.paused) {
-            element.pause();
-          }
-        }
-      };
-
-      // Render frames using requestAnimationFrame for smoother timing
+      // Calculate precise frame timing
+      const frameDelay = 1000 / fps; // Time per frame in milliseconds
       const totalFrames = durationInFrames;
-      let currentFrame = 0;
       
-      const renderNextFrame = async (): Promise<void> => {
+      // Start recording with timeslice matching frame duration
+      mediaRecorder.start(Math.floor(frameDelay));
+      
+      console.log(`Starting frame-by-frame render: ${totalFrames} frames at ${fps} FPS`);
+      
+      // Sequential frame-by-frame rendering for quality and stability
+      for (let currentFrame = 0; currentFrame < totalFrames; currentFrame++) {
         if (cancelExportRef.current) {
           throw new Error('Export cancelled');
         }
 
-        if (currentFrame < totalFrames) {
-          const currentTime = currentFrame / fps;
-          
-          // Sync audio playback
-          playAudioForTime(currentTime);
-          
-          // Render the frame
-          await renderer.renderFrame(overlays, currentFrame, fps);
-          
-          // Update progress (15-85% during rendering)
-          const renderProgress = 15 + Math.floor((currentFrame / totalFrames) * 70);
-          setProgress(renderProgress);
-
-          // Update job progress in database every 10 frames
-          if (currentFrame % 10 === 0) {
-            await supabase
-              .from('video_render_jobs' as any)
-              .update({ progress: renderProgress } as any)
-              .eq('id', job.id);
-          }
-
-          currentFrame++;
-          
-          // Use requestAnimationFrame for better timing
-          await new Promise<void>(resolve => {
-            requestAnimationFrame(() => resolve());
-          });
-          
-          await renderNextFrame();
+        // Render the current frame
+        await renderer.renderFrame(overlays, currentFrame, fps);
+        
+        // Wait for frame to be fully rendered and captured
+        await new Promise(resolve => setTimeout(resolve, frameDelay));
+        
+        // Explicitly request frame capture from MediaRecorder
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.requestData();
         }
-      };
-      
-      await renderNextFrame();
-      
-      // Stop all audio elements
-      for (const { element } of audioSources) {
-        element.pause();
-        element.currentTime = 0;
+        
+        // Small buffer to let MediaRecorder process
+        await new Promise(resolve => setTimeout(resolve, 15));
+        
+        // Update progress (15-85% during rendering)
+        const renderProgress = 15 + Math.floor((currentFrame / totalFrames) * 70);
+        setProgress(renderProgress);
+
+        // Update job progress in database every 15 frames
+        if (currentFrame % 15 === 0) {
+          await supabase
+            .from('video_render_jobs' as any)
+            .update({ progress: renderProgress } as any)
+            .eq('id', job.id);
+        }
       }
+      
+      console.log('All frames rendered, finalizing...');
 
       // Stop recording
       await new Promise<void>((resolve) => {

@@ -182,25 +182,40 @@ export class CanvasRenderer {
     const video = this.loadedAssets.get(overlay.src) as HTMLVideoElement;
     if (!video) return;
 
-    // Calculate video time for this frame (more precise)
+    // Calculate video time for this frame
     const videoTime = frame / fps;
     
-    // Seek video to correct time with tighter tolerance
-    if (Math.abs(video.currentTime - videoTime) > 0.05) {
+    // Seek video to correct time with relaxed tolerance for smoother rendering
+    if (Math.abs(video.currentTime - videoTime) > 0.15) {
       video.currentTime = videoTime;
-      // Wait for seek to complete
+      
+      // Wait for seek to complete with better timeout handling
       await new Promise<void>(resolve => {
-        const checkSeek = () => {
-          if (Math.abs(video.currentTime - videoTime) < 0.05 || video.readyState >= 2) {
+        let resolved = false;
+        
+        const complete = () => {
+          if (!resolved) {
+            resolved = true;
             resolve();
-          } else {
-            requestAnimationFrame(checkSeek);
           }
         };
-        video.onseeked = () => resolve();
-        setTimeout(() => resolve(), 100); // Fallback timeout
-        checkSeek();
+        
+        video.onseeked = complete;
+        
+        // Check if video is ready
+        const checkReady = () => {
+          if (video.readyState >= 2) {
+            complete();
+          }
+        };
+        checkReady();
+        
+        // Longer fallback timeout for video seeking
+        setTimeout(complete, 300);
       });
+      
+      // Additional buffer time after seek
+      await new Promise(resolve => setTimeout(resolve, 80));
     }
 
     this.ctx.save();
@@ -214,6 +229,9 @@ export class CanvasRenderer {
     this.ctx.drawImage(video, x, y, width, height);
 
     this.ctx.restore();
+    
+    // Small buffer after rendering to ensure frame is captured
+    await new Promise(resolve => setTimeout(resolve, 20));
   }
 
   getCanvas(): HTMLCanvasElement {
