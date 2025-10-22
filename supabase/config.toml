@@ -32,3 +32,12 @@ verify_jwt = false
 
 [functions.fetch-market-data]
 verify_jwt = false
+
+[functions.track-funnel-event]
+verify_jwt = false
+
+[functions.identify-funnel-visitor]
+verify_jwt = false
+
+[functions.track-funnel-conversion]
+verify_jwt = false

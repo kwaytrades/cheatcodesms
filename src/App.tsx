@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
+import FunnelAnalytics from "./pages/FunnelAnalytics";
+import FunnelBuilder from "./pages/FunnelBuilder";
 import Contacts from "./pages/Contacts";
 import ContactDetail from "./pages/ContactDetail";
 import Campaigns from "./pages/Campaigns";
@@ -35,6 +37,8 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/" element={<Dashboard />}>
             <Route index element={<Analytics />} />
+            <Route path="analytics/funnels" element={<FunnelAnalytics />} />
+            <Route path="funnels" element={<FunnelBuilder />} />
             <Route path="contacts" element={<Contacts />} />
             <Route path="contacts/:id" element={<ContactDetail />} />
             <Route path="campaigns" element={<Campaigns />} />

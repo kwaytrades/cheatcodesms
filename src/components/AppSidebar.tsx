@@ -1,4 +1,4 @@
-import { Users, BarChart3, MessageSquare, Send, LogOut, Zap, Settings, Sparkles, Video } from "lucide-react";
+import { Users, BarChart3, MessageSquare, Send, LogOut, Zap, Settings, Sparkles, Video, TrendingUp } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 const navItems = [
   { title: "Analytics", url: "/", icon: BarChart3 },
+  { title: "Funnels", url: "/analytics/funnels", icon: TrendingUp },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Campaigns", url: "/campaigns", icon: Send },
   { title: "Automation", url: "/automation", icon: Sparkles },

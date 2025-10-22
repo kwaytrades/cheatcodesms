@@ -658,6 +658,289 @@ export type Database = {
           },
         ]
       }
+      funnel_conversions: {
+        Row: {
+          contact_id: string
+          conversion_type: string
+          converted_at: string | null
+          funnel_id: string
+          id: string
+          order_value: number
+          product_id: string | null
+          visit_id: string
+        }
+        Insert: {
+          contact_id: string
+          conversion_type: string
+          converted_at?: string | null
+          funnel_id: string
+          id?: string
+          order_value: number
+          product_id?: string | null
+          visit_id: string
+        }
+        Update: {
+          contact_id?: string
+          conversion_type?: string
+          converted_at?: string | null
+          funnel_id?: string
+          id?: string
+          order_value?: number
+          product_id?: string | null
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_conversions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_conversions_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_conversions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_conversions_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_step_events: {
+        Row: {
+          contact_id: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          step_id: string
+          visit_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          step_id: string
+          visit_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          step_id?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_step_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_step_events_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_step_events_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_steps: {
+        Row: {
+          conversion_goal: string | null
+          created_at: string | null
+          funnel_id: string
+          id: string
+          page_url: string
+          step_name: string
+          step_number: number
+          step_type: string
+        }
+        Insert: {
+          conversion_goal?: string | null
+          created_at?: string | null
+          funnel_id: string
+          id?: string
+          page_url: string
+          step_name: string
+          step_number: number
+          step_type: string
+        }
+        Update: {
+          conversion_goal?: string | null
+          created_at?: string | null
+          funnel_id?: string
+          id?: string
+          page_url?: string
+          step_name?: string
+          step_number?: number
+          step_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_steps_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnel_visits: {
+        Row: {
+          browser: string | null
+          completed: boolean | null
+          contact_id: string | null
+          current_step_id: string | null
+          device_type: string | null
+          entry_step_id: string | null
+          funnel_id: string
+          id: string
+          ip_address: string | null
+          last_activity_at: string | null
+          referrer: string | null
+          session_id: string
+          started_at: string | null
+          total_value: number | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          browser?: string | null
+          completed?: boolean | null
+          contact_id?: string | null
+          current_step_id?: string | null
+          device_type?: string | null
+          entry_step_id?: string | null
+          funnel_id: string
+          id?: string
+          ip_address?: string | null
+          last_activity_at?: string | null
+          referrer?: string | null
+          session_id: string
+          started_at?: string | null
+          total_value?: number | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          browser?: string | null
+          completed?: boolean | null
+          contact_id?: string | null
+          current_step_id?: string | null
+          device_type?: string | null
+          entry_step_id?: string | null
+          funnel_id?: string
+          id?: string
+          ip_address?: string | null
+          last_activity_at?: string | null
+          referrer?: string | null
+          session_id?: string
+          started_at?: string | null
+          total_value?: number | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_visits_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_visits_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_visits_entry_step_id_fkey"
+            columns: ["entry_step_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_visits_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnels: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           category: string
