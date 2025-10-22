@@ -4,7 +4,7 @@ import { SidebarProvider } from "@/contexts/video-editor/SidebarContext";
 import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
 import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useEditorState } from "@/hooks/video-editor/useEditorState";
-import { useVideoExport } from "@/hooks/video-editor/useVideoExport";
+import { useRemotionExport } from "@/hooks/video-editor/useRemotionExport";
 import { VideoPlayer } from "./VideoPlayer";
 import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
@@ -34,7 +34,7 @@ import { toast } from "sonner";
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
-  const { exportVideo, cancelExport, progress: exportProgress, isLoading } = useVideoExport(
+  const { exportVideo, cancelExport, progress: exportProgress, isExporting } = useRemotionExport(
     editorState.overlays,
     editorState.durationInFrames,
     30, // FPS
@@ -47,11 +47,10 @@ const EditorControls: React.FC = () => {
 
   const handleExport = async (settings: any) => {
     try {
-      await exportVideo();
-      setExportDialogOpen(false);
+      await exportVideo(settings);
     } catch (error: any) {
       console.error("Export failed:", error);
-      toast.error("Failed to export video");
+      // Error toast is already shown in the hook
     }
   };
 
