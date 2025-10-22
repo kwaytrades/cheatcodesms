@@ -42,6 +42,28 @@ serve(async (req) => {
       throw new Error(`Failed to update job status: ${updateError.message}`);
     }
 
+    // Get or build the Remotion bundle
+    let serveUrl = compositionData.serveUrl;
+    
+    if (!serveUrl) {
+      console.log('No serveUrl provided, building bundle...');
+      const buildResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/build-remotion-bundle`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!buildResponse.ok) {
+        throw new Error('Failed to build Remotion bundle');
+      }
+
+      const buildData = await buildResponse.json();
+      serveUrl = buildData.bundleUrl;
+      console.log('Bundle built successfully:', serveUrl);
+    }
+
     // Prepare composition for Remotion Cloud
     const compositionId = 'Main';
     
@@ -54,8 +76,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         composition: compositionId,
-        // Use Remotion's hosted bundle approach - no separate hosting needed
-        serveUrl: compositionData.serveUrl || 'https://remotion-hosted-bundle.example.com',
+        serveUrl: serveUrl,
         inputProps: {
           overlays: compositionData.overlays,
           durationInFrames: compositionData.durationInFrames,
