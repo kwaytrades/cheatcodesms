@@ -67,7 +67,7 @@ export const useVideoExport = (
     
     if (jobId) {
       // Cancel the job on the server
-      await supabase
+      await (supabase as any)
         .from('video_render_jobs')
         .update({ status: 'failed', error_message: 'Cancelled by user' })
         .eq('id', jobId);
@@ -119,7 +119,7 @@ export const useVideoExport = (
       console.log('Creating render job...');
 
       // Create a render job
-      const { data: job, error: jobError } = await supabase
+      const { data: job, error: jobError } = await (supabase as any)
         .from('video_render_jobs')
         .insert({
           user_id: session.user.id,
