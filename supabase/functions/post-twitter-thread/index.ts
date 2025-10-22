@@ -11,10 +11,19 @@ const corsHeaders = {
 };
 
 function validateEnvironmentVariables() {
+  console.log("🔍 Validating Twitter credentials...");
+  
   if (!API_KEY) throw new Error("Missing TWITTER_CONSUMER_KEY environment variable");
   if (!API_SECRET) throw new Error("Missing TWITTER_CONSUMER_SECRET environment variable");
   if (!ACCESS_TOKEN) throw new Error("Missing TWITTER_ACCESS_TOKEN environment variable");
   if (!ACCESS_TOKEN_SECRET) throw new Error("Missing TWITTER_ACCESS_TOKEN_SECRET environment variable");
+  
+  // Log masked versions to verify credentials are being read
+  console.log("✅ All credentials found:");
+  console.log(`  - Consumer Key: ${API_KEY.substring(0, 5)}...${API_KEY.substring(API_KEY.length - 4)}`);
+  console.log(`  - Consumer Secret: ${API_SECRET.substring(0, 5)}...${API_SECRET.substring(API_SECRET.length - 4)}`);
+  console.log(`  - Access Token: ${ACCESS_TOKEN.substring(0, 5)}...${ACCESS_TOKEN.substring(ACCESS_TOKEN.length - 4)}`);
+  console.log(`  - Access Token Secret: ${ACCESS_TOKEN_SECRET.substring(0, 5)}...${ACCESS_TOKEN_SECRET.substring(ACCESS_TOKEN_SECRET.length - 4)}`);
 }
 
 function generateOAuthSignature(
@@ -24,19 +33,29 @@ function generateOAuthSignature(
   consumerSecret: string,
   tokenSecret: string
 ): string {
-  const signatureBaseString = `${method}&${encodeURIComponent(url)}&${encodeURIComponent(
-    Object.entries(params)
-      .sort()
-      .map(([k, v]) => `${k}=${v}`)
-      .join("&")
-  )}`;
+  const paramString = Object.entries(params)
+    .sort()
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+  
+  const signatureBaseString = `${method}&${encodeURIComponent(url)}&${encodeURIComponent(paramString)}`;
   const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret)}`;
+  
+  console.log("🔒 Signature generation:");
+  console.log(`  - Base string length: ${signatureBaseString.length}`);
+  console.log(`  - Signing key length: ${signingKey.length}`);
+  
   const hmacSha1 = createHmac("sha1", signingKey);
   const signature = hmacSha1.update(signatureBaseString).digest("base64");
+  
+  console.log(`  - Generated signature: ${signature.substring(0, 10)}...`);
+  
   return signature;
 }
 
 function generateOAuthHeader(method: string, url: string): string {
+  console.log(`🔐 Generating OAuth header for ${method} ${url}`);
+  
   const oauthParams = {
     oauth_consumer_key: API_KEY!,
     oauth_nonce: Math.random().toString(36).substring(2),
@@ -46,6 +65,13 @@ function generateOAuthHeader(method: string, url: string): string {
     oauth_version: "1.0",
   };
 
+  console.log("OAuth params:", {
+    oauth_consumer_key: `${oauthParams.oauth_consumer_key.substring(0, 5)}...`,
+    oauth_token: `${oauthParams.oauth_token.substring(0, 5)}...`,
+    oauth_nonce: oauthParams.oauth_nonce,
+    oauth_timestamp: oauthParams.oauth_timestamp,
+  });
+
   const signature = generateOAuthSignature(method, url, oauthParams, API_SECRET!, ACCESS_TOKEN_SECRET!);
 
   const signedOAuthParams = {
@@ -54,8 +80,11 @@ function generateOAuthHeader(method: string, url: string): string {
   };
 
   const entries = Object.entries(signedOAuthParams).sort((a, b) => a[0].localeCompare(b[0]));
-
-  return "OAuth " + entries.map(([k, v]) => `${encodeURIComponent(k)}="${encodeURIComponent(v)}"`).join(", ");
+  const header = "OAuth " + entries.map(([k, v]) => `${encodeURIComponent(k)}="${encodeURIComponent(v)}"`).join(", ");
+  
+  console.log(`✅ OAuth header generated (length: ${header.length})`);
+  
+  return header;
 }
 
 async function uploadMedia(imageData: string): Promise<string> {
@@ -102,6 +131,8 @@ async function sendTweet(text: string, mediaIds?: string[], replyToId?: string):
     params.reply = { in_reply_to_tweet_id: replyToId };
   }
 
+  console.log("📤 Sending tweet:", { textLength: text.length, hasMedia: !!mediaIds, isReply: !!replyToId });
+
   const oauthHeader = generateOAuthHeader(method, url);
 
   const response = await fetch(url, {
@@ -114,9 +145,10 @@ async function sendTweet(text: string, mediaIds?: string[], replyToId?: string):
   });
 
   const responseText = await response.text();
-  console.log("Tweet response:", responseText);
+  console.log(`📨 Twitter API Response (${response.status}):`, responseText);
 
   if (!response.ok) {
+    console.error("❌ Tweet failed:", { status: response.status, body: responseText });
     throw new Error(`Tweet failed: ${response.status} - ${responseText}`);
   }
 
