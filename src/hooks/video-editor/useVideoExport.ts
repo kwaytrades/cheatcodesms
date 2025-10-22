@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import type { VideoRenderJob } from "@/lib/video-editor/supabase-types";
-import { prepareCompositionData, prepareExportSettings } from "@/lib/video-editor/remotion-adapter";
+import { CanvasRenderer } from "@/lib/video-editor/canvas-renderer";
 
 export const useVideoExport = (
   overlays: Overlay[],
@@ -13,76 +11,14 @@ export const useVideoExport = (
 ) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
   const cancelExportRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  // Subscribe to job progress updates
-  useEffect(() => {
-    if (!jobId) return;
-
-    console.log('Setting up realtime subscription for job:', jobId);
-
-    const channel = supabase
-      .channel(`render-job-${jobId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'video_render_jobs',
-          filter: `id=eq.${jobId}`,
-        },
-        (payload) => {
-          const job = payload.new as VideoRenderJob;
-          console.log('Job update from Realtime:', job);
-          
-          setProgress(job.progress || 0);
-          
-          if (job.status === 'completed' && job.video_url) {
-            console.log('Render completed:', job.video_url);
-            toast.success('Video exported successfully!');
-            
-            // Download the video
-            const link = document.createElement('a');
-            link.href = job.video_url;
-            link.download = `video-export-${Date.now()}.mp4`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            setIsLoading(false);
-            setJobId(null);
-            setProgress(0);
-          } else if (job.status === 'failed') {
-            console.error('Render failed:', job.error_message);
-            toast.error(`Export failed: ${job.error_message || 'Unknown error'}`);
-            setIsLoading(false);
-            setJobId(null);
-            setProgress(0);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
-      });
-
-    return () => {
-      console.log('Cleaning up subscription for job:', jobId);
-      supabase.removeChannel(channel);
-    };
-  }, [jobId]);
-
-  const cancelExport = async () => {
+  const cancelExport = () => {
     cancelExportRef.current = true;
     
-    if (jobId) {
-      // Cancel the job on the server
-      await supabase
-        .from('video_render_jobs' as any)
-        .update({ status: 'failed', error_message: 'Cancelled by user' } as any)
-        .eq('id', jobId);
-      
-      setJobId(null);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
     }
     
     setIsLoading(false);
@@ -100,95 +36,133 @@ export const useVideoExport = (
     setProgress(0);
     cancelExportRef.current = false;
 
+    const toastId = toast.loading("Preparing export...");
+
     try {
-      // Get user session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Please log in to export videos");
-        setIsLoading(false);
+      console.log('Starting client-side video export...');
+      setProgress(5);
+
+      // Create canvas renderer
+      const renderer = new CanvasRenderer(playerDimensions.width, playerDimensions.height);
+      
+      toast.loading("Loading assets...", { id: toastId });
+      setProgress(10);
+      
+      // Preload all assets
+      await renderer.preloadAssets(overlays);
+      
+      if (cancelExportRef.current) {
+        renderer.destroy();
         return;
       }
 
-      console.log('Preparing composition for Remotion Cloud...');
-      setProgress(5);
+      toast.loading("Starting recording...", { id: toastId });
+      setProgress(15);
 
-      // Prepare composition data for Remotion
-      const compositionData = prepareCompositionData(
-        overlays,
-        durationInFrames,
-        fps,
-        1920, // Export at Full HD
-        1080
-      );
+      // Get canvas and create stream
+      const canvas = renderer.getCanvas();
+      const stream = canvas.captureStream(fps);
 
-      const exportSettings = prepareExportSettings(
-        { width: 1920, height: 1080 },
-        'high'
-      );
-
-      // Create render job
-      const { data: job, error: jobError } = await supabase
-        .from('video_render_jobs' as any)
-        .insert({
-          user_id: session.user.id,
-          status: 'queued',
-          composition_data: compositionData,
-          settings: exportSettings,
-          progress: 5,
-        } as any)
-        .select()
-        .single() as any;
-
-      if (jobError) {
-        throw new Error(`Failed to create render job: ${jobError.message}`);
-      }
-
-      setJobId(job.id);
-      console.log('Sending to Remotion Cloud for rendering...');
-      toast.loading('Rendering with Remotion Cloud...', { id: 'export-toast' });
-      setProgress(10);
-
-      // Call edge function to trigger Remotion Cloud rendering
-      const { data: renderData, error: renderError } = await supabase.functions.invoke(
-        'render-video-remotion',
-        {
-          body: {
-            compositionData,
-            settings: exportSettings,
-            jobId: job.id,
-          },
+      // Add audio tracks if any
+      const audioElements = renderer.getAudioElements();
+      if (audioElements.size > 0) {
+        const audioContext = new AudioContext({ sampleRate: 48000 });
+        const destination = audioContext.createMediaStreamDestination();
+        
+        for (const audio of audioElements.values()) {
+          const source = audioContext.createMediaElementSource(audio);
+          source.connect(destination);
         }
-      );
-
-      if (renderError) {
-        console.error('Edge function error:', renderError);
-        throw new Error(`Rendering failed: ${renderError.message}`);
+        
+        destination.stream.getAudioTracks().forEach(track => {
+          stream.addTrack(track);
+        });
       }
 
-      console.log('Remotion Cloud render started:', renderData);
-      toast.success('Rendering in progress...', { id: 'export-toast' });
+      // Setup MediaRecorder
+      const chunks: Blob[] = [];
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 8000000, // 8 Mbps for high quality
+      });
       
-      // The edge function will update the job status via database
-      // The realtime subscription will handle download when completed
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        if (cancelExportRef.current) {
+          renderer.destroy();
+          return;
+        }
+
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        
+        // Download the video
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `video-export-${Date.now()}.webm`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(url);
+        renderer.destroy();
+        
+        toast.success("Video exported successfully!", { id: toastId });
+        setIsLoading(false);
+        setProgress(100);
+      };
+
+      mediaRecorder.onerror = (e) => {
+        console.error('MediaRecorder error:', e);
+        toast.error("Recording failed", { id: toastId });
+        renderer.destroy();
+        setIsLoading(false);
+      };
+
+      // Start recording
+      mediaRecorder.start();
+      
+      toast.loading("Rendering frames...", { id: toastId });
+
+      // Render all frames
+      const totalFrames = durationInFrames;
+      const frameInterval = 1000 / fps;
+      
+      for (let frame = 0; frame < totalFrames; frame++) {
+        if (cancelExportRef.current) {
+          mediaRecorder.stop();
+          renderer.destroy();
+          return;
+        }
+
+        await renderer.renderFrame(overlays, frame, fps);
+        
+        // Update progress (15% to 95%)
+        const frameProgress = 15 + ((frame / totalFrames) * 80);
+        setProgress(Math.round(frameProgress));
+        
+        // Wait for next frame time
+        await new Promise(resolve => setTimeout(resolve, frameInterval));
+      }
+
+      toast.loading("Finalizing video...", { id: toastId });
+      setProgress(95);
+      
+      // Stop recording
+      mediaRecorder.stop();
 
     } catch (error) {
       console.error("Error exporting video:", error);
-      
-      // Update job as failed if we have a jobId
-      if (jobId) {
-        await supabase
-          .from('video_render_jobs' as any)
-          .update({
-            status: 'failed',
-            error_message: error instanceof Error ? error.message : 'Unknown error',
-          } as any)
-          .eq('id', jobId);
-      }
-
-      toast.error(error instanceof Error ? error.message : "Failed to export video");
+      toast.error(error instanceof Error ? error.message : "Failed to export video", { id: toastId });
       setIsLoading(false);
       setProgress(0);
-      setJobId(null);
     }
   };
 
