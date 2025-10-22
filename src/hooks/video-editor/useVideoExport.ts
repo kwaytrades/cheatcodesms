@@ -34,24 +34,12 @@ export const useVideoExport = (
         },
         (payload) => {
           const job = payload.new as VideoRenderJob;
-          console.log('Job update:', job);
+          console.log('Job update from Realtime:', job);
           
+          // Only update progress, don't handle download here
           setProgress(job.progress || 0);
           
-          if (job.status === 'completed' && job.video_url) {
-            setIsLoading(false);
-            setJobId(null);
-            
-            // Download the video
-            const link = document.createElement('a');
-            link.href = job.video_url;
-            link.download = `video-${Date.now()}.mp4`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            toast.success('Video exported successfully!');
-          } else if (job.status === 'failed') {
+          if (job.status === 'failed') {
             setIsLoading(false);
             setJobId(null);
             toast.error(`Export failed: ${job.error_message || 'Unknown error'}`);
@@ -275,18 +263,31 @@ export const useVideoExport = (
         .eq('id', job.id);
 
       setProgress(100);
+      console.log(`Video export complete! Blob size: ${mp4Blob.size} bytes`);
+
+      // Download the video locally
+      console.log('Starting local download...');
+      const blobUrl = URL.createObjectURL(mp4Blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `video-${Date.now()}.mp4`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Trigger download
+      link.click();
+      console.log('Download triggered');
+      
+      // Clean up after download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+        console.log('Download cleanup complete');
+      }, 1000);
+
       setIsLoading(false);
       setJobId(null);
-
-      // Download the video
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(mp4Blob);
-      link.download = `video-${Date.now()}.mp4`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast.success('Video exported successfully!');
+      toast.success('Video exported and downloading!');
 
     } catch (error) {
       console.error("Error exporting video:", error);
