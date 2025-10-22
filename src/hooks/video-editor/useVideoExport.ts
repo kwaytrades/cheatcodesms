@@ -100,14 +100,18 @@ export const useVideoExport = (
       };
 
       mediaRecorder.onstop = async () => {
+        console.log('[Export] MediaRecorder stopped');
+        
         if (cancelExportRef.current) {
+          console.log('[Export] Export was cancelled');
           renderer.destroy();
           return;
         }
 
         try {
+          console.log('[Export] Creating WebM blob from', chunks.length, 'chunks');
           const webmBlob = new Blob(chunks, { type: 'video/webm' });
-          console.log('[Export] Recording complete, WebM blob size:', webmBlob.size, 'bytes');
+          console.log('[Export] WebM blob created, size:', webmBlob.size, 'bytes');
 
           if (webmBlob.size === 0) {
             throw new Error('Recording produced an empty file');
@@ -115,15 +119,22 @@ export const useVideoExport = (
           
           toast.loading("Converting to MP4...", { id: toastId });
           setProgress(50);
+          console.log('[Export] Starting MP4 conversion...');
 
           try {
-            // Convert WebM to MP4
-            const mp4Blob = await convertWebMToMP4(webmBlob, (conversionProgress) => {
-              // Map conversion progress from 50% to 95%
+            // Add timeout for conversion
+            const conversionTimeout = 120000; // 2 minutes
+            const conversionPromise = convertWebMToMP4(webmBlob, (conversionProgress) => {
+              console.log('[Export] Conversion progress:', Math.round(conversionProgress * 100) + '%');
               const totalProgress = 50 + (conversionProgress * 0.45);
               setProgress(Math.round(totalProgress));
             });
 
+            const timeoutPromise = new Promise<never>((_, reject) => {
+              setTimeout(() => reject(new Error('Conversion timeout after 2 minutes')), conversionTimeout);
+            });
+
+            const mp4Blob = await Promise.race([conversionPromise, timeoutPromise]);
             console.log('[Export] MP4 conversion complete, size:', mp4Blob.size, 'bytes');
 
             if (mp4Blob.size === 0) {
@@ -131,32 +142,48 @@ export const useVideoExport = (
             }
 
             if (cancelExportRef.current) {
+              console.log('[Export] Export was cancelled after conversion');
               renderer.destroy();
               return;
             }
 
+            console.log('[Export] Preparing download...');
             toast.loading("Preparing download...", { id: toastId });
             setProgress(95);
 
             // Download the MP4
+            console.log('[Export] Creating download URL...');
             const url = URL.createObjectURL(mp4Blob);
+            console.log('[Export] Creating download link...');
             const link = document.createElement('a');
             link.href = url;
             link.download = `video-export-${Date.now()}.mp4`;
             document.body.appendChild(link);
+            console.log('[Export] Triggering download...');
             link.click();
-            document.body.removeChild(link);
             
-            URL.revokeObjectURL(url);
+            // Cleanup after a short delay to ensure download starts
+            setTimeout(() => {
+              console.log('[Export] Cleaning up download resources...');
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }, 100);
+            
             renderer.destroy();
+            console.log('[Export] Export completed successfully!');
             
             toast.success("Video exported successfully as MP4!", { id: toastId });
             setIsLoading(false);
             setProgress(100);
           } catch (conversionError) {
             console.error('[Export] MP4 conversion failed:', conversionError);
+            console.error('[Export] Error details:', {
+              message: conversionError instanceof Error ? conversionError.message : 'Unknown error',
+              stack: conversionError instanceof Error ? conversionError.stack : undefined
+            });
             
             // Fallback: Download WebM file
+            console.log('[Export] Falling back to WebM download...');
             toast.loading("Conversion failed, downloading as WebM...", { id: toastId });
             
             const url = URL.createObjectURL(webmBlob);
@@ -165,17 +192,25 @@ export const useVideoExport = (
             link.download = `video-export-${Date.now()}.webm`;
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
             
-            URL.revokeObjectURL(url);
+            setTimeout(() => {
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }, 100);
+            
             renderer.destroy();
+            console.log('[Export] WebM download completed');
             
             toast.error("MP4 conversion failed. Downloaded as WebM instead.", { id: toastId });
             setIsLoading(false);
             setProgress(100);
           }
         } catch (error) {
-          console.error('Recording error:', error);
+          console.error('[Export] Recording error:', error);
+          console.error('[Export] Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
           toast.error(error instanceof Error ? error.message : "Failed to complete export", { id: toastId });
           renderer.destroy();
           setIsLoading(false);
