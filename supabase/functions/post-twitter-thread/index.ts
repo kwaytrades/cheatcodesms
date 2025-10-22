@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
       }
 
       // Post tweet
-      const tweetText = `${i + 1}/${slides.length}\n\n${slide.text}`;
+      const tweetText = slide.text;
       const result = await sendTweet(tweetText, mediaIds, previousTweetId);
       
       previousTweetId = result.data.id;
