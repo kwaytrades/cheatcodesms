@@ -1,5 +1,8 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
+[functions.render-video-remotion]
+verify_jwt = false
+
 [functions.twilio-webhook]
 verify_jwt = false
 

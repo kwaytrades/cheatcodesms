@@ -3,7 +3,7 @@ import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { VideoRenderJob } from "@/lib/video-editor/supabase-types";
-import { CanvasRenderer } from "@/lib/video-editor/canvas-renderer";
+import { prepareCompositionData, prepareExportSettings } from "@/lib/video-editor/remotion-adapter";
 
 export const useVideoExport = (
   overlays: Overlay[],
@@ -79,10 +79,6 @@ export const useVideoExport = (
     setProgress(0);
     cancelExportRef.current = false;
 
-    let renderer: CanvasRenderer | null = null;
-    let mediaRecorder: MediaRecorder | null = null;
-    let recordedChunks: Blob[] = [];
-
     try {
       // Get user session
       const { data: { session } } = await supabase.auth.getSession();
@@ -92,17 +88,31 @@ export const useVideoExport = (
         return;
       }
 
-      console.log('Creating render job...');
+      console.log('Preparing composition for Remotion Cloud...');
       setProgress(5);
 
-      // Create a render job
+      // Prepare composition data for Remotion
+      const compositionData = prepareCompositionData(
+        overlays,
+        durationInFrames,
+        fps,
+        1920, // Export at Full HD
+        1080
+      );
+
+      const exportSettings = prepareExportSettings(
+        { width: 1920, height: 1080 },
+        'high'
+      );
+
+      // Create render job
       const { data: job, error: jobError } = await supabase
         .from('video_render_jobs' as any)
         .insert({
           user_id: session.user.id,
-          status: 'rendering',
-          composition_data: { overlays, durationInFrames, fps },
-          settings: { width: 1920, height: 1080, sourceWidth: playerDimensions.width, sourceHeight: playerDimensions.height },
+          status: 'queued',
+          composition_data: compositionData,
+          settings: exportSettings,
           progress: 5,
         } as any)
         .select()
@@ -113,217 +123,45 @@ export const useVideoExport = (
       }
 
       setJobId(job.id);
-      console.log('Starting client-side rendering...');
-      toast.info('Rendering video in Full HD quality...');
-
-      // Force Full HD resolution (1920x1080) for high quality export
-      const exportWidth = 1920;
-      const exportHeight = 1080;
-      
-      // Calculate scale factors from player to export resolution
-      const scaleX = exportWidth / playerDimensions.width;
-      const scaleY = exportHeight / playerDimensions.height;
-      
-      // Scale all overlays to export resolution
-      const scaledOverlays = overlays.map(overlay => ({
-        ...overlay,
-        left: (overlay.left || 0) * scaleX,
-        top: (overlay.top || 0) * scaleY,
-        width: (overlay.width || 0) * scaleX,
-        height: (overlay.height || 0) * scaleY,
-      }));
-      
-      console.log(`Exporting at ${exportWidth}x${exportHeight} (scaled ${scaleX.toFixed(2)}x from player)`);
-
-      // Initialize canvas renderer at Full HD resolution
-      renderer = new CanvasRenderer(exportWidth, exportHeight);
+      console.log('Sending to Remotion Cloud for rendering...');
+      toast.info('Rendering video with Remotion Cloud for professional quality...');
       setProgress(10);
 
-      // Preload all assets using original overlay sources
-      console.log('Preloading assets...');
-      await renderer.preloadAssets(overlays);
-      setProgress(15);
+      // Call edge function to trigger Remotion Cloud rendering
+      const { data: renderData, error: renderError } = await supabase.functions.invoke(
+        'render-video-remotion',
+        {
+          body: {
+            compositionData,
+            settings: exportSettings,
+            jobId: job.id,
+          },
+        }
+      );
 
-      if (cancelExportRef.current) {
-        throw new Error('Export cancelled');
+      if (renderError) {
+        throw new Error(`Rendering failed: ${renderError.message}`);
       }
 
-      // Set up audio context for mixing - but don't play during render
-      const audioContext = new AudioContext({ sampleRate: 48000 });
-      const destination = audioContext.createMediaStreamDestination();
-      
-      // Load and connect audio elements (but don't play them yet)
-      for (const overlay of overlays) {
-        if ((overlay.type === 'video' || overlay.type === 'sound') && overlay.src) {
-          const audioElement = overlay.type === 'video' 
-            ? renderer.getCanvas().ownerDocument.createElement('video')
-            : new Audio();
-          
-          audioElement.crossOrigin = 'anonymous';
-          audioElement.src = overlay.src;
-          audioElement.preload = 'auto';
-          
-          // Wait for audio to be ready
-          await new Promise<void>((resolve) => {
-            audioElement.onloadeddata = () => resolve();
-            setTimeout(() => resolve(), 1000);
-          });
-          
-          // Create audio source and gain node
-          const source = audioContext.createMediaElementSource(audioElement);
-          const gainNode = audioContext.createGain();
-          const volume = overlay.type === 'sound' && overlay.styles?.volume !== undefined 
-            ? overlay.styles.volume 
-            : 1;
-          gainNode.gain.value = volume;
-          
-          source.connect(gainNode).connect(destination);
-          
-          // Start playback but muted - MediaRecorder will capture the stream
-          audioElement.muted = false;
-          audioElement.play().catch(() => {});
-        }
+      if (!renderData?.success) {
+        throw new Error(renderData?.error || 'Rendering failed - no data returned');
       }
 
-      // Set up MediaRecorder with high-quality settings
-      const canvas = renderer.getCanvas();
-      const canvasStream = canvas.captureStream(fps);
-      
-      // Combine video and audio streams
-      const videoTrack = canvasStream.getVideoTracks()[0];
-      const audioTrack = destination.stream.getAudioTracks()[0];
-      const combinedStream = audioTrack 
-        ? new MediaStream([videoTrack, audioTrack])
-        : new MediaStream([videoTrack]);
-
-      // Use highest quality WebM codec available
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-        ? 'video/webm;codecs=vp8,opus'
-        : 'video/webm';
-
-      mediaRecorder = new MediaRecorder(combinedStream, {
-        mimeType,
-        videoBitsPerSecond: 20000000, // 20 Mbps for very high quality
-        audioBitsPerSecond: 320000, // 320 kbps for high-quality audio
-      });
-
-      recordedChunks = [];
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          recordedChunks.push(e.data);
-        }
-      };
-
-      // Calculate precise frame timing
-      const frameDelay = 1000 / fps; // Time per frame in milliseconds
-      const totalFrames = durationInFrames;
-      
-      // Start recording with timeslice matching frame duration
-      mediaRecorder.start(Math.floor(frameDelay));
-      
-      console.log(`Starting frame-by-frame render: ${totalFrames} frames at ${fps} FPS`);
-      
-      // Sequential frame-by-frame rendering for quality and stability
-      for (let currentFrame = 0; currentFrame < totalFrames; currentFrame++) {
-        if (cancelExportRef.current) {
-          throw new Error('Export cancelled');
-        }
-
-        // Render the current frame with scaled overlays
-        await renderer.renderFrame(scaledOverlays, currentFrame, fps);
-        
-        // Wait for frame to be fully rendered and captured
-        await new Promise(resolve => setTimeout(resolve, frameDelay));
-        
-        // Explicitly request frame capture from MediaRecorder
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.requestData();
-        }
-        
-        // Small buffer to let MediaRecorder process
-        await new Promise(resolve => setTimeout(resolve, 15));
-        
-        // Update progress (15-85% during rendering)
-        const renderProgress = 15 + Math.floor((currentFrame / totalFrames) * 70);
-        setProgress(renderProgress);
-
-        // Update job progress in database every 15 frames
-        if (currentFrame % 15 === 0) {
-          await supabase
-            .from('video_render_jobs' as any)
-            .update({ progress: renderProgress } as any)
-            .eq('id', job.id);
-        }
-      }
-      
-      console.log('All frames rendered, finalizing...');
-
-      // Stop recording
-      await new Promise<void>((resolve) => {
-        if (!mediaRecorder) {
-          resolve();
-          return;
-        }
-        mediaRecorder.onstop = () => resolve();
-        mediaRecorder.stop();
-      });
-
-      console.log('Recording complete, finalizing high-quality WebM...');
-      setProgress(85);
-
-      // Create high-quality WebM blob
-      const finalBlob = new Blob(recordedChunks, { type: mimeType });
-      const finalExtension = 'webm';
-      
-      console.log(`WebM created: ${finalBlob.size} bytes at 20 Mbps`);
-      setProgress(92);
-
-      // Upload to Supabase Storage with user ID folder
-      const fileName = `${session.user.id}/${job.id}.${finalExtension}`;
-      const { error: uploadError } = await supabase.storage
-        .from('content-videos')
-        .upload(fileName, finalBlob, {
-          contentType: 'video/webm',
-          upsert: true,
-        });
-
-      if (uploadError) {
-        throw new Error(`Failed to upload video: ${uploadError.message}`);
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('content-videos')
-        .getPublicUrl(fileName);
-
-      // Update job as completed
-      await supabase
-        .from('video_render_jobs' as any)
-        .update({
-          status: 'completed',
-          video_url: publicUrl,
-          progress: 100,
-        } as any)
-        .eq('id', job.id);
-
+      console.log('Render completed successfully:', renderData.videoUrl);
+      toast.success('Video rendered successfully with professional quality!');
       setProgress(100);
-      
-      // Trigger local download immediately
-      const downloadUrl = URL.createObjectURL(finalBlob);
-      const downloadLink = document.createElement('a');
-      downloadLink.href = downloadUrl;
-      downloadLink.download = `video-export-${Date.now()}.webm`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-      
-      // Cleanup
-      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
-      
-      console.log(`High-quality WebM export complete! Size: ${(finalBlob.size / 1024 / 1024).toFixed(2)}MB`);
-      toast.success('High-quality video exported successfully!');
+
+      // Download the video
+      const response = await fetch(renderData.videoUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `video-export-${Date.now()}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
       setIsLoading(false);
       setJobId(null);
@@ -346,15 +184,6 @@ export const useVideoExport = (
       setIsLoading(false);
       setProgress(0);
       setJobId(null);
-    } finally {
-      // Cleanup
-      if (renderer) {
-        renderer.destroy();
-      }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
-      // Note: audioContext cleanup happens automatically when page unloads
     }
   };
 

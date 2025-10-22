@@ -54,7 +54,7 @@ serve(async (req) => {
       JSON.stringify({ success: true, jobId }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in render-video-mp4:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
