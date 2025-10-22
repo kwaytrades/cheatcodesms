@@ -3,6 +3,7 @@ import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { prepareCompositionData, prepareExportSettings } from "@/lib/video-editor/remotion-adapter";
+import type { VideoRenderJob } from "@/lib/video-editor/supabase-types";
 
 export const useVideoExport = (
   overlays: Overlay[],
@@ -30,7 +31,7 @@ export const useVideoExport = (
           filter: `id=eq.${jobId}`,
         },
         (payload) => {
-          const job = payload.new;
+          const job = payload.new as VideoRenderJob;
           console.log('Job update:', job);
           
           setProgress(job.progress || 0);
@@ -67,9 +68,9 @@ export const useVideoExport = (
     
     if (jobId) {
       // Cancel the job on the server
-      await (supabase as any)
-        .from('video_render_jobs')
-        .update({ status: 'failed', error_message: 'Cancelled by user' })
+      await supabase
+        .from('video_render_jobs' as any)
+        .update({ status: 'failed', error_message: 'Cancelled by user' } as any)
         .eq('id', jobId);
       
       setJobId(null);
@@ -118,18 +119,18 @@ export const useVideoExport = (
 
       console.log('Creating render job...');
 
-      // Create a render job
-      const { data: job, error: jobError } = await (supabase as any)
-        .from('video_render_jobs')
+      // Create a render job using raw query to bypass type checking
+      const { data: job, error: jobError } = await supabase
+        .from('video_render_jobs' as any)
         .insert({
           user_id: session.user.id,
           status: 'queued',
           composition_data: compositionData,
           settings: settings,
           progress: 0,
-        })
+        } as any)
         .select()
-        .single();
+        .single() as any;
 
       if (jobError) {
         throw new Error(`Failed to create render job: ${jobError.message}`);
