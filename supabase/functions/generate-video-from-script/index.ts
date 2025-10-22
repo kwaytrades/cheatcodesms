@@ -113,32 +113,55 @@ async function processVideoGeneration(
 
     // Step 3: Generate video clips
     console.log('Generating video clips...');
+    console.log(`Processing ${prompts.length} prompts`);
+    
     const clipPromises = prompts.map(async (prompt: any, index: number) => {
-      // Create clip record
-      const { data: clip } = await supabase
-        .from('ai_video_clips')
-        .insert({
-          job_id: jobId,
-          scene_number: index + 1,
-          prompt_text: prompt.text,
-          status: 'processing'
-        })
-        .select()
-        .single();
+      try {
+        console.log(`Creating clip ${index + 1}:`, prompt);
+        
+        // Create clip record
+        const { data: clip, error: clipError } = await supabase
+          .from('ai_video_clips')
+          .insert({
+            job_id: jobId,
+            scene_number: index + 1,
+            prompt_text: prompt.text || prompt,
+            status: 'processing'
+          })
+          .select()
+          .single();
 
-      // Generate clip
-      const clipResponse = await supabase.functions.invoke('generate-veo-video-clip', {
-        body: { 
-          clipId: clip.id,
-          prompt: prompt.text,
-          duration: prompt.duration || 10
+        if (clipError) {
+          console.error(`Failed to create clip ${index + 1}:`, clipError);
+          throw clipError;
         }
-      });
 
-      return clipResponse;
+        console.log(`Invoking generate-veo-video-clip for clip ${clip.id}`);
+
+        // Generate clip
+        const clipResponse = await supabase.functions.invoke('generate-veo-video-clip', {
+          body: { 
+            clipId: clip.id,
+            prompt: prompt.text || prompt,
+            duration: prompt.duration || 10
+          }
+        });
+
+        if (clipResponse.error) {
+          console.error(`Clip generation failed for ${clip.id}:`, clipResponse.error);
+          throw clipResponse.error;
+        }
+
+        console.log(`Clip ${clip.id} generated successfully`);
+        return clipResponse;
+      } catch (error) {
+        console.error(`Error in clip ${index + 1}:`, error);
+        throw error;
+      }
     });
 
-    await Promise.all(clipPromises);
+    const clipResults = await Promise.all(clipPromises);
+    console.log(`All ${clipResults.length} clips processed`);
 
     // Step 4: Assemble final video
     console.log('Assembling final video...');

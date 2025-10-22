@@ -11,12 +11,29 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let clipId: string | undefined;
+  
   try {
-    const { clipId, prompt, duration = 10 } = await req.json();
+    // Parse body once and store it
+    let body;
+    try {
+      const rawBody = await req.text();
+      console.log('Raw request body:', rawBody);
+      body = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      throw new Error('Invalid JSON in request body');
+    }
+
+    clipId = body.clipId;
+    const prompt = body.prompt;
+    const duration = body.duration || 10;
 
     if (!clipId || !prompt) {
       throw new Error('Clip ID and prompt are required');
     }
+
+    console.log('Processing clip:', { clipId, promptLength: prompt.length, duration });
 
     const projectId = Deno.env.get('GOOGLE_CLOUD_PROJECT_ID');
     const serviceAccountKey = Deno.env.get('GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY');
@@ -149,32 +166,35 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error generating clip:', error);
+    console.error('Error details:', error instanceof Error ? error.stack : 'No stack trace');
     
     // Update clip status to failed if clipId is available
-    if (req.body) {
+    if (clipId) {
       try {
-        const body = await req.json();
-        if (body.clipId) {
-          const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-          const supabase = createClient(supabaseUrl, supabaseKey);
-          
-          await supabase
-            .from('ai_video_clips')
-            .update({
-              status: 'failed',
-              error_message: error instanceof Error ? error.message : 'Unknown error'
-            })
-            .eq('id', body.clipId);
-        }
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        await supabase
+          .from('ai_video_clips')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : 'Unknown error'
+          })
+          .eq('id', clipId);
+        
+        console.log('Updated clip status to failed:', clipId);
       } catch (e) {
         console.error('Failed to update clip status:', e);
       }
     }
 
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        clipId: clipId || 'unknown'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
