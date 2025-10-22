@@ -290,6 +290,61 @@ export default function FunnelBuilder() {
     }
   };
 
+  const sendTestEvent = async () => {
+    if (!selectedFunnelId || steps.length === 0) {
+      toast.error("Please save your funnel first");
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      // Send a test tracking event
+      const testSessionId = `test-${Date.now()}`;
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-funnel-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          funnel_id: selectedFunnelId,
+          step_name: steps[0].step_name,
+          session_id: testSessionId,
+          event_type: 'page_view',
+          utm_params: {
+            utm_source: 'test',
+            utm_campaign: 'verification'
+          },
+          device_info: {
+            device_type: 'desktop',
+            browser: 'Test Browser'
+          },
+          referrer: 'https://test.com',
+          metadata: {
+            test: true,
+            timestamp: new Date().toISOString()
+          }
+        })
+      });
+
+      const result = await response.json();
+      
+      if (response.ok) {
+        toast.success("Test event sent successfully! Check analytics.");
+        // Reload events after a short delay
+        setTimeout(() => {
+          loadRecentEvents();
+        }, 1000);
+      } else {
+        toast.error(`Failed to send test event: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error sending test event:', error);
+      toast.error("Failed to send test event");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const verifyInstallation = async () => {
     setIsVerifying(true);
     const results: any = {
@@ -337,14 +392,16 @@ export default function FunnelBuilder() {
         });
         
         if (response.ok) {
+          const data = await response.json();
           results.getFunnelStep = { 
             status: 'success', 
-            message: 'API responding correctly' 
+            message: 'API responding - Step found',
+            data
           };
         } else {
           results.getFunnelStep = { 
             status: 'warning', 
-            message: `API responded but no step match found` 
+            message: `API responding but no step match found (this is normal if tracking code isn't installed yet)` 
           };
         }
       } catch (error) {
@@ -354,7 +411,44 @@ export default function FunnelBuilder() {
         };
       }
 
-      // Test 3: Check if events table has recent data
+      // Test 3: Try sending a test event
+      try {
+        const testSessionId = `verify-${Date.now()}`;
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-funnel-event`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            funnel_id: selectedFunnelId,
+            step_name: steps[0]?.step_name || 'Test',
+            session_id: testSessionId,
+            event_type: 'page_view',
+            utm_params: { utm_source: 'verification' },
+            device_info: { device_type: 'desktop', browser: 'Test' },
+            referrer: 'verification-test',
+            metadata: { test: true }
+          })
+        });
+
+        if (response.ok) {
+          results.trackEvent = { 
+            status: 'success', 
+            message: 'Successfully sent test tracking event' 
+          };
+        } else {
+          const errorData = await response.json();
+          results.trackEvent = { 
+            status: 'error', 
+            message: `Failed to track event: ${errorData.error || 'Unknown error'}` 
+          };
+        }
+      } catch (error) {
+        results.trackEvent = { 
+          status: 'error', 
+          message: 'Failed to send tracking event' 
+        };
+      }
+
+      // Test 4: Check if events table has recent data
       if (selectedFunnelId) {
         const { data, count } = await supabase
           .from('funnel_step_events')
@@ -377,6 +471,13 @@ export default function FunnelBuilder() {
       }
 
       setVerificationResults(results);
+      
+      // Show overall result
+      if (results.trackEvent.status === 'success') {
+        toast.success("Verification complete - tracking is working!");
+      } else {
+        toast.warning("Verification complete - see results below");
+      }
     } catch (error) {
       console.error('Verification error:', error);
       toast.error("Failed to complete verification");
@@ -506,6 +607,15 @@ export default function FunnelBuilder() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Important: Installation Required</AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">This tracking code must be installed on your <strong>external website</strong> (not this dashboard). Add it to the &lt;head&gt; section of all funnel pages.</p>
+                <p className="text-sm">Use the "Send Test Event" button below to verify the system is working before installing on your site.</p>
+              </AlertDescription>
+            </Alert>
+            
             <div className="relative">
               <Textarea
                 value={getUniversalTrackingCode()}
@@ -525,9 +635,18 @@ export default function FunnelBuilder() {
             </div>
 
             <div className="flex gap-2">
+              <Button 
+                variant="default" 
+                onClick={sendTestEvent} 
+                disabled={isVerifying || !selectedFunnelId}
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                {isVerifying ? "Sending..." : "Send Test Event"}
+              </Button>
+              
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" onClick={verifyInstallation} disabled={isVerifying}>
+                  <Button variant="outline" onClick={verifyInstallation} disabled={isVerifying || !selectedFunnelId}>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     {isVerifying ? "Verifying..." : "Verify Installation"}
                   </Button>
@@ -572,6 +691,21 @@ export default function FunnelBuilder() {
                         </div>
                       </div>
 
+                      {/* Track Event API */}
+                      <div className="flex items-start gap-3 p-3 border rounded-lg">
+                        {verificationResults.trackEvent.status === 'success' ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                        ) : verificationResults.trackEvent.status === 'warning' ? (
+                          <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium">Track Event API</p>
+                          <p className="text-sm text-muted-foreground">{verificationResults.trackEvent.message}</p>
+                        </div>
+                      </div>
+
                       {/* Recent Events */}
                       <div className="flex items-start gap-3 p-3 border rounded-lg">
                         {verificationResults.recentEvents.status === 'success' ? (
@@ -589,13 +723,15 @@ export default function FunnelBuilder() {
 
                       {/* Troubleshooting */}
                       {(verificationResults.trackerScript.status === 'error' || 
+                        verificationResults.trackEvent.status === 'error' ||
                         verificationResults.recentEvents.status === 'warning') && (
                         <Alert>
                           <AlertCircle className="h-4 w-4" />
                           <AlertTitle>Troubleshooting Tips</AlertTitle>
                           <AlertDescription>
                             <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                              <li>Make sure the tracking code is in the &lt;head&gt; section</li>
+                              <li>Use "Send Test Event" button to test the tracking system</li>
+                              <li>Make sure the tracking code is in the &lt;head&gt; section of your website</li>
                               <li>Verify the page URL exactly matches a funnel step</li>
                               <li>Check browser console for JavaScript errors</li>
                               <li>Test on the actual domain (not localhost)</li>
