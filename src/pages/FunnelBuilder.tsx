@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Copy, Code, X, AlertCircle } from "lucide-react";
+import { Plus, Trash2, Copy, Code, X, AlertCircle, Activity, CheckCircle2, XCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface FunnelStep {
   id?: string;
@@ -30,6 +31,10 @@ export default function FunnelBuilder() {
   ]);
   const [isCreating, setIsCreating] = useState(false);
   const [trackingCode, setTrackingCode] = useState("");
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
+  const [testUrl, setTestUrl] = useState("");
+  const [testResult, setTestResult] = useState<any>(null);
+  const [isTestingUrl, setIsTestingUrl] = useState(false);
 
   useEffect(() => {
     loadFunnels();
@@ -212,6 +217,60 @@ export default function FunnelBuilder() {
     toast.success("Tracking code copied to clipboard");
   };
 
+  const loadRecentEvents = async () => {
+    if (!selectedFunnelId) return;
+
+    const { data } = await supabase
+      .from('funnel_step_events')
+      .select(`
+        *,
+        funnel_steps (step_name),
+        funnel_visits (session_id, device_type, browser, referrer)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    setRecentEvents(data || []);
+  };
+
+  const testUrlMatch = async () => {
+    if (!testUrl) {
+      toast.error("Please enter a URL to test");
+      return;
+    }
+
+    setIsTestingUrl(true);
+    try {
+      const url = new URL(testUrl);
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-funnel-step`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pageUrl: testUrl,
+          domain: url.hostname,
+          path: url.pathname
+        })
+      });
+
+      const result = await response.json();
+      setTestResult(result);
+      
+      if (response.ok) {
+        toast.success("URL matched a funnel step!");
+      } else {
+        toast.error("No funnel step found for this URL");
+      }
+    } catch (error) {
+      console.error('Error testing URL:', error);
+      toast.error("Failed to test URL");
+      setTestResult({ error: "Failed to test URL" });
+    } finally {
+      setIsTestingUrl(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -307,6 +366,125 @@ export default function FunnelBuilder() {
                 <p>4. Use the optional conversion and identify scripts on checkout/thank you pages to track purchases and identify visitors</p>
               </AlertDescription>
             </Alert>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={loadRecentEvents}>
+                  <Activity className="h-4 w-4 mr-2" />
+                  Test & Debug Tracking
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Tracking Debugger</DialogTitle>
+                  <DialogDescription>
+                    Test if your URLs match funnel steps and view recent tracking events
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-6">
+                  {/* URL Tester */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Test URL Match</CardTitle>
+                      <CardDescription>
+                        Enter a page URL to see if it matches any of your funnel steps
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="https://yoursite.lovable.app/sales-page"
+                          value={testUrl}
+                          onChange={(e) => setTestUrl(e.target.value)}
+                        />
+                        <Button onClick={testUrlMatch} disabled={isTestingUrl}>
+                          {isTestingUrl ? "Testing..." : "Test"}
+                        </Button>
+                      </div>
+                      
+                      {testResult && (
+                        <Alert variant={testResult.error ? "destructive" : "default"}>
+                          {testResult.error ? (
+                            <>
+                              <XCircle className="h-4 w-4" />
+                              <AlertTitle>No Match Found</AlertTitle>
+                              <AlertDescription>
+                                The URL doesn't match any funnel step. Make sure your page URLs below exactly match where you installed the tracking code.
+                              </AlertDescription>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="h-4 w-4" />
+                              <AlertTitle>Match Found!</AlertTitle>
+                              <AlertDescription className="space-y-1">
+                                <p><strong>Funnel:</strong> {testResult.funnelName}</p>
+                                <p><strong>Step:</strong> {testResult.stepName} (Step {testResult.stepNumber})</p>
+                                <p><strong>Type:</strong> {testResult.stepType}</p>
+                              </AlertDescription>
+                            </>
+                          )}
+                        </Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Events */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Recent Tracking Events</CardTitle>
+                      <CardDescription>
+                        Last 10 events tracked for this funnel
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {recentEvents.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Activity className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                          <p>No tracking events yet</p>
+                          <p className="text-sm mt-1">Install the tracking code and visit a page to see events here</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {recentEvents.map((event, i) => (
+                            <div key={i} className="flex items-start gap-3 p-3 border rounded-lg">
+                              <Badge variant={event.event_name === 'page_view' ? 'default' : 'secondary'}>
+                                {event.event_name}
+                              </Badge>
+                              <div className="flex-1 text-sm">
+                                <p className="font-medium">{event.funnel_steps?.step_name}</p>
+                                <p className="text-muted-foreground text-xs">
+                                  {new Date(event.created_at).toLocaleString()}
+                                </p>
+                                {event.funnel_visits && (
+                                  <p className="text-muted-foreground text-xs">
+                                    {event.funnel_visits.device_type} • {event.funnel_visits.browser}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Tracking happens in real-time</AlertTitle>
+                    <AlertDescription>
+                      As soon as someone visits a page with the tracking code installed, events appear here within seconds. If you're not seeing events:
+                      <ul className="list-disc list-inside mt-2 space-y-1">
+                        <li>Make sure the tracking code is installed in the &lt;head&gt; section</li>
+                        <li>Use the URL tester above to verify your page URLs match your funnel step URLs</li>
+                        <li>Check your browser console for any JavaScript errors</li>
+                        <li>The page URL must match EXACTLY (or use wildcards like https://site.com/*)</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
       )}
