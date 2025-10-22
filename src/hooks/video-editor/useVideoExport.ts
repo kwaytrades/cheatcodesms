@@ -50,17 +50,24 @@ export const useVideoExport = (
       toast.loading("Creating render job...", { id: toastId });
       setProgress(10);
 
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('You must be logged in to export videos');
+      }
+
       const { data: jobData, error: jobError } = await supabase
         .from('video_render_jobs')
         .insert({
-          composition_data: compositionData,
+          user_id: user.id,
+          composition_data: compositionData as any,
           settings: {
             width: dimensions.width,
             height: dimensions.height,
             quality: exportSettings.quality === 'high' ? 90 : exportSettings.quality === 'medium' ? 80 : 70,
-          },
+          } as any,
           status: 'pending',
-        })
+        } as any)
         .select()
         .single();
 
@@ -108,20 +115,22 @@ export const useVideoExport = (
           continue;
         }
 
+        const jobAny = job as any;
+
         // Update progress based on job status
-        if (job.progress) {
-          setProgress(Math.min(job.progress, 90));
-          toast.loading(`Rendering video... ${job.progress}%`, { id: toastId });
+        if (jobAny.progress) {
+          setProgress(Math.min(jobAny.progress, 90));
+          toast.loading(`Rendering video... ${jobAny.progress}%`, { id: toastId });
         }
 
-        if (job.status === 'completed' && job.video_url) {
-          console.log('[Export] Render complete:', job.video_url);
+        if (jobAny.status === 'completed' && jobAny.video_url) {
+          console.log('[Export] Render complete:', jobAny.video_url);
           
           // Download the video
           toast.loading("Downloading video...", { id: toastId });
           setProgress(95);
           
-          const response = await fetch(job.video_url);
+          const response = await fetch(jobAny.video_url);
           const blob = await response.blob();
           
           const url = URL.createObjectURL(blob);
@@ -137,8 +146,8 @@ export const useVideoExport = (
           toast.success("Video exported successfully!", { id: toastId });
           setCurrentJobId(null);
           break;
-        } else if (job.status === 'failed') {
-          throw new Error(job.error_message || 'Render failed');
+        } else if (jobAny.status === 'failed') {
+          throw new Error(jobAny.error_message || 'Render failed');
         }
 
         pollAttempts++;

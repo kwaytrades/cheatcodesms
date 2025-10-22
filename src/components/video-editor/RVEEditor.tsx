@@ -47,7 +47,7 @@ const EditorControls: React.FC = () => {
 
   const handleExport = async (settings: any) => {
     try {
-      await exportVideo();
+      await exportVideo(settings);
       setExportDialogOpen(false);
     } catch (error: any) {
       console.error("Export failed:", error);
