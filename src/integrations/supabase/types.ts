@@ -83,6 +83,112 @@ export type Database = {
           },
         ]
       }
+      ai_video_clips: {
+        Row: {
+          clip_url: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          job_id: string
+          prompt_text: string
+          scene_number: number
+          status: string
+          updated_at: string | null
+          veo_task_id: string | null
+        }
+        Insert: {
+          clip_url?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          job_id: string
+          prompt_text: string
+          scene_number: number
+          status?: string
+          updated_at?: string | null
+          veo_task_id?: string | null
+        }
+        Update: {
+          clip_url?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string
+          prompt_text?: string
+          scene_number?: number
+          status?: string
+          updated_at?: string | null
+          veo_task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_video_clips_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ai_video_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_video_jobs: {
+        Row: {
+          clip_urls: Json | null
+          created_at: string | null
+          error_message: string | null
+          final_video_url: string | null
+          id: string
+          metadata: Json | null
+          scene_descriptions: Json | null
+          script_id: string | null
+          script_text: string
+          status: string
+          updated_at: string | null
+          user_id: string
+          video_prompts: Json | null
+        }
+        Insert: {
+          clip_urls?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          final_video_url?: string | null
+          id?: string
+          metadata?: Json | null
+          scene_descriptions?: Json | null
+          script_id?: string | null
+          script_text: string
+          status?: string
+          updated_at?: string | null
+          user_id: string
+          video_prompts?: Json | null
+        }
+        Update: {
+          clip_urls?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          final_video_url?: string | null
+          id?: string
+          metadata?: Json | null
+          scene_descriptions?: Json | null
+          script_id?: string | null
+          script_text?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+          video_prompts?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_video_jobs_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "content_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_triggers: {
         Row: {
           action_config: Json
