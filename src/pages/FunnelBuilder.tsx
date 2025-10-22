@@ -35,6 +35,9 @@ export default function FunnelBuilder() {
   const [testUrl, setTestUrl] = useState("");
   const [testResult, setTestResult] = useState<any>(null);
   const [isTestingUrl, setIsTestingUrl] = useState(false);
+  const [verificationResults, setVerificationResults] = useState<any>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     loadFunnels();
@@ -271,6 +274,146 @@ export default function FunnelBuilder() {
     }
   };
 
+  const verifyInstallation = async () => {
+    setIsVerifying(true);
+    const results: any = {
+      trackerScript: { status: 'checking', message: '' },
+      getFunnelStep: { status: 'checking', message: '' },
+      trackEvent: { status: 'checking', message: '' },
+      recentEvents: { status: 'checking', message: '', count: 0 }
+    };
+
+    try {
+      // Test 1: Check if tracker script is accessible
+      try {
+        const trackerUrl = `${window.location.origin}/funnel-tracker.js`;
+        const trackerResponse = await fetch(trackerUrl);
+        if (trackerResponse.ok) {
+          results.trackerScript = { 
+            status: 'success', 
+            message: `Tracker accessible at ${trackerUrl}` 
+          };
+        } else {
+          results.trackerScript = { 
+            status: 'error', 
+            message: `Tracker not found (${trackerResponse.status})` 
+          };
+        }
+      } catch (error) {
+        results.trackerScript = { 
+          status: 'error', 
+          message: 'Failed to fetch tracker script' 
+        };
+      }
+
+      // Test 2: Check get-funnel-step API
+      try {
+        const testUrl = steps[0]?.page_url || 'https://example.com';
+        const url = new URL(testUrl);
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-funnel-step`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pageUrl: testUrl,
+            domain: url.hostname,
+            path: url.pathname
+          })
+        });
+        
+        if (response.ok) {
+          results.getFunnelStep = { 
+            status: 'success', 
+            message: 'API responding correctly' 
+          };
+        } else {
+          results.getFunnelStep = { 
+            status: 'warning', 
+            message: `API responded but no step match found` 
+          };
+        }
+      } catch (error) {
+        results.getFunnelStep = { 
+          status: 'error', 
+          message: 'Failed to call get-funnel-step API' 
+        };
+      }
+
+      // Test 3: Check if events table has recent data
+      if (selectedFunnelId) {
+        const { data, count } = await supabase
+          .from('funnel_step_events')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+        
+        if (count && count > 0) {
+          results.recentEvents = { 
+            status: 'success', 
+            message: `${count} events in last 24 hours`,
+            count 
+          };
+        } else {
+          results.recentEvents = { 
+            status: 'warning', 
+            message: 'No events received in last 24 hours',
+            count: 0
+          };
+        }
+      }
+
+      setVerificationResults(results);
+    } catch (error) {
+      console.error('Verification error:', error);
+      toast.error("Failed to complete verification");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const deleteFunnel = async () => {
+    if (!selectedFunnelId) return;
+
+    try {
+      // First get all step IDs for this funnel
+      const { data: steps } = await supabase
+        .from('funnel_steps')
+        .select('id')
+        .eq('funnel_id', selectedFunnelId);
+
+      const stepIds = steps?.map(s => s.id) || [];
+
+      // Delete in order: events -> visits -> steps -> funnel
+      if (stepIds.length > 0) {
+        await supabase
+          .from('funnel_step_events')
+          .delete()
+          .in('step_id', stepIds);
+      }
+
+      await supabase
+        .from('funnel_visits')
+        .delete()
+        .eq('funnel_id', selectedFunnelId);
+
+      await supabase
+        .from('funnel_steps')
+        .delete()
+        .eq('funnel_id', selectedFunnelId);
+
+      await supabase
+        .from('funnels')
+        .delete()
+        .eq('id', selectedFunnelId);
+
+      toast.success("Funnel deleted successfully");
+      setSelectedFunnelId("");
+      setShowDeleteDialog(false);
+      loadFunnels();
+    } catch (error) {
+      console.error('Error deleting funnel:', error);
+      toast.error("Failed to delete funnel");
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -291,6 +434,15 @@ export default function FunnelBuilder() {
               ))}
             </SelectContent>
           </Select>
+          {selectedFunnelId && (
+            <Button 
+              variant="destructive" 
+              size="icon"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
           <Button onClick={createNewFunnel}>
             <Plus className="w-4 h-4 mr-2" />
             New Funnel
@@ -354,6 +506,91 @@ export default function FunnelBuilder() {
                 <Copy className="h-4 w-4 mr-1" />
                 Copy
               </Button>
+            </div>
+
+            <div className="flex gap-2">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" onClick={verifyInstallation} disabled={isVerifying}>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {isVerifying ? "Verifying..." : "Verify Installation"}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Installation Verification</DialogTitle>
+                    <DialogDescription>
+                      Testing your funnel tracking setup
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {verificationResults && (
+                    <div className="space-y-3">
+                      {/* Tracker Script */}
+                      <div className="flex items-start gap-3 p-3 border rounded-lg">
+                        {verificationResults.trackerScript.status === 'success' ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                        ) : verificationResults.trackerScript.status === 'warning' ? (
+                          <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium">Tracker Script</p>
+                          <p className="text-sm text-muted-foreground">{verificationResults.trackerScript.message}</p>
+                        </div>
+                      </div>
+
+                      {/* Get Funnel Step API */}
+                      <div className="flex items-start gap-3 p-3 border rounded-lg">
+                        {verificationResults.getFunnelStep.status === 'success' ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                        ) : verificationResults.getFunnelStep.status === 'warning' ? (
+                          <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium">Get Funnel Step API</p>
+                          <p className="text-sm text-muted-foreground">{verificationResults.getFunnelStep.message}</p>
+                        </div>
+                      </div>
+
+                      {/* Recent Events */}
+                      <div className="flex items-start gap-3 p-3 border rounded-lg">
+                        {verificationResults.recentEvents.status === 'success' ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                        ) : verificationResults.recentEvents.status === 'warning' ? (
+                          <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-medium">Recent Events</p>
+                          <p className="text-sm text-muted-foreground">{verificationResults.recentEvents.message}</p>
+                        </div>
+                      </div>
+
+                      {/* Troubleshooting */}
+                      {(verificationResults.trackerScript.status === 'error' || 
+                        verificationResults.recentEvents.status === 'warning') && (
+                        <Alert>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Troubleshooting Tips</AlertTitle>
+                          <AlertDescription>
+                            <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                              <li>Make sure the tracking code is in the &lt;head&gt; section</li>
+                              <li>Verify the page URL exactly matches a funnel step</li>
+                              <li>Check browser console for JavaScript errors</li>
+                              <li>Test on the actual domain (not localhost)</li>
+                            </ul>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
             
             <Alert>
@@ -573,6 +810,26 @@ export default function FunnelBuilder() {
           {selectedFunnelId ? "Update Funnel" : "Create Funnel"}
         </Button>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Funnel</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this funnel? This will also delete all associated steps, visits, and events. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteFunnel}>
+              Delete Funnel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
