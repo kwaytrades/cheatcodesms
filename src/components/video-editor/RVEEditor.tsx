@@ -29,45 +29,34 @@ import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
-  const { exportVideo, cancelExport, progress: exportProgress } = useVideoExport();
+  const { exportVideo, cancelExport, progress: exportProgress, isLoading } = useVideoExport(
+    editorState.overlays,
+    editorState.durationInFrames,
+    30, // FPS
+    editorState.playerDimensions
+  );
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportInProgress, setExportInProgress] = useState(false);
 
   // Enable keyboard shortcuts
   useKeyboardShortcuts();
 
   const handleExport = async (settings: any) => {
     try {
-      setExportInProgress(true);
-      
-      await exportVideo(
-        editorState.overlays,
-        editorState.durationInFrames,
-        30, // FPS
-        editorState.playerDimensions.width,
-        editorState.playerDimensions.height,
-        settings,
-        (progress) => {
-          console.log(`Export progress: ${progress}%`);
-        }
-      );
+      await exportVideo();
+      setExportDialogOpen(false);
     } catch (error: any) {
-      if (error?.message !== "Export cancelled") {
-        console.error("Export failed:", error);
-      }
-      throw error;
-    } finally {
-      setExportInProgress(false);
+      console.error("Export failed:", error);
+      toast.error("Failed to export video");
     }
   };
 
   const handleCancelExport = () => {
     cancelExport();
-    setExportInProgress(false);
     setExportDialogOpen(false);
   };
 
