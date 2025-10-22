@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Wand2, Copy, Save, Video, Sparkles, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { CarouselEditor } from "@/components/CarouselEditor";
 
 const FORMATS = [
   { value: 'youtube_long', label: 'YouTube Long-form', icon: '📹', duration: [180, 300, 600, 900] },
@@ -432,15 +433,28 @@ const ScriptGenerator = () => {
 
               {/* Script Display */}
               <div className="flex-1 overflow-y-auto p-6">
-                <Textarea
-                  value={generatedScript}
-                  onChange={(e) => setGeneratedScript(e.target.value)}
-                  className="min-h-full font-mono text-base leading-relaxed resize-none border-0 focus-visible:ring-0"
-                  style={{ 
-                    background: 'transparent',
-                    whiteSpace: 'pre-wrap'
-                  }}
-                />
+                {format === 'carousel' ? (
+                  <CarouselEditor 
+                    scriptText={generatedScript}
+                    onSlidesChange={(slides) => {
+                      // Update script text when slides change
+                      const updatedScript = slides.map((slide, i) => 
+                        `Slide ${i + 1}:\n${slide.text}`
+                      ).join('\n\n');
+                      setGeneratedScript(updatedScript);
+                    }}
+                  />
+                ) : (
+                  <Textarea
+                    value={generatedScript}
+                    onChange={(e) => setGeneratedScript(e.target.value)}
+                    className="min-h-full font-mono text-base leading-relaxed resize-none border-0 focus-visible:ring-0"
+                    style={{ 
+                      background: 'transparent',
+                      whiteSpace: 'pre-wrap'
+                    }}
+                  />
+                )}
               </div>
             </>
           ) : (
