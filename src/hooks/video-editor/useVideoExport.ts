@@ -200,46 +200,66 @@ export const useVideoExport = (
       // Create blob from recorded chunks
       const webmBlob = new Blob(recordedChunks, { type: mimeType });
       
-      // Convert to MP4 using FFmpeg
-      console.log('Converting to MP4...');
-      const ffmpeg = new FFmpeg();
+      // Try to convert to MP4, fallback to WebM if it fails
+      let finalBlob: Blob;
+      let finalExtension: string;
       
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm`, 'application/wasm'),
-      });
+      try {
+        console.log('Converting to MP4...');
+        const ffmpeg = new FFmpeg();
+        
+        // Load FFmpeg with better error handling
+        await ffmpeg.load({
+          coreURL: await toBlobURL(
+            'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+            'text/javascript'
+          ),
+          wasmURL: await toBlobURL(
+            'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
+            'application/wasm'
+          ),
+        });
 
-      setProgress(88);
+        setProgress(88);
 
-      // Write input file
-      await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
+        // Write input file
+        await ffmpeg.writeFile('input.webm', await fetchFile(webmBlob));
 
-      // Convert to MP4 with H.264
-      await ffmpeg.exec([
-        '-i', 'input.webm',
-        '-c:v', 'libx264',
-        '-preset', 'medium',
-        '-crf', '18',
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-        'output.mp4'
-      ]);
+        // Convert to MP4 with H.264
+        await ffmpeg.exec([
+          '-i', 'input.webm',
+          '-c:v', 'libx264',
+          '-preset', 'medium',
+          '-crf', '18',
+          '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart',
+          'output.mp4'
+        ]);
 
-      setProgress(92);
+        setProgress(92);
 
-      // Read output file
-      const mp4Data = await ffmpeg.readFile('output.mp4');
-      const mp4Blob = new Blob([new Uint8Array(mp4Data as Uint8Array)], { type: 'video/mp4' });
+        // Read output file
+        const mp4Data = await ffmpeg.readFile('output.mp4');
+        finalBlob = new Blob([new Uint8Array(mp4Data as Uint8Array)], { type: 'video/mp4' });
+        finalExtension = 'mp4';
+        console.log('MP4 conversion successful');
+      } catch (ffmpegError) {
+        console.warn('FFmpeg conversion failed, using WebM format:', ffmpegError);
+        finalBlob = webmBlob;
+        finalExtension = 'webm';
+        setProgress(92);
+        toast.info('Exporting as WebM (MP4 conversion unavailable)');
+      }
 
       console.log('Uploading to storage...');
       setProgress(95);
 
       // Upload to Supabase Storage
-      const fileName = `${job.id}.mp4`;
+      const fileName = `${job.id}.${finalExtension}`;
       const { error: uploadError } = await supabase.storage
         .from('content-videos')
-        .upload(fileName, mp4Blob, {
-          contentType: 'video/mp4',
+        .upload(fileName, finalBlob, {
+          contentType: finalExtension === 'mp4' ? 'video/mp4' : 'video/webm',
           upsert: true,
         });
 
@@ -263,31 +283,38 @@ export const useVideoExport = (
         .eq('id', job.id);
 
       setProgress(100);
-      console.log(`Video export complete! Blob size: ${mp4Blob.size} bytes`);
+      console.log(`Video export complete! Blob size: ${finalBlob.size} bytes, format: ${finalExtension}`);
 
       // Download the video locally
       console.log('Starting local download...');
-      const blobUrl = URL.createObjectURL(mp4Blob);
+      const blobUrl = URL.createObjectURL(finalBlob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `video-${Date.now()}.mp4`;
+      link.download = `video-${Date.now()}.${finalExtension}`;
       link.style.display = 'none';
       document.body.appendChild(link);
       
-      // Trigger download
-      link.click();
-      console.log('Download triggered');
+      // Trigger download with user interaction
+      try {
+        link.click();
+        console.log('Download triggered successfully');
+        toast.success(`Video exported as ${finalExtension.toUpperCase()}!`);
+      } catch (downloadError) {
+        console.error('Download failed:', downloadError);
+        toast.error('Auto-download failed. Please try again.');
+      }
       
       // Clean up after download starts
       setTimeout(() => {
-        document.body.removeChild(link);
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
         URL.revokeObjectURL(blobUrl);
         console.log('Download cleanup complete');
-      }, 1000);
+      }, 2000);
 
       setIsLoading(false);
       setJobId(null);
-      toast.success('Video exported and downloading!');
 
     } catch (error) {
       console.error("Error exporting video:", error);
