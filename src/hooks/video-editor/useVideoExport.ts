@@ -102,7 +102,7 @@ export const useVideoExport = (
           user_id: session.user.id,
           status: 'rendering',
           composition_data: { overlays, durationInFrames, fps },
-          settings: { width: playerDimensions.width, height: playerDimensions.height },
+          settings: { width: 1920, height: 1080, sourceWidth: playerDimensions.width, sourceHeight: playerDimensions.height },
           progress: 5,
         } as any)
         .select()
@@ -114,19 +114,32 @@ export const useVideoExport = (
 
       setJobId(job.id);
       console.log('Starting client-side rendering...');
-      toast.info('Rendering video with high quality settings...');
+      toast.info('Rendering video in Full HD quality...');
 
-      // Calculate proper canvas dimensions from overlays
-      const maxRight = Math.max(...overlays.map(o => (o.left || 0) + (o.width || 0)), playerDimensions.width);
-      const maxBottom = Math.max(...overlays.map(o => (o.top || 0) + (o.height || 0)), playerDimensions.height);
-      const canvasWidth = Math.max(maxRight, playerDimensions.width);
-      const canvasHeight = Math.max(maxBottom, playerDimensions.height);
+      // Force Full HD resolution (1920x1080) for high quality export
+      const exportWidth = 1920;
+      const exportHeight = 1080;
+      
+      // Calculate scale factors from player to export resolution
+      const scaleX = exportWidth / playerDimensions.width;
+      const scaleY = exportHeight / playerDimensions.height;
+      
+      // Scale all overlays to export resolution
+      const scaledOverlays = overlays.map(overlay => ({
+        ...overlay,
+        left: (overlay.left || 0) * scaleX,
+        top: (overlay.top || 0) * scaleY,
+        width: (overlay.width || 0) * scaleX,
+        height: (overlay.height || 0) * scaleY,
+      }));
+      
+      console.log(`Exporting at ${exportWidth}x${exportHeight} (scaled ${scaleX.toFixed(2)}x from player)`);
 
-      // Initialize canvas renderer with proper dimensions
-      renderer = new CanvasRenderer(canvasWidth, canvasHeight);
+      // Initialize canvas renderer at Full HD resolution
+      renderer = new CanvasRenderer(exportWidth, exportHeight);
       setProgress(10);
 
-      // Preload all assets
+      // Preload all assets using original overlay sources
       console.log('Preloading assets...');
       await renderer.preloadAssets(overlays);
       setProgress(15);
@@ -218,8 +231,8 @@ export const useVideoExport = (
           throw new Error('Export cancelled');
         }
 
-        // Render the current frame
-        await renderer.renderFrame(overlays, currentFrame, fps);
+        // Render the current frame with scaled overlays
+        await renderer.renderFrame(scaledOverlays, currentFrame, fps);
         
         // Wait for frame to be fully rendered and captured
         await new Promise(resolve => setTimeout(resolve, frameDelay));
