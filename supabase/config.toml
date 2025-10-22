@@ -1,8 +1,5 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
-[functions.build-remotion-bundle]
-verify_jwt = false
-
 [functions.render-video-remotion]
 verify_jwt = false
 
