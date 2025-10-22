@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, DollarSign, Users, Target, Eye, Plus, Sparkles } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Users, Target, Eye, Plus, Sparkles, Edit } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -57,6 +57,43 @@ export default function FunnelAnalytics() {
     if (selectedFunnelId) {
       loadFunnelData();
     }
+  }, [selectedFunnelId]);
+
+  // Real-time tracking subscription
+  useEffect(() => {
+    if (!selectedFunnelId) return;
+
+    const channel = supabase
+      .channel('funnel-events-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'funnel_step_events',
+        },
+        () => {
+          // Reload data when new events come in
+          loadFunnelData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'funnel_visits',
+        },
+        () => {
+          // Reload data when visits are updated
+          loadFunnelData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedFunnelId]);
 
   const loadFunnels = async () => {
@@ -372,6 +409,15 @@ export default function FunnelAnalytics() {
               ))}
             </SelectContent>
           </Select>
+          {selectedFunnelId && (
+            <Button 
+              variant="outline"
+              onClick={() => navigate(`/funnels?id=${selectedFunnelId}`)}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          )}
           <Button onClick={() => navigate('/funnels')}>
             <Plus className="w-4 h-4 mr-2" />
             New Funnel

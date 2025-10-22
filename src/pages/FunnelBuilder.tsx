@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,8 @@ interface FunnelStep {
 }
 
 export default function FunnelBuilder() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [funnels, setFunnels] = useState<any[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [funnelName, setFunnelName] = useState("");
@@ -42,6 +45,14 @@ export default function FunnelBuilder() {
   useEffect(() => {
     loadFunnels();
   }, []);
+
+  useEffect(() => {
+    // Check if we should load a specific funnel from URL params
+    const funnelIdFromUrl = searchParams.get('id');
+    if (funnelIdFromUrl && funnels.length > 0) {
+      setSelectedFunnelId(funnelIdFromUrl);
+    }
+  }, [searchParams, funnels]);
 
   useEffect(() => {
     if (selectedFunnelId) {
@@ -151,6 +162,11 @@ export default function FunnelBuilder() {
         setSelectedFunnelId(newFunnel.id);
         setIsCreating(false);
         toast.success("Funnel created successfully");
+        
+        // Redirect to analytics after 1 second
+        setTimeout(() => {
+          navigate('/analytics/funnels');
+        }, 1000);
       }
 
       loadFunnels();
