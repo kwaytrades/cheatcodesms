@@ -32,7 +32,7 @@ const Settings = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentSecret, setCurrentSecret] = useState<SecretConfig | null>(null);
   const [configuredSecrets, setConfiguredSecrets] = useState<Set<string>>(
-    new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET", "TWITTER_ACCESS_TOKEN"])
+    new Set(["MONDAY_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "TWITTER_CONSUMER_KEY", "TWITTER_CONSUMER_SECRET", "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_TOKEN_SECRET"])
   );
   
   const form = useForm<SecretFormValues>({
@@ -108,25 +108,32 @@ const Settings = () => {
       configured: configuredSecrets.has("AWS_REGION")
     },
     {
-      name: "TWITTER_CLIENT_ID",
-      displayName: "Twitter Client ID",
-      description: "Your Twitter OAuth 2.0 Client ID",
+      name: "TWITTER_CONSUMER_KEY",
+      displayName: "Twitter API Key (Consumer Key)",
+      description: "Your Twitter OAuth 1.0a API Key",
       required: false,
-      configured: configuredSecrets.has("TWITTER_CLIENT_ID")
+      configured: configuredSecrets.has("TWITTER_CONSUMER_KEY")
     },
     {
-      name: "TWITTER_CLIENT_SECRET",
-      displayName: "Twitter Client Secret",
-      description: "Your Twitter OAuth 2.0 Client Secret",
+      name: "TWITTER_CONSUMER_SECRET",
+      displayName: "Twitter API Secret (Consumer Secret)",
+      description: "Your Twitter OAuth 1.0a API Secret",
       required: false,
-      configured: configuredSecrets.has("TWITTER_CLIENT_SECRET")
+      configured: configuredSecrets.has("TWITTER_CONSUMER_SECRET")
     },
     {
       name: "TWITTER_ACCESS_TOKEN",
-      displayName: "Twitter Access Token (OAuth 2.0)",
-      description: "Your Twitter OAuth 2.0 Bearer token for posting",
+      displayName: "Twitter Access Token",
+      description: "Your Twitter OAuth 1.0a Access Token",
       required: false,
       configured: configuredSecrets.has("TWITTER_ACCESS_TOKEN")
+    },
+    {
+      name: "TWITTER_ACCESS_TOKEN_SECRET",
+      displayName: "Twitter Access Token Secret",
+      description: "Your Twitter OAuth 1.0a Access Token Secret",
+      required: false,
+      configured: configuredSecrets.has("TWITTER_ACCESS_TOKEN_SECRET")
     }
   ];
 
@@ -308,8 +315,8 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground">Social Media Posting</p>
               </div>
             </div>
-            <Badge variant={configuredSecrets.has("TWITTER_ACCESS_TOKEN") ? "default" : "secondary"}>
-              {configuredSecrets.has("TWITTER_ACCESS_TOKEN") ? "Active" : "Not Configured"}
+            <Badge variant={configuredSecrets.has("TWITTER_CONSUMER_KEY") ? "default" : "secondary"}>
+              {configuredSecrets.has("TWITTER_CONSUMER_KEY") ? "Active" : "Not Configured"}
             </Badge>
           </div>
         </CardContent>
