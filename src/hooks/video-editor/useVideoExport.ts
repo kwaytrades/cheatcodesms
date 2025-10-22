@@ -20,6 +20,8 @@ export const useVideoExport = (
   useEffect(() => {
     if (!jobId) return;
 
+    console.log('Setting up realtime subscription for job:', jobId);
+
     const channel = supabase
       .channel(`render-job-${jobId}`)
       .on(
@@ -34,19 +36,38 @@ export const useVideoExport = (
           const job = payload.new as VideoRenderJob;
           console.log('Job update from Realtime:', job);
           
-          // Only update progress, don't handle download here
           setProgress(job.progress || 0);
           
-          if (job.status === 'failed') {
+          if (job.status === 'completed' && job.video_url) {
+            console.log('Render completed:', job.video_url);
+            toast.success('Video exported successfully!');
+            
+            // Download the video
+            const link = document.createElement('a');
+            link.href = job.video_url;
+            link.download = `video-export-${Date.now()}.mp4`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
             setIsLoading(false);
             setJobId(null);
+            setProgress(0);
+          } else if (job.status === 'failed') {
+            console.error('Render failed:', job.error_message);
             toast.error(`Export failed: ${job.error_message || 'Unknown error'}`);
+            setIsLoading(false);
+            setJobId(null);
+            setProgress(0);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up subscription for job:', jobId);
       supabase.removeChannel(channel);
     };
   }, [jobId]);
@@ -124,7 +145,7 @@ export const useVideoExport = (
 
       setJobId(job.id);
       console.log('Sending to Remotion Cloud for rendering...');
-      toast.info('Rendering video with Remotion Cloud for professional quality...');
+      toast.loading('Rendering with Remotion Cloud...', { id: 'export-toast' });
       setProgress(10);
 
       // Call edge function to trigger Remotion Cloud rendering
@@ -140,31 +161,15 @@ export const useVideoExport = (
       );
 
       if (renderError) {
+        console.error('Edge function error:', renderError);
         throw new Error(`Rendering failed: ${renderError.message}`);
       }
 
-      if (!renderData?.success) {
-        throw new Error(renderData?.error || 'Rendering failed - no data returned');
-      }
-
-      console.log('Render completed successfully:', renderData.videoUrl);
-      toast.success('Video rendered successfully with professional quality!');
-      setProgress(100);
-
-      // Download the video
-      const response = await fetch(renderData.videoUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `video-export-${Date.now()}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setIsLoading(false);
-      setJobId(null);
+      console.log('Remotion Cloud render started:', renderData);
+      toast.success('Rendering in progress...', { id: 'export-toast' });
+      
+      // The edge function will update the job status via database
+      // The realtime subscription will handle download when completed
 
     } catch (error) {
       console.error("Error exporting video:", error);

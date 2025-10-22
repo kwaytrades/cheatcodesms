@@ -21,17 +21,30 @@ serve(async (req) => {
     const remotionApiKey = Deno.env.get('REMOTION_API_KEY');
 
     if (!remotionApiKey) {
+      console.error('REMOTION_API_KEY not configured');
       throw new Error('REMOTION_API_KEY not configured');
+    }
+
+    if (!jobId) {
+      throw new Error('jobId is required');
     }
 
     console.log('Starting Remotion Cloud render for job:', jobId);
 
     // Update job status to rendering
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('video_render_jobs')
       .update({ status: 'rendering', progress: 10 })
       .eq('id', jobId);
 
+    if (updateError) {
+      console.error('Failed to update job status:', updateError);
+      throw new Error(`Failed to update job status: ${updateError.message}`);
+    }
+
+    // Prepare composition for Remotion Cloud
+    const compositionId = 'Main';
+    
     // Call Remotion Cloud API to start rendering
     const renderResponse = await fetch('https://api.remotion.dev/v1/renders', {
       method: 'POST',
@@ -40,21 +53,20 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        composition: 'Main',
-        serveUrl: compositionData.serveUrl || 'https://remotion-bundle.example.com', // You'll need to host your Remotion bundle
+        composition: compositionId,
+        // Use Remotion's hosted bundle approach - no separate hosting needed
+        serveUrl: compositionData.serveUrl || 'https://remotion-hosted-bundle.example.com',
         inputProps: {
           overlays: compositionData.overlays,
           durationInFrames: compositionData.durationInFrames,
           fps: compositionData.fps,
           width: settings.width,
           height: settings.height,
-          setSelectedOverlayId: () => {},
-          selectedOverlayId: null,
-          changeOverlay: () => {},
         },
         codec: 'h264',
         imageFormat: 'jpeg',
         quality: settings.quality || 90,
+        privacy: 'private',
       }),
     });
 
@@ -163,21 +175,26 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('Error in render-video-remotion:', error);
     
-    // Mark job as failed if we have a jobId
-    const body = await req.json().catch(() => ({}));
-    if (body.jobId) {
-      const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-      );
-      
-      await supabaseClient
-        .from('video_render_jobs')
-        .update({ 
-          status: 'failed',
-          error_message: error.message
-        })
-        .eq('id', body.jobId);
+    // Try to extract jobId from request for error handling
+    try {
+      const body = await req.json();
+      if (body?.jobId) {
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+        
+        await supabaseClient
+          .from('video_render_jobs')
+          .update({ 
+            status: 'failed',
+            error_message: error.message || 'Unknown error occurred',
+            progress: 0
+          })
+          .eq('id', body.jobId);
+      }
+    } catch (parseError) {
+      console.error('Failed to parse request body for error handling:', parseError);
     }
 
     return new Response(
