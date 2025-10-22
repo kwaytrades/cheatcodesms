@@ -43,15 +43,15 @@ const ScriptGenerator = () => {
 
   const selectedFormat = FORMATS.find(f => f.value === format);
 
-  const { data: generatedScriptData, isLoading, mutate } = useMutation(
-    async () => {
+  const generateScriptMutation = useMutation({
+    mutationFn: async () => {
       if (!articleText) {
         throw new Error("Article text is required");
       }
 
       const { data, error } = await supabase.functions.invoke('generate-content-script', {
         body: {
-          article: articleText,
+          article_text: articleText,
           format: format,
           length_seconds: lengthSeconds,
           tone: tone,
@@ -70,38 +70,43 @@ const ScriptGenerator = () => {
 
       return data;
     },
-    {
-      onSuccess: (data) => {
-        setGeneratedScript(data.script);
-        setWordCount(data.wordCount);
-        setReadTime(data.readTime);
-        toast.success("Script generated successfully!");
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to generate script");
-      }
+    onSuccess: (data) => {
+      setGeneratedScript(data.script);
+      setWordCount(data.word_count || 0);
+      setReadTime(data.estimated_read_time || 0);
+      toast.success("Script generated successfully!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to generate script");
     }
-  );
+  });
 
-  const { mutate: saveScript } = useMutation(
-    async () => {
+  const saveScriptMutation = useMutation({
+    mutationFn: async () => {
       if (!generatedScript) {
         throw new Error("No script to save");
       }
 
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { data, error } = await supabase
         .from('content_scripts')
-        .insert([{
-          content: generatedScript,
+        .insert({
+          user_id: user.id,
+          script_text: generatedScript,
+          title: `Script - ${format} - ${new Date().toLocaleDateString()}`,
           format: format,
           length_seconds: lengthSeconds,
           tone: tone,
           hook_style: hookStyle,
-          include_cta: includeCTA,
-          include_broll: includeBroll,
-          include_timestamps: includeTimestamps,
-          include_market_data: includeMarketData
-        }])
+          metadata: {
+            include_cta: includeCTA,
+            include_broll: includeBroll,
+            include_timestamps: includeTimestamps,
+            include_market_data: includeMarketData
+          }
+        })
         .select()
         .single();
 
@@ -112,16 +117,14 @@ const ScriptGenerator = () => {
 
       return data;
     },
-    {
-      onSuccess: (data) => {
-        setSavedScriptId(data.id);
-        toast.success("Script saved successfully!");
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to save script");
-      }
+    onSuccess: (data) => {
+      setSavedScriptId(data.id);
+      toast.success("Script saved successfully!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to save script");
     }
-  );
+  });
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedScript);
@@ -277,11 +280,11 @@ const ScriptGenerator = () => {
           </div>
 
           <Button
-            onClick={() => mutate()}
-            disabled={isLoading || !articleText}
+            onClick={() => generateScriptMutation.mutate()}
+            disabled={generateScriptMutation.isPending || !articleText}
             className="w-full"
           >
-            {isLoading ? (
+            {generateScriptMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Generating...
@@ -307,7 +310,7 @@ const ScriptGenerator = () => {
                     <Copy className="h-4 w-4 mr-2" />
                     Copy
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => saveScript.mutate()}>
+                  <Button variant="outline" size="sm" onClick={() => saveScriptMutation.mutate()}>
                     <Save className="h-4 w-4 mr-2" />
                     Save
                   </Button>

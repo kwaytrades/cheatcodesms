@@ -20,41 +20,47 @@ const ContentStudio = () => {
           </div>
           
           <Tabs value={currentTab} className="w-full">
-            <TabsList className="grid w-full max-w-4xl grid-cols-6">
+            <TabsList className="grid w-full max-w-5xl grid-cols-7">
               <TabsTrigger value="news" asChild>
                 <Link to="/content-studio/news" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  News Discovery
+                  News
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="scripts" asChild>
                 <Link to="/content-studio/scripts" className="flex items-center gap-2">
                   <Wand2 className="h-4 w-4" />
-                  Script Generator
+                  Scripts
+                </Link>
+              </TabsTrigger>
+              <TabsTrigger value="ai-video" asChild>
+                <Link to="/content-studio/ai-video" className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  AI Video 🎬
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="recorder" asChild>
                 <Link to="/content-studio/recorder" className="flex items-center gap-2">
                   <Video className="h-4 w-4" />
-                  Video Recorder
+                  Record
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="library" asChild>
                 <Link to="/content-studio/library" className="flex items-center gap-2">
                   <FolderOpen className="h-4 w-4" />
-                  Content Library
+                  Library
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="editor" asChild>
                 <Link to="/content-studio/editor" className="flex items-center gap-2">
                   <Scissors className="h-4 w-4" />
-                  Video Editor
+                  Editor
                 </Link>
               </TabsTrigger>
               <TabsTrigger value="settings" asChild>
                 <Link to="/content-studio/settings" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  Style Guides
+                  Guides
                 </Link>
               </TabsTrigger>
             </TabsList>

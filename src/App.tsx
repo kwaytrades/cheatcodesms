@@ -24,6 +24,7 @@ import VideoRecorder from "./pages/content-studio/VideoRecorder";
 import ContentLibrary from "./pages/content-studio/ContentLibrary";
 import StyleGuides from "./pages/content-studio/StyleGuides";
 import VideoEditor from "./pages/content-studio/VideoEditor";
+import AIVideoGeneration from "./pages/content-studio/AIVideoGeneration";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => (
               <Route index element={<Navigate to="news" replace />} />
               <Route path="news" element={<NewsDiscovery />} />
               <Route path="scripts" element={<ScriptGenerator />} />
+              <Route path="ai-video" element={<AIVideoGeneration />} />
               <Route path="recorder" element={<VideoRecorder />} />
               <Route path="library" element={<ContentLibrary />} />
               <Route path="editor" element={<VideoEditor />} />
