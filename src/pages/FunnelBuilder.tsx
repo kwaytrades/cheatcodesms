@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, Copy, Code } from "lucide-react";
+import { Plus, Trash2, Copy, Code, X, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface FunnelStep {
@@ -172,29 +173,42 @@ export default function FunnelBuilder() {
     setSteps(newSteps);
   };
 
-  const generateTrackingCode = (step: FunnelStep) => {
-    const code = `<!-- Funnel Tracking Code -->
-<script>
-  (function() {
-    const script = document.createElement('script');
-    script.src = '${window.location.origin}/funnel-tracker.js';
-    script.onload = function() {
-      FunnelTracker.init({
-        funnelId: '${selectedFunnelId}',
-        stepName: '${step.step_name}',
-        apiEndpoint: '${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-funnel-event'
-      });
-    };
-    document.head.appendChild(script);
-  })();
-</script>
-<!-- End Funnel Tracking Code -->`;
+  const getUniversalTrackingCode = () => {
+    const currentDomain = window.location.origin;
     
-    setTrackingCode(code);
+    return `<!-- Universal Funnel Tracking Code -->
+<!-- Add this to <head> section of ALL funnel pages across ALL projects -->
+<script src="${currentDomain}/funnel-tracker.js"></script>
+<script>
+  window.FunnelTracker.init({
+    apiEndpoint: '${import.meta.env.VITE_SUPABASE_URL}/functions/v1'
+  });
+</script>
+<!-- End Tracking Code -->
+
+<!-- OPTIONAL: For conversions on thank you/checkout pages, add: -->
+<script>
+  // After successful purchase
+  FunnelTracker.conversion({
+    orderValue: 297.00,
+    productId: 'your-product-id',
+    conversionType: 'purchase'
+  });
+</script>
+
+<!-- OPTIONAL: After form submission to identify visitor, add: -->
+<script>
+  // After user submits form
+  FunnelTracker.identify({
+    email: 'user@example.com',
+    phone: '+1234567890',
+    name: 'John Doe'
+  });
+</script>`;
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(trackingCode);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
     toast.success("Tracking code copied to clipboard");
   };
 
@@ -252,10 +266,55 @@ export default function FunnelBuilder() {
         </CardContent>
       </Card>
 
+      {/* Universal Tracking Code Section */}
+      {selectedFunnelId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Code className="h-5 w-5" />
+              Universal Tracking Code
+            </CardTitle>
+            <CardDescription>
+              One code snippet that works across ALL your funnel pages. The tracker auto-detects which step the visitor is on.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="relative">
+              <Textarea
+                value={getUniversalTrackingCode()}
+                readOnly
+                className="font-mono text-xs h-64"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="absolute top-2 right-2"
+                onClick={() => copyToClipboard(getUniversalTrackingCode())}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy
+              </Button>
+            </div>
+            
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Installation Instructions</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>1. Add this tracking code to the &lt;head&gt; section of ALL pages in ALL your funnel projects</p>
+                <p>2. The tracker will automatically detect which funnel step each visitor is on based on the page URLs you configured below</p>
+                <p>3. For cross-domain tracking between different Lovable projects, use: <code className="text-xs bg-muted px-1 py-0.5 rounded">FunnelTracker.addSessionToUrl(url)</code></p>
+                <p>4. Use the optional conversion and identify scripts on checkout/thank you pages to track purchases and identify visitors</p>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Funnel Steps</CardTitle>
-          <CardDescription>Define the pages in your funnel</CardDescription>
+          <CardTitle>Funnel Steps Configuration</CardTitle>
+          <CardDescription>Define the page URLs for each step so the tracker can auto-detect them</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {steps.map((step, index) => (
@@ -263,48 +322,15 @@ export default function FunnelBuilder() {
               <CardContent className="pt-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold">Step {step.step_number}</h3>
-                  <div className="flex gap-2">
-                    {selectedFunnelId && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => generateTrackingCode(step)}
-                          >
-                            <Code className="w-4 h-4 mr-2" />
-                            Get Code
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>Tracking Code for {step.step_name}</DialogTitle>
-                            <DialogDescription>
-                              Add this code to your page to track visitor behavior
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <pre className="bg-secondary p-4 rounded-lg overflow-x-auto text-xs">
-                              {trackingCode}
-                            </pre>
-                            <Button onClick={copyToClipboard} className="w-full">
-                              <Copy className="w-4 h-4 mr-2" />
-                              Copy to Clipboard
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                    {steps.length > 1 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeStep(index)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
+                  {steps.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeStep(index)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -334,15 +360,18 @@ export default function FunnelBuilder() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Page URL</Label>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Page URL Pattern</Label>
                     <Input
                       value={step.page_url}
                       onChange={(e) => updateStep(index, 'page_url', e.target.value)}
-                      placeholder="https://yourdomain.com/page"
+                      placeholder="https://yoursite.com/sales-page or use * for wildcards"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Examples: Exact: https://site.com/page | Wildcard: https://site.com/* | Path: */checkout
+                    </p>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label>Conversion Goal</Label>
                     <Input
                       value={step.conversion_goal}
