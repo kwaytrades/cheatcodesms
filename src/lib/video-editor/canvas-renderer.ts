@@ -9,6 +9,7 @@ export class CanvasRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private loadedAssets: Map<string, HTMLImageElement | HTMLVideoElement> = new Map();
+  private audioElements: Map<string, HTMLAudioElement> = new Map();
 
   constructor(width: number, height: number) {
     this.canvas = document.createElement('canvas');
@@ -30,10 +31,32 @@ export class CanvasRenderer {
         loadPromises.push(this.loadImage(overlay.src));
       } else if (overlay.type === 'video' && overlay.src) {
         loadPromises.push(this.loadVideo(overlay.src));
+      } else if (overlay.type === 'sound' && overlay.src) {
+        loadPromises.push(this.loadAudio(overlay.src));
       }
     }
 
     await Promise.all(loadPromises);
+  }
+
+  private async loadAudio(src: string): Promise<void> {
+    if (this.audioElements.has(src)) return;
+
+    return new Promise((resolve, reject) => {
+      const audio = new Audio();
+      audio.crossOrigin = 'anonymous';
+      audio.preload = 'auto';
+      audio.onloadeddata = () => {
+        this.audioElements.set(src, audio);
+        resolve();
+      };
+      audio.onerror = () => reject(new Error(`Failed to load audio: ${src}`));
+      audio.src = src;
+    });
+  }
+
+  getAudioElements(): Map<string, HTMLAudioElement> {
+    return this.audioElements;
   }
 
   private async loadImage(src: string): Promise<void> {
@@ -159,14 +182,24 @@ export class CanvasRenderer {
     const video = this.loadedAssets.get(overlay.src) as HTMLVideoElement;
     if (!video) return;
 
-    // Calculate video time for this frame
+    // Calculate video time for this frame (more precise)
     const videoTime = frame / fps;
     
-    // Seek video to correct time if needed
-    if (Math.abs(video.currentTime - videoTime) > 0.1) {
+    // Seek video to correct time with tighter tolerance
+    if (Math.abs(video.currentTime - videoTime) > 0.05) {
       video.currentTime = videoTime;
-      await new Promise(resolve => {
-        video.onseeked = () => resolve(null);
+      // Wait for seek to complete
+      await new Promise<void>(resolve => {
+        const checkSeek = () => {
+          if (Math.abs(video.currentTime - videoTime) < 0.05 || video.readyState >= 2) {
+            resolve();
+          } else {
+            requestAnimationFrame(checkSeek);
+          }
+        };
+        video.onseeked = () => resolve();
+        setTimeout(() => resolve(), 100); // Fallback timeout
+        checkSeek();
       });
     }
 
@@ -189,5 +222,6 @@ export class CanvasRenderer {
 
   destroy(): void {
     this.loadedAssets.clear();
+    this.audioElements.clear();
   }
 }

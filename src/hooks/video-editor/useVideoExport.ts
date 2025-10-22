@@ -116,8 +116,14 @@ export const useVideoExport = (
       console.log('Starting client-side rendering...');
       toast.info('Rendering video with high quality settings...');
 
-      // Initialize canvas renderer
-      renderer = new CanvasRenderer(playerDimensions.width, playerDimensions.height);
+      // Calculate proper canvas dimensions from overlays
+      const maxRight = Math.max(...overlays.map(o => (o.left || 0) + (o.width || 0)), playerDimensions.width);
+      const maxBottom = Math.max(...overlays.map(o => (o.top || 0) + (o.height || 0)), playerDimensions.height);
+      const canvasWidth = Math.max(maxRight, playerDimensions.width);
+      const canvasHeight = Math.max(maxBottom, playerDimensions.height);
+
+      // Initialize canvas renderer with proper dimensions
+      renderer = new CanvasRenderer(canvasWidth, canvasHeight);
       setProgress(10);
 
       // Preload all assets
@@ -129,20 +135,73 @@ export const useVideoExport = (
         throw new Error('Export cancelled');
       }
 
+      // Set up audio mixing with Web Audio API
+      const audioContext = new AudioContext({ sampleRate: 48000 });
+      const destination = audioContext.createMediaStreamDestination();
+      
+      // Mix audio from video and sound overlays
+      const audioSources: { element: HTMLMediaElement; gainNode: GainNode; startTime: number; duration: number }[] = [];
+      
+      for (const overlay of overlays) {
+        if ((overlay.type === 'video' || overlay.type === 'sound') && overlay.src) {
+          const audioElement = overlay.type === 'video' 
+            ? renderer.getCanvas().ownerDocument.createElement('video')
+            : new Audio();
+          
+          audioElement.crossOrigin = 'anonymous';
+          audioElement.src = overlay.src;
+          audioElement.preload = 'auto';
+          
+          // Wait for audio to be ready
+          await new Promise<void>((resolve) => {
+            audioElement.onloadeddata = () => resolve();
+            setTimeout(() => resolve(), 1000); // Fallback
+          });
+          
+          // Create audio source and gain node
+          const source = audioContext.createMediaElementSource(audioElement);
+          const gainNode = audioContext.createGain();
+          const volume = overlay.type === 'sound' && overlay.styles?.volume !== undefined 
+            ? overlay.styles.volume 
+            : 1;
+          gainNode.gain.value = volume;
+          
+          source.connect(gainNode).connect(destination);
+          
+          const startTime = overlay.from / fps;
+          const duration = overlay.durationInFrames / fps;
+          
+          audioSources.push({ 
+            element: audioElement, 
+            gainNode, 
+            startTime, 
+            duration 
+          });
+        }
+      }
+
       // Set up MediaRecorder with high-quality settings
       const canvas = renderer.getCanvas();
-      const stream = canvas.captureStream(fps);
+      const canvasStream = canvas.captureStream(fps);
+      
+      // Combine video and audio streams
+      const videoTrack = canvasStream.getVideoTracks()[0];
+      const audioTrack = destination.stream.getAudioTracks()[0];
+      const combinedStream = audioTrack 
+        ? new MediaStream([videoTrack, audioTrack])
+        : new MediaStream([videoTrack]);
 
       // Use highest quality WebM codec available
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-        ? 'video/webm;codecs=vp8'
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+        ? 'video/webm;codecs=vp9,opus'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
         : 'video/webm';
 
-      mediaRecorder = new MediaRecorder(stream, {
+      mediaRecorder = new MediaRecorder(combinedStream, {
         mimeType,
         videoBitsPerSecond: 20000000, // 20 Mbps for very high quality
+        audioBitsPerSecond: 320000, // 320 kbps for high-quality audio
       });
 
       recordedChunks = [];
@@ -154,32 +213,69 @@ export const useVideoExport = (
 
       // Start recording
       mediaRecorder.start(100); // Capture every 100ms
+      
+      // Play all audio elements at their correct times
+      const playAudioForTime = (currentTime: number) => {
+        for (const { element, startTime, duration } of audioSources) {
+          const relativeTime = currentTime - startTime;
+          if (relativeTime >= 0 && relativeTime < duration) {
+            if (element.paused || Math.abs(element.currentTime - relativeTime) > 0.1) {
+              element.currentTime = relativeTime;
+              element.play().catch(() => {});
+            }
+          } else if (!element.paused) {
+            element.pause();
+          }
+        }
+      };
 
-      // Render frames
+      // Render frames using requestAnimationFrame for smoother timing
       const totalFrames = durationInFrames;
-      const frameDelay = 1000 / fps;
-
-      for (let frame = 0; frame < totalFrames; frame++) {
+      let currentFrame = 0;
+      
+      const renderNextFrame = async (): Promise<void> => {
         if (cancelExportRef.current) {
           throw new Error('Export cancelled');
         }
 
-        await renderer.renderFrame(overlays, frame, fps);
-        
-        // Update progress (15-85% during rendering)
-        const renderProgress = 15 + Math.floor((frame / totalFrames) * 70);
-        setProgress(renderProgress);
+        if (currentFrame < totalFrames) {
+          const currentTime = currentFrame / fps;
+          
+          // Sync audio playback
+          playAudioForTime(currentTime);
+          
+          // Render the frame
+          await renderer.renderFrame(overlays, currentFrame, fps);
+          
+          // Update progress (15-85% during rendering)
+          const renderProgress = 15 + Math.floor((currentFrame / totalFrames) * 70);
+          setProgress(renderProgress);
 
-        // Update job progress in database every 10 frames
-        if (frame % 10 === 0) {
-          await supabase
-            .from('video_render_jobs' as any)
-            .update({ progress: renderProgress } as any)
-            .eq('id', job.id);
+          // Update job progress in database every 10 frames
+          if (currentFrame % 10 === 0) {
+            await supabase
+              .from('video_render_jobs' as any)
+              .update({ progress: renderProgress } as any)
+              .eq('id', job.id);
+          }
+
+          currentFrame++;
+          
+          // Use requestAnimationFrame for better timing
+          await new Promise<void>(resolve => {
+            requestAnimationFrame(() => resolve());
+          });
+          
+          await renderNextFrame();
         }
-
-        // Wait for next frame timing
-        await new Promise(resolve => setTimeout(resolve, frameDelay));
+      };
+      
+      await renderNextFrame();
+      
+      // Stop all audio elements
+      for (const { element } of audioSources) {
+        element.pause();
+        element.currentTime = 0;
       }
 
       // Stop recording
@@ -276,6 +372,7 @@ export const useVideoExport = (
       if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
       }
+      // Note: audioContext cleanup happens automatically when page unloads
     }
   };
 
