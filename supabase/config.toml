@@ -1,5 +1,23 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
+[functions.generate-video-from-script]
+verify_jwt = false
+
+[functions.analyze-script-scenes]
+verify_jwt = false
+
+[functions.generate-video-prompts]
+verify_jwt = false
+
+[functions.generate-veo-video-clip]
+verify_jwt = false
+
+[functions.assemble-video-clips]
+verify_jwt = false
+
+[functions.check-video-generation-status]
+verify_jwt = false
+
 [functions.post-twitter-thread]
 verify_jwt = false
 
