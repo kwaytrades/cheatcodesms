@@ -611,8 +611,15 @@ export default function FunnelBuilder() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Important: Installation Required</AlertTitle>
               <AlertDescription>
-                <p className="mb-2">This tracking code must be installed on your <strong>external website</strong> (not this dashboard). Add it to the &lt;head&gt; section of all funnel pages.</p>
-                <p className="text-sm">Use the "Send Test Event" button below to verify the system is working before installing on your site.</p>
+                <p className="mb-2">This tracking code must be installed on your <strong>external website</strong> (e.g., {steps[0]?.page_url || 'your-site.com'}). Add it to the &lt;head&gt; section of all funnel pages.</p>
+                <p className="text-sm mb-2">The "Send Test Event" button works because it's calling the API directly. For real visitor tracking, you must install the code on your external site.</p>
+                <p className="text-sm font-semibold">Steps to install:</p>
+                <ol className="text-sm list-decimal list-inside space-y-1">
+                  <li>Copy the tracking code below</li>
+                  <li>Paste it in the &lt;head&gt; section of your website</li>
+                  <li>Visit your website to generate a real event</li>
+                  <li>Check this analytics dashboard to see the data</li>
+                </ol>
               </AlertDescription>
             </Alert>
             
