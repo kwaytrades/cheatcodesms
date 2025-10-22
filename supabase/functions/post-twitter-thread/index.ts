@@ -1,9 +1,10 @@
 import { createHmac } from "node:crypto";
 
-const API_KEY = Deno.env.get("TWITTER_CONSUMER_KEY")?.trim();
-const API_SECRET = Deno.env.get("TWITTER_CONSUMER_SECRET")?.trim();
-const ACCESS_TOKEN = Deno.env.get("TWITTER_ACCESS_TOKEN")?.trim();
-const ACCESS_TOKEN_SECRET = Deno.env.get("TWITTER_ACCESS_TOKEN_SECRET")?.trim();
+// TEMPORARY: Hardcoded credentials for testing (NOT SECURE - for testing only)
+const API_KEY = "W0jtK2OVS0yzw8t135jJnYPkq";
+const API_SECRET = "i4jgpwCryEJOlvdwg3odwaw05Na4quXdonyJb3fbkG9mebEdfO";
+const ACCESS_TOKEN = "335679062-4dh69A25pWiHSI94uKDIDSkX8E6vAiXTX8usYI0M";
+const ACCESS_TOKEN_SECRET = "zivcEYlq4upy1yYf1uQoebg3cJXXaRc3ymvhYHItReNCj";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
