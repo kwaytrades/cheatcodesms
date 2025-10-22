@@ -123,6 +123,40 @@ export const TextPanel: React.FC = () => {
           <option value="300">Light</option>
         </select>
       </div>
+
+      <div>
+        <Label>Font Family</Label>
+        <select
+          className="w-full p-2 border rounded"
+          value={selectedOverlay.styles.fontFamily}
+          onChange={(e) =>
+            changeOverlay(selectedOverlay.id, {
+              ...selectedOverlay,
+              styles: {
+                ...selectedOverlay.styles,
+                fontFamily: e.target.value,
+              },
+            })
+          }
+        >
+          <optgroup label="Web Safe Fonts">
+            <option value="Arial">Arial</option>
+            <option value="Helvetica">Helvetica</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Courier New">Courier New</option>
+            <option value="Verdana">Verdana</option>
+          </optgroup>
+          <optgroup label="Google Fonts">
+            <option value="Roboto">Roboto</option>
+            <option value="Open Sans">Open Sans</option>
+            <option value="Lato">Lato</option>
+            <option value="Montserrat">Montserrat</option>
+            <option value="Playfair Display">Playfair Display</option>
+            <option value="Oswald">Oswald</option>
+          </optgroup>
+        </select>
+      </div>
     </div>
   );
 };
