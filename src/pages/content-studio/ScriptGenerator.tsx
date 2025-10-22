@@ -17,7 +17,7 @@ const FORMATS = [
   { value: 'youtube_long', label: 'YouTube Long-form', icon: '📹', duration: [180, 300, 600, 900] },
   { value: 'youtube_short', label: 'YouTube Short', icon: '🎬', duration: [30, 45, 60] },
   { value: 'tiktok', label: 'TikTok/Reel', icon: '📱', duration: [15, 30, 45, 60] },
-  { value: 'carousel', label: 'LinkedIn Carousel', icon: '📊', duration: [8, 10, 12] }
+  { value: 'carousel', label: 'X Carousel', icon: '📊', duration: [4, 5, 6, 7, 8, 9, 10] }
 ];
 
 const TONES = ['educational', 'hype', 'breaking_news', 'analytical', 'casual'];
@@ -243,7 +243,7 @@ const ScriptGenerator = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Length</Label>
+                <Label>{format === 'carousel' ? 'Number of Slides' : 'Length'}</Label>
                 <Select value={lengthSeconds.toString()} onValueChange={(v) => setLengthSeconds(Number(v))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -251,7 +251,7 @@ const ScriptGenerator = () => {
                   <SelectContent>
                     {selectedFormat?.duration?.map(d => (
                       <SelectItem key={d} value={d.toString()}>
-                        {d}s
+                        {format === 'carousel' ? d : `${d}s`}
                       </SelectItem>
                     ))}
                   </SelectContent>
