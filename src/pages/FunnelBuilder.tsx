@@ -235,18 +235,29 @@ export default function FunnelBuilder() {
     
     detectFunnelStep: async function() {
       try {
+        const requestData = {
+          pageUrl: window.location.href,
+          domain: window.location.hostname,
+          path: window.location.pathname
+        };
+        console.log('FunnelTracker: Detecting step for', requestData);
+        
         const response = await fetch(this.config.apiEndpoint + '/get-funnel-step', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pageUrl: window.location.href,
-            domain: window.location.hostname,
-            path: window.location.pathname
-          })
+          body: JSON.stringify(requestData)
         });
         
         if (response.ok) {
-          this.currentStep = await response.json();
+          const data = await response.json();
+          if (data.step_id) {
+            this.currentStep = data;
+            console.log('FunnelTracker: Step detected', data);
+          } else {
+            console.warn('FunnelTracker: No step found for this page', data);
+          }
+        } else {
+          console.error('FunnelTracker: Failed to detect step', response.status);
         }
       } catch (error) {
         console.error('FunnelTracker: Error detecting step', error);
@@ -254,11 +265,16 @@ export default function FunnelBuilder() {
     },
     
     trackPageView: function() {
-      if (!this.currentStep) return;
+      if (!this.currentStep) {
+        console.warn('FunnelTracker: No step detected, skipping page view');
+        return;
+      }
+      
+      console.log('FunnelTracker: Tracking page view', this.currentStep);
       
       this.sendEvent({
         funnel_id: this.currentStep.funnel_id,
-        step_name: this.currentStep.step_name,
+        step_id: this.currentStep.step_id,
         session_id: this.sessionId,
         event_type: 'page_view',
         utm_params: this.getUTMParams(),
@@ -272,12 +288,19 @@ export default function FunnelBuilder() {
     },
     
     sendEvent: async function(eventData) {
+      console.log('FunnelTracker: Sending event', eventData);
       try {
-        await fetch(this.config.apiEndpoint + '/track-funnel-event', {
+        const response = await fetch(this.config.apiEndpoint + '/track-funnel-event', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(eventData)
         });
+        
+        if (response.ok) {
+          console.log('FunnelTracker: Event tracked successfully');
+        } else {
+          console.error('FunnelTracker: Failed to track event', response.status);
+        }
       } catch (error) {
         console.error('FunnelTracker: Error sending event', error);
       }

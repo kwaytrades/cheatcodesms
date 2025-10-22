@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
 
     const {
       funnel_id,
-      step_name,
+      step_id,
       session_id,
       event_type,
       utm_params,
@@ -32,21 +32,7 @@ Deno.serve(async (req) => {
       contact_id
     } = eventData;
 
-    // Find the funnel step
-    const { data: step, error: stepError } = await supabase
-      .from('funnel_steps')
-      .select('*')
-      .eq('funnel_id', funnel_id)
-      .eq('step_name', step_name)
-      .single();
-
-    if (stepError || !step) {
-      console.error('Step not found:', stepError);
-      return new Response(
-        JSON.stringify({ error: 'Funnel step not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    console.log('Tracking event:', { funnel_id, step_id, session_id, event_type });
 
     // Find or create visit
     let { data: visit, error: visitError } = await supabase
@@ -64,8 +50,8 @@ Deno.serve(async (req) => {
           funnel_id,
           session_id,
           contact_id: contact_id || null,
-          entry_step_id: step.id,
-          current_step_id: step.id,
+          entry_step_id: step_id,
+          current_step_id: step_id,
           utm_source: utm_params?.utm_source,
           utm_medium: utm_params?.utm_medium,
           utm_campaign: utm_params?.utm_campaign,
@@ -89,7 +75,7 @@ Deno.serve(async (req) => {
       await supabase
         .from('funnel_visits')
         .update({
-          current_step_id: step.id,
+          current_step_id: step_id,
           last_activity_at: new Date().toISOString(),
           contact_id: contact_id || visit.contact_id,
         })
@@ -101,7 +87,7 @@ Deno.serve(async (req) => {
       .from('funnel_step_events')
       .insert({
         visit_id: visit.id,
-        step_id: step.id,
+        step_id: step_id,
         contact_id: contact_id || null,
         event_type: event_type || 'page_view',
         duration_seconds: duration,
