@@ -72,10 +72,21 @@ Deno.serve(async (req) => {
             if (regex.test(pageUrl)) return true;
           }
           
-          // Domain match (e.g., "example.com/*")
+          // Domain match with explicit wildcard (e.g., "example.com/*")
           if (pattern.includes('/*') && domain) {
             const domainPattern = pattern.split('/*')[0];
             if (pageUrl.includes(domainPattern)) return true;
+          }
+          
+          // Domain-only match (e.g., "stockmarkettextbook.lovable.com")
+          // Automatically matches any page on that domain
+          if (!pattern.includes('*') && !pattern.includes('/') && domain) {
+            // Extract domain from pattern (remove protocol if present)
+            const patternDomain = pattern.replace(/^https?:\/\//, '').toLowerCase();
+            const urlDomain = domain.toLowerCase();
+            if (patternDomain === urlDomain || pageUrl.toLowerCase().includes(patternDomain)) {
+              return true;
+            }
           }
           
           // Path match (e.g., "*/checkout")
