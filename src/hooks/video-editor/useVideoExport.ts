@@ -8,7 +8,7 @@ export const useVideoExport = (
   overlays: Overlay[],
   durationInFrames: number,
   fps: number,
-  playerDimensions: { width: number; height: number }
+  getAspectRatioDimensions: () => { width: number; height: number }
 ) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,8 +43,12 @@ export const useVideoExport = (
       console.log('Starting client-side video export...');
       setProgress(5);
 
-      // Create canvas renderer
-      const renderer = new CanvasRenderer(playerDimensions.width, playerDimensions.height);
+      // Get composition dimensions (always even numbers for H.264 compatibility)
+      const compositionDimensions = getAspectRatioDimensions();
+      console.log('[Export] Using composition dimensions:', compositionDimensions);
+      
+      // Create canvas renderer with proper dimensions
+      const renderer = new CanvasRenderer(compositionDimensions.width, compositionDimensions.height);
       
       toast.loading("Loading assets...", { id: toastId });
       setProgress(10);

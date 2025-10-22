@@ -38,7 +38,7 @@ const EditorControls: React.FC = () => {
     editorState.overlays,
     editorState.durationInFrames,
     30, // FPS
-    editorState.playerDimensions
+    editorState.getAspectRatioDimensions
   );
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
