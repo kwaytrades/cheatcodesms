@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, DollarSign, Users, Target, Eye } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Users, Target, Eye, Plus, Sparkles } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface Funnel {
   id: string;
@@ -36,6 +39,7 @@ interface StepMetrics {
 }
 
 export default function FunnelAnalytics() {
+  const navigate = useNavigate();
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [steps, setSteps] = useState<FunnelStep[]>([]);
@@ -43,6 +47,7 @@ export default function FunnelAnalytics() {
   const [stepMetrics, setStepMetrics] = useState<StepMetrics[]>([]);
   const [sourceData, setSourceData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creatingMockData, setCreatingMockData] = useState(false);
 
   useEffect(() => {
     loadFunnels();
@@ -191,6 +196,108 @@ export default function FunnelAnalytics() {
     return new Set(data?.map(e => e.visit_id)).size;
   };
 
+  const createMockData = async () => {
+    setCreatingMockData(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Create a mock funnel
+      const { data: funnel, error: funnelError } = await supabase
+        .from('funnels')
+        .insert({
+          name: 'Sample Product Funnel',
+          description: 'Demo funnel with mock analytics data',
+          created_by: user?.id,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (funnelError) throw funnelError;
+
+      // Create funnel steps
+      const stepsData = [
+        { step_number: 1, step_name: 'Landing Page', step_type: 'landing', page_url: 'https://example.com/', conversion_goal: 'View page' },
+        { step_number: 2, step_name: 'Sales Page', step_type: 'sales', page_url: 'https://example.com/sales', conversion_goal: 'View offer' },
+        { step_number: 3, step_name: 'Checkout', step_type: 'checkout', page_url: 'https://example.com/checkout', conversion_goal: 'Complete purchase' },
+        { step_number: 4, step_name: 'Thank You', step_type: 'thankyou', page_url: 'https://example.com/thank-you', conversion_goal: 'Confirmation' }
+      ];
+
+      const { data: steps, error: stepsError } = await supabase
+        .from('funnel_steps')
+        .insert(stepsData.map(step => ({ ...step, funnel_id: funnel.id })))
+        .select();
+
+      if (stepsError) throw stepsError;
+
+      // Create mock visits and events
+      const sources = ['Google', 'Facebook', 'Instagram', 'Direct', 'Email'];
+      const devices = ['desktop', 'mobile', 'tablet'];
+      
+      for (let i = 0; i < 50; i++) {
+        const sessionId = `mock_session_${Date.now()}_${i}`;
+        const source = sources[Math.floor(Math.random() * sources.length)];
+        const device = devices[Math.floor(Math.random() * devices.length)];
+        const completed = Math.random() > 0.65; // 35% conversion rate
+        
+        // Create visit
+        const { data: visit } = await supabase
+          .from('funnel_visits')
+          .insert({
+            session_id: sessionId,
+            funnel_id: funnel.id,
+            entry_step_id: steps[0].id,
+            current_step_id: completed ? steps[steps.length - 1].id : steps[Math.floor(Math.random() * steps.length)].id,
+            device_type: device,
+            utm_source: source,
+            completed: completed,
+            total_value: completed ? Math.floor(Math.random() * 400) + 100 : 0,
+            started_at: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
+          })
+          .select()
+          .single();
+
+        if (visit) {
+          // Create events for each step the visitor went through
+          const stepsToVisit = completed ? steps.length : Math.floor(Math.random() * steps.length) + 1;
+          
+          for (let j = 0; j < stepsToVisit; j++) {
+            await supabase
+              .from('funnel_step_events')
+              .insert({
+                visit_id: visit.id,
+                step_id: steps[j].id,
+                event_type: 'page_view',
+                duration_seconds: Math.floor(Math.random() * 180) + 30,
+                metadata: { page_url: steps[j].page_url }
+              });
+          }
+
+          // If completed, create conversion
+          if (completed) {
+            await supabase
+              .from('funnel_conversions')
+              .insert({
+                visit_id: visit.id,
+                funnel_id: funnel.id,
+                contact_id: null,
+                order_value: visit.total_value,
+                conversion_type: 'purchase'
+              });
+          }
+        }
+      }
+
+      toast.success('Mock data created successfully!');
+      loadFunnels();
+    } catch (error) {
+      console.error('Error creating mock data:', error);
+      toast.error('Failed to create mock data');
+    } finally {
+      setCreatingMockData(false);
+    }
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -221,6 +328,25 @@ export default function FunnelAnalytics() {
               Create your first funnel to start tracking conversions and analytics.
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Button onClick={() => navigate('/funnels')} size="lg" className="w-full">
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Funnel
+            </Button>
+            <Button 
+              onClick={createMockData} 
+              variant="outline" 
+              size="lg" 
+              className="w-full"
+              disabled={creatingMockData}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {creatingMockData ? 'Creating Mock Data...' : 'Generate Demo Data'}
+            </Button>
+            <p className="text-sm text-muted-foreground text-center">
+              Not ready to create your own? Generate demo data to explore the analytics dashboard.
+            </p>
+          </CardContent>
         </Card>
       </div>
     );
@@ -233,18 +359,24 @@ export default function FunnelAnalytics() {
           <h1 className="text-3xl font-bold">Funnel Analytics</h1>
           <p className="text-muted-foreground">Track visitor journeys and conversion metrics</p>
         </div>
-        <Select value={selectedFunnelId} onValueChange={setSelectedFunnelId}>
-          <SelectTrigger className="w-[300px]">
-            <SelectValue placeholder="Select a funnel" />
-          </SelectTrigger>
-          <SelectContent>
-            {funnels.map(funnel => (
-              <SelectItem key={funnel.id} value={funnel.id}>
-                {funnel.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={selectedFunnelId} onValueChange={setSelectedFunnelId}>
+            <SelectTrigger className="w-[300px]">
+              <SelectValue placeholder="Select a funnel" />
+            </SelectTrigger>
+            <SelectContent>
+              {funnels.map(funnel => (
+                <SelectItem key={funnel.id} value={funnel.id}>
+                  {funnel.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => navigate('/funnels')}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Funnel
+          </Button>
+        </div>
       </div>
 
       {loading ? (
