@@ -37,16 +37,18 @@ serve(async (req) => {
     // Start video generation using Gemini API
     console.log('Starting Veo 3.1 video generation...');
     
-    const generateResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:generateVideos', {
+    const generateResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-generate-preview:generateVideos?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        prompt: prompt,
-        config: {
-          durationSeconds: duration.toString(),
+        contents: [{
+          role: 'user',
+          parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+          videoDuration: duration,
           aspectRatio: "16:9",
           resolution: "720p"
         }
@@ -90,10 +92,10 @@ serve(async (req) => {
       
       await new Promise(resolve => setTimeout(resolve, pollInterval));
       
-      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}`, {
+      const statusResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`
+          'Content-Type': 'application/json'
         }
       });
 
@@ -131,11 +133,8 @@ serve(async (req) => {
 
     // Download video from Google
     console.log('Downloading video from:', videoData.video.uri);
-    const videoResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${videoData.video.name}?alt=media`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      }
+    const videoResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${videoData.video.name}?key=${apiKey}&alt=media`, {
+      method: 'GET'
     });
 
     if (!videoResponse.ok) {
