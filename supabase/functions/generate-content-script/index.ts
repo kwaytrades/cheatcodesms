@@ -63,12 +63,14 @@ serve(async (req) => {
 - End with engagement hook (comment, share, follow)
 - Mobile-first vertical format`,
       
-      'carousel': `LinkedIn Carousel (10 slides):
-- Slide 1: Attention-grabbing title + preview
-- Slides 2-8: One key point per slide, visual + text
-- Slide 9: Summary/key takeaway
-- Slide 10: CTA (follow, comment, share resource)
-- Keep text minimal, design-friendly
+      'carousel': `LinkedIn Carousel (8-10 slides):
+- Output ONLY the raw text for each slide
+- Format: "Slide 1:\n[text]\n\nSlide 2:\n[text]" etc.
+- NO titles, NO visual instructions, NO formatting symbols like ** or ##
+- Keep text concise and impactful (2-3 short sentences per slide max)
+- First slide: Hook that grabs attention
+- Middle slides: Key points, one idea per slide
+- Last slide: Strong takeaway or CTA
 - Professional but engaging tone`
     };
 

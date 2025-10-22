@@ -71,14 +71,6 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
   const exportToTwitter = async () => {
     setExporting(true);
     try {
-      // Check if all slides have images
-      const missingImages = slides.filter(s => !s.image);
-      if (missingImages.length > 0) {
-        toast.error(`Please add images to all ${slides.length} slides before exporting`);
-        setExporting(false);
-        return;
-      }
-
       // TODO: Integrate with Twitter API
       // For now, just show success and copy thread text
       const threadText = slides.map((slide, i) => 
@@ -86,7 +78,7 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
       ).join('\n\n---\n\n');
 
       await navigator.clipboard.writeText(threadText);
-      toast.success(`Thread text copied! Ready to post ${slides.length} tweets with images.`);
+      toast.success(`Thread text copied! Ready to post ${slides.length} tweets${slides.some(s => s.image) ? ' with images' : ''}.`);
       
     } catch (error) {
       console.error('Export error:', error);
@@ -104,7 +96,7 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
           <h3 className="text-lg font-semibold">Carousel Slides ({slides.length})</h3>
           <Button 
             onClick={exportToTwitter} 
-            disabled={exporting || slides.some(s => !s.image)}
+            disabled={exporting}
           >
             {exporting ? (
               <>
@@ -126,10 +118,23 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
               <CarouselItem key={index}>
                 <Card className="p-6">
                   <div className="space-y-4">
+                    {/* Slide Text */}
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Slide {index + 1} Text
+                      </label>
+                      <Textarea
+                        value={slide.text}
+                        onChange={(e) => updateSlideText(index, e.target.value)}
+                        className="min-h-[120px]"
+                        placeholder="Enter slide text..."
+                      />
+                    </div>
+
                     {/* Image Upload */}
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Slide {index + 1} Image
+                        Image (Optional)
                       </label>
                       {slide.imagePreview ? (
                         <div className="relative">
@@ -148,7 +153,7 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
                           </Button>
                         </div>
                       ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                        <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
                           <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
                           <span className="text-sm text-muted-foreground">
                             Click to upload image
@@ -164,19 +169,6 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
                           />
                         </label>
                       )}
-                    </div>
-
-                    {/* Slide Text */}
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Slide {index + 1} Text
-                      </label>
-                      <Textarea
-                        value={slide.text}
-                        onChange={(e) => updateSlideText(index, e.target.value)}
-                        className="min-h-[120px]"
-                        placeholder="Enter slide text..."
-                      />
                     </div>
                   </div>
                 </Card>
@@ -199,16 +191,13 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
                   {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
+                  <p className="text-sm line-clamp-3 mb-2">{slide.text}</p>
                   {slide.imagePreview && (
                     <img 
                       src={slide.imagePreview} 
                       alt={`Slide ${index + 1}`}
-                      className="w-full h-24 object-cover rounded mb-2"
+                      className="w-full h-24 object-cover rounded"
                     />
-                  )}
-                  <p className="text-sm line-clamp-3">{slide.text}</p>
-                  {!slide.image && (
-                    <p className="text-xs text-destructive mt-1">Missing image</p>
                   )}
                 </div>
               </div>
