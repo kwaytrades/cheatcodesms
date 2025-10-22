@@ -103,43 +103,76 @@ export const useVideoExport = (
 
         try {
           const webmBlob = new Blob(chunks, { type: 'video/webm' });
+          console.log('[Export] Recording complete, WebM blob size:', webmBlob.size, 'bytes');
+
+          if (webmBlob.size === 0) {
+            throw new Error('Recording produced an empty file');
+          }
           
           toast.loading("Converting to MP4...", { id: toastId });
           setProgress(50);
 
-          // Convert WebM to MP4
-          const mp4Blob = await convertWebMToMP4(webmBlob, (conversionProgress) => {
-            // Map conversion progress from 50% to 95%
-            const totalProgress = 50 + (conversionProgress * 0.45);
-            setProgress(Math.round(totalProgress));
-          });
+          try {
+            // Convert WebM to MP4
+            const mp4Blob = await convertWebMToMP4(webmBlob, (conversionProgress) => {
+              // Map conversion progress from 50% to 95%
+              const totalProgress = 50 + (conversionProgress * 0.45);
+              setProgress(Math.round(totalProgress));
+            });
 
-          if (cancelExportRef.current) {
+            console.log('[Export] MP4 conversion complete, size:', mp4Blob.size, 'bytes');
+
+            if (mp4Blob.size === 0) {
+              throw new Error('Conversion produced an empty MP4 file');
+            }
+
+            if (cancelExportRef.current) {
+              renderer.destroy();
+              return;
+            }
+
+            toast.loading("Preparing download...", { id: toastId });
+            setProgress(95);
+
+            // Download the MP4
+            const url = URL.createObjectURL(mp4Blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `video-export-${Date.now()}.mp4`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
             renderer.destroy();
-            return;
+            
+            toast.success("Video exported successfully as MP4!", { id: toastId });
+            setIsLoading(false);
+            setProgress(100);
+          } catch (conversionError) {
+            console.error('[Export] MP4 conversion failed:', conversionError);
+            
+            // Fallback: Download WebM file
+            toast.loading("Conversion failed, downloading as WebM...", { id: toastId });
+            
+            const url = URL.createObjectURL(webmBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `video-export-${Date.now()}.webm`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+            renderer.destroy();
+            
+            toast.error("MP4 conversion failed. Downloaded as WebM instead.", { id: toastId });
+            setIsLoading(false);
+            setProgress(100);
           }
-
-          toast.loading("Preparing download...", { id: toastId });
-          setProgress(95);
-
-          // Download the MP4
-          const url = URL.createObjectURL(mp4Blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `video-export-${Date.now()}.mp4`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          URL.revokeObjectURL(url);
-          renderer.destroy();
-          
-          toast.success("Video exported successfully!", { id: toastId });
-          setIsLoading(false);
-          setProgress(100);
         } catch (error) {
-          console.error('Conversion error:', error);
-          toast.error("Failed to convert video to MP4", { id: toastId });
+          console.error('Recording error:', error);
+          toast.error(error instanceof Error ? error.message : "Failed to complete export", { id: toastId });
           renderer.destroy();
           setIsLoading(false);
           setProgress(0);
