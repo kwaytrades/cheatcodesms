@@ -21,6 +21,11 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("templates");
+  const [uploadProgress, setUploadProgress] = useState<{
+    stage: string;
+    progress: number;
+    chunks?: number;
+  } | null>(null);
 
   // Config state
   const [config, setConfig] = useState({
@@ -60,10 +65,9 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     if (!file) return;
     
     try {
-      // Show initial upload toast
-      toast({ title: "Uploading...", description: "Uploading file to storage" });
-
-      // 1. Upload file to storage
+      // Stage 1: Uploading (0-25%)
+      setUploadProgress({ stage: 'Uploading file to storage...', progress: 25 });
+      
       const fileExt = file.name.split('.').pop();
       const fileName = `${agentType}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -78,14 +82,12 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
-      // Show processing toast
-      toast({ title: "Processing...", description: "Extracting content from document" });
+      // Stage 2: Processing (25-50%)
+      setUploadProgress({ stage: 'Extracting content from document...', progress: 50 });
 
-      // 2. Read file content
       let content = `Knowledge base file for ${agentName}`;
       
       if (fileExt?.toLowerCase() === 'pdf') {
-        // Parse PDF
         const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
           body: { file_path: filePath }
         });
@@ -94,11 +96,9 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
           content = pdfData.text;
         }
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
-        // Read text files directly
         content = await file.text();
       }
 
-      // 3. Create knowledge base entry
       const { data: kbEntry, error: dbError } = await supabase
         .from('knowledge_base')
         .insert({
@@ -113,10 +113,12 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
 
       if (dbError) throw dbError;
 
-      // Show chunking toast
-      toast({ title: "Chunking...", description: "Breaking content into searchable segments" });
+      // Stage 3: Chunking (50-75%)
+      setUploadProgress({ stage: 'Breaking content into searchable segments...', progress: 75 });
 
-      // 4. Chunk and embed the document
+      // Stage 4: Embedding (75-100%)
+      setUploadProgress({ stage: 'Generating AI embeddings for search...', progress: 90 });
+
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         'chunk-and-embed-pdf',
         {
@@ -136,13 +138,23 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
 
       queryClient.invalidateQueries({ queryKey: ["agent-knowledge", agentType] });
       
-      // Show success toast
+      // Stage 5: Complete (100%)
+      setUploadProgress({ 
+        stage: 'Complete!', 
+        progress: 100, 
+        chunks: chunkData?.chunks_created || 0 
+      });
+      
+      // Clear after 3 seconds
+      setTimeout(() => setUploadProgress(null), 3000);
+      
       toast({ 
         title: "Success!", 
-        description: `Processed into ${chunkData?.chunks_created || 0} searchable chunks`
+        description: `File processed into ${chunkData?.chunks_created || 0} searchable chunks`
       });
     } catch (error) {
       console.error('Upload error:', error);
+      setUploadProgress(null);
       toast({ 
         title: "Error", 
         description: error instanceof Error ? error.message : "Failed to process file", 
@@ -270,6 +282,30 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         </TabsContent>
 
         <TabsContent value="knowledge" className="space-y-4">
+          {uploadProgress && (
+            <Card className="border-primary/50 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{uploadProgress.stage}</span>
+                    <span className="text-sm text-muted-foreground">{uploadProgress.progress}%</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress.progress}%` }}
+                    />
+                  </div>
+                  {uploadProgress.chunks && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      ✓ Created {uploadProgress.chunks} searchable chunks
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

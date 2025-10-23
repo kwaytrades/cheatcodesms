@@ -1,8 +1,20 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Pause, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { AgentStatusBadge } from "@/components/agents/AgentStatusBadge";
 import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AssignAgentDialog } from "@/components/agents/AssignAgentDialog";
@@ -16,8 +28,25 @@ interface ProductAgentPanelProps {
   contactId: string;
 }
 
+const getAgentBackgroundColor = (agentType: string, isActive: boolean) => {
+  const colors: Record<string, string> = {
+    sales_agent: 'bg-cyan-500/10 border-cyan-500/30',
+    customer_service: 'bg-pink-500/10 border-pink-500/30',
+    webinar: 'bg-blue-500/10 border-blue-500/30',
+    textbook: 'bg-orange-500/10 border-orange-500/30',
+    flashcards: 'bg-purple-500/10 border-purple-500/30',
+    algo_monthly: 'bg-green-500/10 border-green-500/30',
+    ccta: 'bg-yellow-500/10 border-yellow-500/30',
+    lead_nurture: 'bg-gray-500/10 border-gray-500/30',
+  };
+  
+  const baseColor = colors[agentType] || 'bg-muted border-border';
+  return isActive ? `${baseColor} shadow-lg` : baseColor;
+};
+
 export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
   const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: agents } = useQuery({
     queryKey: ["contact-agents", contactId],
@@ -41,6 +70,40 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
         .single();
       return data;
     },
+  });
+
+  const pauseAgentMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const { error } = await supabase
+        .from('product_agents')
+        .update({ status: 'paused', updated_at: new Date().toISOString() })
+        .eq('id', agentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contact-agents", contactId] });
+      toast.success("Agent paused");
+    },
+    onError: () => {
+      toast.error("Failed to pause agent");
+    }
+  });
+
+  const deleteAgentMutation = useMutation({
+    mutationFn: async (agentId: string) => {
+      const { error } = await supabase
+        .from('product_agents')
+        .delete()
+        .eq('id', agentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contact-agents", contactId] });
+      toast.success("Agent removed");
+    },
+    onError: () => {
+      toast.error("Failed to remove agent");
+    }
   });
 
 
@@ -69,9 +132,7 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
               return (
                 <div 
                   key={agent.id} 
-                  className={`border rounded-lg p-4 space-y-4 transition-all ${
-                    isActive ? 'bg-primary/5 border-primary/30 shadow-lg' : 'hover:border-border/60'
-                  }`}
+                  className={`border rounded-lg p-4 space-y-4 transition-all ${getAgentBackgroundColor(agent.product_type, isActive)}`}
                 >
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -112,6 +173,46 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
                     <Badge variant="default" className="w-full justify-center py-2">
                       🎉 Converted to Customer
                     </Badge>
+                  )}
+
+                  {agent.product_type !== 'customer_service' && (
+                    <div className="flex gap-2 pt-3 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => pauseAgentMutation.mutate(agent.id)}
+                        disabled={agent.status === 'paused' || pauseAgentMutation.isPending}
+                        className="flex-1"
+                      >
+                        <Pause className="w-3 h-3 mr-1" />
+                        {agent.status === 'paused' ? 'Paused' : 'Pause'}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="destructive" className="flex-1">
+                            <Trash2 className="w-3 h-3 mr-1" />
+                            Remove
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Agent?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove this agent assignment. Message history will be preserved.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => deleteAgentMutation.mutate(agent.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove Agent
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   )}
                 </div>
               );

@@ -95,9 +95,11 @@ Deno.serve(async (req) => {
     if (isTestMode) {
       // Use mock data for testing
       console.log('Test mode enabled, using mock data');
+      const testAgentType = trigger_context.agent_type || 'customer_service';
+      
       agent = {
         id: agent_id,
-        product_type: 'customer_service',
+        product_type: testAgentType,
         product_id: null,
         status: 'active',
         agent_context: {

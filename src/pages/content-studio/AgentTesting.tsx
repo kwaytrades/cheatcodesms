@@ -50,6 +50,7 @@ export default function AgentTesting() {
           message_type: 'introduction',
           trigger_context: {
             test_mode: true,
+            agent_type: selectedAgent,
             customer_name: customerName,
             customer_goals: customerGoals,
           },
@@ -94,6 +95,7 @@ export default function AgentTesting() {
           message_type: 'check_in',
           trigger_context: {
             test_mode: true,
+            agent_type: selectedAgent,
             conversation_history: conversation,
             last_customer_message: customerResponse,
           },
