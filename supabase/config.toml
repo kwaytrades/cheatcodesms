@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.process-conversation-triggers]
 verify_jwt = false
+
+[functions.extract-chunk-metadata]
+verify_jwt = false

@@ -77,76 +77,92 @@ export const KnowledgeBase = () => {
     progress: 0
   });
 
-  // ============= METADATA EXTRACTION UTILITIES =============
+  // ============= LLM-BASED METADATA EXTRACTION =============
   
-  // Extract chapter information from content with multiple detection strategies
-  const extractChapterInfo = (text: string, startPage?: number) => {
-    // Strategy 1: Standard "Chapter N: Title" or "Chapter N - Title" format
-    const standardMatch = text.match(/chapter\s+(\d+)[:\s\-]+([^\n]+)/i);
-    if (standardMatch) {
-      const chapterNum = parseInt(standardMatch[1]);
-      const chapterTitle = standardMatch[2]?.trim();
-      console.log('✅ Chapter detected (standard):', { chapterNum, chapterTitle });
-      return { chapter_number: chapterNum, chapter_title: chapterTitle };
-    }
-    
-    // Strategy 2: All caps chapter heading (e.g., "CHAPTER 3" followed by title)
-    const capsMatch = text.match(/CHAPTER\s+(\d+)[:\s]*\n+([^\n]+)/);
-    if (capsMatch) {
-      const chapterNum = parseInt(capsMatch[1]);
-      const chapterTitle = capsMatch[2]?.trim();
-      console.log('✅ Chapter detected (all caps):', { chapterNum, chapterTitle });
-      return { chapter_number: chapterNum, chapter_title: chapterTitle };
-    }
-    
-    // Strategy 3: Word form chapters (e.g., "Chapter One: Introduction")
-    const wordMatch = text.match(/chapter\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[:\s]+([^\n]+)/i);
-    if (wordMatch) {
-      const wordToNum: Record<string, number> = {
-        one: 1, two: 2, three: 3, four: 4, five: 5,
-        six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-        eleven: 11, twelve: 12
-      };
-      const chapterNum = wordToNum[wordMatch[1].toLowerCase()];
-      const chapterTitle = wordMatch[2]?.trim();
-      console.log('✅ Chapter detected (word form):', { chapterNum, chapterTitle });
-      return { chapter_number: chapterNum, chapter_title: chapterTitle };
-    }
-    
-    // Strategy 4: Numbered title format (e.g., "3. Technical Analysis")
-    const numberedMatch = text.match(/^(\d+)\.\s+([A-Z][^\n]{10,80})/m);
-    if (numberedMatch) {
-      const chapterNum = parseInt(numberedMatch[1]);
-      const chapterTitle = numberedMatch[2]?.trim();
-      console.log('✅ Chapter detected (numbered):', { chapterNum, chapterTitle });
-      return { chapter_number: chapterNum, chapter_title: chapterTitle };
-    }
-    
-    // Strategy 5: Table of Contents format
-    if (text.includes('Table of Contents') || text.includes('CONTENTS')) {
-      const tocMatch = text.match(/(\d+)\.\s+([A-Z][^\n]+)\s+\.+\s+(\d+)/);
-      if (tocMatch) {
-        const chapterNum = parseInt(tocMatch[1]);
-        const chapterTitle = tocMatch[2]?.trim();
-        console.log('✅ Chapter detected (TOC):', { chapterNum, chapterTitle });
-        return { chapter_number: chapterNum, chapter_title: chapterTitle };
+  // Cache for chapter context to avoid redundant LLM calls
+  const chapterContextCache = new Map<number, { chapter_number: number; chapter_title: string }>();
+  
+  // Extract metadata using LLM
+  const extractMetadataWithLLM = async (
+    text: string, 
+    pageNumber?: number,
+    previousChapterContext?: { chapter_number?: number; chapter_title?: string }
+  ) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('extract-chunk-metadata', {
+        body: { 
+          text: text.substring(0, 2000), // Send first 2000 chars
+          pageNumber,
+          previousChapterContext 
+        }
+      });
+
+      if (error) {
+        console.error('LLM metadata extraction error:', error);
+        return null;
       }
+
+      return data;
+    } catch (error) {
+      console.error('Failed to extract metadata with LLM:', error);
+      return null;
     }
-    
-    // Strategy 6: Use page number heuristics as last resort (50 pages per chapter)
-    if (startPage && startPage > 0) {
-      const estimatedChapter = Math.floor((startPage - 1) / 50) + 1;
-      console.log('⚠️ Chapter estimated from page:', { startPage, estimatedChapter });
-      return { chapter_number: estimatedChapter, chapter_title: null };
-    }
-    
-    console.log('❌ No chapter detected');
-    return null;
   };
 
-  // Extract section titles from content
+  // Simplified metadata builder that uses LLM results
+  const buildEnrichedMetadata = async (
+    chunkContent: string,
+    chunkIndex: number,
+    totalChunks: number,
+    startPage?: number,
+    endPage?: number,
+    batchTitle?: string,
+    previousMetadata?: any
+  ) => {
+    // Use LLM to extract metadata
+    const llmMetadata = await extractMetadataWithLLM(
+      chunkContent,
+      startPage,
+      previousMetadata ? {
+        chapter_number: previousMetadata.chapter_number,
+        chapter_title: previousMetadata.chapter_title
+      } : undefined
+    );
+
+    if (!llmMetadata) {
+      // Fallback to basic metadata if LLM fails
+      console.warn('LLM extraction failed, using fallback metadata');
+      return {
+        chunk_index: chunkIndex,
+        total_chunks: totalChunks,
+        start_page: startPage,
+        end_page: endPage,
+        batch_title: batchTitle,
+        extraction_method: 'fallback'
+      };
+    }
+
+    // Cache chapter context for next chunk
+    if (llmMetadata.chapter_number && startPage) {
+      chapterContextCache.set(startPage, {
+        chapter_number: llmMetadata.chapter_number,
+        chapter_title: llmMetadata.chapter_title
+      });
+    }
+
+    return {
+      ...llmMetadata,
+      chunk_index: chunkIndex,
+      total_chunks: totalChunks,
+      start_page: startPage,
+      end_page: endPage,
+      batch_title: batchTitle,
+      extraction_method: 'llm'
+    };
+  };
+
+  // Legacy extraction functions (kept for fallback)
   const extractSectionTitle = (text: string) => {
-    // Look for section patterns (all caps, bold indicators)
     const sectionPatterns = [
       /^([A-Z][A-Z\s]{5,50})\s*$/m,
       /\n([A-Z][A-Z\s]{5,50})\n/,
@@ -299,93 +315,75 @@ export const KnowledgeBase = () => {
     return terms.filter(Boolean);
   };
 
-  // Build enriched metadata for a chunk
-  const buildEnrichedMetadata = (
-    content: string, 
-    chunkIndex: number, 
-    totalChunks: number,
+  // Client-side chunking with LLM-based metadata enrichment
+  const chunkTextClientSide = async (
+    text: string, 
+    chunkSize = 2000, 
+    overlap = 200,
     startPage?: number,
     endPage?: number,
     batchTitle?: string
-  ) => {
-    const chapterInfo = extractChapterInfo(content, startPage);
-    const sectionTitle = extractSectionTitle(content);
-    const topics = extractTopics(content);
-    const keywords = extractKeywords(content);
-    const contentType = detectContentType(content);
-    const complexity = detectComplexity(content);
+  ): Promise<Array<{ content: string; metadata: any }>> => {
+    console.log(`Starting LLM-enhanced chunking for ${text.length} chars`);
     
-    const metadata: any = {
-      // Basic chunk info
-      chunk_size: content.length,
-      total_chunks: totalChunks,
-      chunk_index: chunkIndex,
-      estimated_tokens: Math.ceil(content.length / 4),
+    const chunks: Array<{ content: string; metadata: any }> = [];
+    let start = 0;
+    
+    // First pass: create raw chunks
+    const rawChunks: string[] = [];
+    while (start < text.length) {
+      const end = Math.min(start + chunkSize, text.length);
+      rawChunks.push(text.slice(start, end));
+      start = end - overlap;
       
-      // Content classification
-      content_type: contentType,
-      complexity,
+      if (start >= text.length - overlap) break;
+    }
+    
+    console.log(`📦 Created ${rawChunks.length} raw chunks, extracting metadata with LLM...`);
+    
+    // Second pass: enrich with LLM metadata (process in batches for efficiency)
+    let previousMetadata: any = null;
+    
+    for (let idx = 0; idx < rawChunks.length; idx++) {
+      // Only call LLM every 3 chunks after first detection to save costs
+      // Use cached context for intermediate chunks
+      const shouldCallLLM = idx === 0 || idx % 3 === 0 || 
+        (previousMetadata?.chapter_number !== undefined && idx < 5);
       
-      // Structure
-      topics,
-      keywords,
-    };
-    
-    // Add chapter info if detected
-    if (chapterInfo) {
-      metadata.chapter_number = chapterInfo.chapter_number;
-      metadata.chapter_title = chapterInfo.chapter_title;
+      let metadata;
+      if (shouldCallLLM) {
+        metadata = await buildEnrichedMetadata(
+          rawChunks[idx],
+          idx + 1,
+          rawChunks.length,
+          startPage,
+          endPage,
+          batchTitle,
+          previousMetadata
+        );
+        previousMetadata = metadata;
+      } else {
+        // Use previous metadata for intermediate chunks (cheaper)
+        metadata = {
+          ...previousMetadata,
+          chunk_index: idx + 1,
+          total_chunks: rawChunks.length,
+          start_page: startPage,
+          end_page: endPage,
+          batch_title: batchTitle,
+          extraction_method: 'cached'
+        };
+      }
+      
+      chunks.push({ content: rawChunks[idx], metadata });
     }
     
-    // Add section title if detected
-    if (sectionTitle) {
-      metadata.section_title = sectionTitle;
-    }
-    
-    // Add page range
-    if (startPage && endPage) {
-      metadata.start_page = startPage;
-      metadata.end_page = endPage;
-      metadata.page_range = `${startPage}-${endPage}`;
-    }
-    
-    // Add batch info
-    if (batchTitle) {
-      metadata.parent_batch = batchTitle;
-    }
-    
-    // Generate searchability hints
-    metadata.search_terms = generateSearchTerms(metadata);
-    metadata.answers_questions = generateSearchQuestions(
-      chapterInfo?.chapter_title || null,
-      topics
-    );
-    
-    // Generate summary hint
-    if (chapterInfo && topics.length > 0) {
-      metadata.summary = `Chapter ${chapterInfo.chapter_number}: ${chapterInfo.chapter_title} - covers ${topics.slice(0, 3).join(', ')}`;
-    } else if (topics.length > 0) {
-      metadata.summary = `Covers: ${topics.slice(0, 3).join(', ')}`;
-    }
-    
-    // Detect visual elements
-    metadata.has_formula = /[=+\-*/()]/g.test(content) && content.length < 500;
-    metadata.has_list = /^[\s]*[-•*]\s/m.test(content);
-    metadata.has_numbered_list = /^\s*\d+\.\s/m.test(content);
-    
-    // Log final metadata for debugging
-    console.log(`📊 Metadata for chunk ${chunkIndex}/${totalChunks}:`, {
-      chapter: metadata.chapter_number,
-      title: metadata.chapter_title,
-      topics: metadata.topics?.length || 0,
-      keywords: metadata.keywords?.length || 0
-    });
-    
-    return metadata;
+    console.log(`✅ Enriched ${chunks.length} chunks with LLM metadata`);
+    return chunks;
   };
 
-  // Client-side chunking function with metadata enrichment
-  const chunkTextClientSide = (
+  // Client-side chunking function with metadata enrichment (old/unused)
+  const legacyChunkTextClientSide = (
     text: string, 
     chunkSize = 2000, 
     overlap = 200,
@@ -466,9 +464,9 @@ export const KnowledgeBase = () => {
 
       setUploadProgress({ isUploading: true, stage: 'chunking', progress: 50, fileName: doc.title });
       
-      // Chunk content client-side with metadata enrichment
-      const chunks = chunkTextClientSide(doc.content);
-      console.log(`📦 Created ${chunks.length} enriched chunks for manual document`);
+      // Chunk content client-side with LLM metadata enrichment
+      const chunks = await chunkTextClientSide(doc.content);
+      console.log(`📦 Created ${chunks.length} LLM-enriched chunks for manual document`);
 
       // Store each chunk with metadata
       for (let i = 0; i < chunks.length; i++) {
@@ -640,9 +638,9 @@ export const KnowledgeBase = () => {
 
         setUploadProgress({ isUploading: true, stage: 'chunking', progress: 75, fileName: selectedFile.name });
 
-        // Chunk content client-side with metadata enrichment
-        const chunks = chunkTextClientSide(content);
-        console.log(`📦 Created ${chunks.length} enriched chunks for text file`);
+        // Chunk content client-side with LLM metadata enrichment
+        const chunks = await chunkTextClientSide(content);
+        console.log(`📦 Created ${chunks.length} LLM-enriched chunks for text file`);
 
         // Store each chunk with metadata
         for (let i = 0; i < chunks.length; i++) {
@@ -788,7 +786,7 @@ export const KnowledgeBase = () => {
           if (batchError) throw batchError;
 
           // Chunk the content client-side with metadata enrichment
-          const chunks = chunkTextClientSide(
+          const chunks = await chunkTextClientSide(
             batchContent,
             2000,
             200,
@@ -796,7 +794,7 @@ export const KnowledgeBase = () => {
             endPage,
             batchTitle
           );
-          console.log(`📦 Created ${chunks.length} enriched chunks for batch ${batchNum + 1}`);
+          console.log(`📦 Created ${chunks.length} LLM-enriched chunks for batch ${batchNum + 1}`);
 
           // Store each chunk with enriched metadata
           for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
