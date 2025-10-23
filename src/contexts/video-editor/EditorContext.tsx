@@ -14,6 +14,7 @@ interface EditorContextProps {
   setIsPlaying: (playing: boolean) => void;
   currentFrame: number;
   playerRef: React.RefObject<any>;
+  containerRef: React.RefObject<HTMLDivElement>;
   playbackRate: number;
   setPlaybackRate: (rate: number) => void;
   togglePlayPause: () => void;

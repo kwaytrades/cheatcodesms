@@ -47,7 +47,8 @@ const EditorControls: React.FC = () => {
     editorState.durationInFrames,
     30, // FPS
     editorState.getAspectRatioDimensions,
-    editorState.playerRef
+    editorState.playerRef,
+    editorState.containerRef
   );
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
@@ -336,7 +337,7 @@ const EditorContent: React.FC = () => {
 
                 {/* Video Player - Takes most space */}
                 <div className="flex-1 min-h-0 overflow-hidden">
-                  <VideoPlayer playerRef={editorState.playerRef} />
+                  <VideoPlayer playerRef={editorState.playerRef} containerRef={editorState.containerRef} />
                 </div>
 
                 {/* Controls */}

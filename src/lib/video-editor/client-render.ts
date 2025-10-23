@@ -4,6 +4,7 @@ import { Overlay } from "./types";
 
 interface RenderOptions {
   playerRef: React.RefObject<PlayerRef>;
+  containerRef: React.RefObject<HTMLDivElement>;
   overlays: Overlay[];
   durationInFrames: number;
   fps: number;
@@ -16,7 +17,7 @@ interface RenderOptions {
  * Renders video client-side using Remotion Player frame capture + FFmpeg encoding
  */
 export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
-  const { playerRef, durationInFrames, fps, width, height, onProgress } = options;
+  const { playerRef, containerRef, durationInFrames, fps, width, height, onProgress } = options;
 
   if (!playerRef.current) {
     throw new Error("Player ref not available");
@@ -46,7 +47,7 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
     await new Promise(resolve => setTimeout(resolve, 50));
     
     // Get the player's canvas
-    const canvas = await capturePlayerCanvas(playerRef, width, height);
+    const canvas = await capturePlayerCanvas(playerRef, containerRef, width, height);
     
     // Convert to PNG data
     const blob = await canvasToBlob(canvas);
@@ -84,6 +85,9 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
     // Explicitly set number of frames to encode
     '-frames:v', totalFrames.toString(),
     
+    // Generate proper timestamps
+    '-fflags', '+genpts',
+    
     // Output framerate (critical for duration)
     '-r', fps.toString(),
     
@@ -98,11 +102,14 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
     '-crf', '23',
     '-pix_fmt', 'yuv420p',
     
-    // Proper timebase for accurate duration
-    '-video_track_timescale', (fps * 1000).toString(),
+    // Standard MPEG timescale
+    '-video_track_timescale', '90000',
     
-    // Compatibility and streaming
-    '-movflags', '+faststart+frag_keyframe',
+    // FIXED: Correct movflags syntax
+    '-movflags', 'faststart+frag_keyframe',
+    
+    // Explicitly set duration in metadata
+    '-metadata', `duration=${(totalFrames / fps).toFixed(3)}`,
     
     'output.mp4'
   ]);
@@ -132,17 +139,17 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
  */
 async function capturePlayerCanvas(
   playerRef: React.RefObject<PlayerRef>,
+  containerRef: React.RefObject<HTMLDivElement>,
   width: number,
   height: number
 ): Promise<HTMLCanvasElement> {
-  // Find the Remotion canvas element
-  const playerElement = (playerRef.current as any)?.container;
-  if (!playerElement) {
+  // Find the Remotion canvas element from the container ref
+  if (!containerRef.current) {
     throw new Error("Could not find player container");
   }
 
-  // Find canvas in player
-  const sourceCanvas = playerElement.querySelector('canvas');
+  // Find canvas in player container
+  const sourceCanvas = containerRef.current.querySelector('canvas');
   if (!sourceCanvas) {
     throw new Error("Could not find player canvas");
   }

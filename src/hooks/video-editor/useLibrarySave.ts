@@ -11,7 +11,8 @@ export const useLibrarySave = (
   durationInFrames: number,
   fps: number,
   getAspectRatioDimensions: () => { width: number; height: number },
-  playerRef: React.RefObject<PlayerRef>
+  playerRef: React.RefObject<PlayerRef>,
+  containerRef: React.RefObject<HTMLDivElement>
 ) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,6 +38,7 @@ export const useLibrarySave = (
       // Render video using Remotion Player + FFmpeg
       const videoBlob = await renderVideoToMP4({
         playerRef,
+        containerRef,
         overlays,
         durationInFrames,
         fps,

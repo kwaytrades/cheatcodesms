@@ -22,6 +22,7 @@ export const useEditorState = () => {
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const playerRef = useRef<PlayerRef>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const maxOverlayEnd = overlays.length > 0
     ? Math.max(...overlays.map((o) => o.from + o.durationInFrames))
@@ -200,6 +201,7 @@ export const useEditorState = () => {
     updatePlayerDimensions,
     getAspectRatioDimensions,
     playerRef,
+    containerRef,
     durationInFrames,
     durationInSeconds,
     togglePlayPause,

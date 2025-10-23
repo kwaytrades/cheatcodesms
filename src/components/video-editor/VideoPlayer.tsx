@@ -7,9 +7,10 @@ import { TransformControls } from "./TransformControls";
 
 interface VideoPlayerProps {
   playerRef: React.RefObject<PlayerRef>;
+  containerRef: React.RefObject<HTMLDivElement>;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef, containerRef }) => {
   const {
     overlays,
     setSelectedOverlayId,
@@ -46,10 +47,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ playerRef }) => {
 
   return (
     <div className="w-full h-full overflow-hidden">
-      <div className="z-0 video-container relative w-full h-full bg-slate-100/90 dark:bg-gray-800 bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#80808010_1px,transparent_1px),linear-gradient(to_bottom,#80808010_1px,transparent_1px)] bg-[size:16px_16px] shadow-lg">
-        <div className="z-10 absolute inset-2 sm:inset-4 flex items-center justify-center">
-          <div
-            className="relative mx-2 sm:mx-0"
+        <div className="z-0 video-container relative w-full h-full bg-slate-100/90 dark:bg-gray-800 bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#80808010_1px,transparent_1px),linear-gradient(to_bottom,#80808010_1px,transparent_1px)] bg-[size:16px_16px] shadow-lg">
+          <div className="z-10 absolute inset-2 sm:inset-4 flex items-center justify-center">
+            <div
+              ref={containerRef}
+              className="relative mx-2 sm:mx-0"
             style={{
               width: Math.min(playerDimensions.width, compositionWidth),
               height: Math.min(playerDimensions.height, compositionHeight),
