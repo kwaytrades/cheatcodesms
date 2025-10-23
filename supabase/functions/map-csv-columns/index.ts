@@ -73,11 +73,18 @@ Rules:
    - Money fields (Amount, Total, Price, Revenue) → amount or total_spent
    - Product fields (Product, Item, Description) → product_name or products_owned
    - Status fields (Status, Payment Status) → payment_status
-   - Address fields → address_line1, city, state, postal_code, country
-   - Tags/labels → tags (semicolon-separated array)
-   - Products → products_owned (semicolon-separated array)
+   - Address fields:
+     * "Address 1", "Address1", "Address Line 1" → address_line1
+     * "Address 2", "Address2", "Address Line 2" → address_line2
+     * "City" → city
+     * "State", "Province" → state
+     * "Zip", "Zip Code", "Postal Code" → postal_code
+     * "Country" → country
+   - Tags/labels (semicolon-separated) → tags (array)
+   - Products (semicolon-separated) → products_owned (array)
    - Sources → lead_source
    - Dispute/chargeback → dispute_status, disputed_amount
+   - Notes fields (Notes, AI Notes, Comments) → notes
 
 6. Transaction CSV detection:
    - If headers contain "Amount" AND "Status" → this is a transaction CSV
@@ -87,7 +94,7 @@ Rules:
    - Products, Tags, Sources → should be marked for array parsing
 
 Return ONLY a JSON object with header:field mappings.
-Example: {"Email": "email", "First Name": "first_name", "Products": "products_owned", "Tags": "tags"}`;
+Example: {"email": "email", "first name": "first_name", "products": "products_owned", "tags": "tags", "address 1": "address_line1", "ai notes": "notes"}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

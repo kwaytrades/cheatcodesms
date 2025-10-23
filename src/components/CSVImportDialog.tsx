@@ -78,6 +78,8 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
       if (mappingError) throw mappingError;
 
       const columnMapping = mappingData.mapping;
+      console.log("Column Mapping:", columnMapping);
+      console.log("Sample data row:", dataRows[0]);
 
       // Process contacts in batches
       const batchSize = 50;
@@ -186,12 +188,29 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
       const totalProcessed = imported + failed;
       console.log(`Import complete: ${imported} imported, ${failed} failed out of ${dataRows.length} rows`);
       
+      // Calculate scores for imported contacts
+      if (imported > 0) {
+        toast.info("Calculating likelihood scores...", { duration: 3000 });
+        
+        try {
+          const { error: scoreError } = await supabase.functions.invoke('sync-lead-scores');
+          if (scoreError) {
+            console.error("Score calculation error:", scoreError);
+            toast.warning("Contacts imported but score calculation failed");
+          } else {
+            toast.success(`Successfully imported ${imported} contacts with scores calculated!`);
+          }
+        } catch (scoreErr) {
+          console.error("Score sync error:", scoreErr);
+        }
+      }
+      
       if (failed > 0) {
         toast.warning(`Import complete! Imported: ${imported}, Failed: ${failed}`, {
           description: "Check console for error details"
         });
-      } else {
-        toast.success(`Successfully imported ${imported} contacts!`);
+      } else if (imported > 0) {
+        // Already showed success message above with scores
       }
       
       setOpen(false);
