@@ -60,6 +60,17 @@ export const KnowledgeBase = () => {
     chunks?: number;
     fileName?: string;
     error?: string;
+    totalPages?: number;
+    currentBatch?: number;
+    totalBatches?: number;
+    batchDetails?: Array<{
+      batchNumber: number;
+      startPage: number;
+      endPage: number;
+      status: 'pending' | 'processing' | 'complete' | 'failed';
+      chunks?: number;
+      error?: string;
+    }>;
   }>({
     isUploading: false,
     stage: 'idle',
@@ -198,48 +209,33 @@ export const KnowledgeBase = () => {
     toast.success(`File "${file.name}" selected (${fileSizeMB.toFixed(1)}MB). Click "Add to Knowledge Base" to process.`);
   };
 
-  const parsePDFClientSide = async (file: File): Promise<string> => {
+  const parsePDFBatch = async (
+    file: File, 
+    startPage: number, 
+    endPage: number
+  ): Promise<string> => {
     try {
-      // Set worker source to use CDN
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
       
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
       let fullText = '';
-      const maxPages = Math.min(pdf.numPages, 100); // Only first 100 pages
-      const fileSizeMB = file.size / (1024 * 1024);
+      const actualEndPage = Math.min(endPage, pdf.numPages);
       
-      console.log(`PDF has ${pdf.numPages} pages. Processing first ${maxPages} pages...`);
+      console.log(`Extracting pages ${startPage}-${actualEndPage} from ${pdf.numPages} total pages`);
       
-      for (let i = 1; i <= maxPages; i++) {
+      for (let i = startPage; i <= actualEndPage; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += pageText + '\n\n';
-        
-        // Update progress for large files
-        if (fileSizeMB > 10 && i % 10 === 0) {
-          const progress = 40 + Math.floor((i / maxPages) * 30);
-          setUploadProgress({ 
-            isUploading: true, 
-            stage: 'processing', 
-            progress, 
-            fileName: file.name 
-          });
-        }
-        
-        // Early exit if we have enough content (50k chars is plenty)
-        if (fullText.length > 50000) {
-          console.log(`Extracted ${fullText.length} characters from ${i} pages. Stopping early.`);
-          break;
-        }
+        fullText += `\n--- Page ${i} ---\n` + pageText + '\n';
       }
       
       return fullText;
     } catch (error) {
-      console.error('PDF parsing error:', error);
-      throw new Error('Failed to parse PDF. The file may be corrupted, encrypted, or image-based.');
+      console.error(`PDF parsing error (pages ${startPage}-${endPage}):`, error);
+      throw new Error(`Failed to parse PDF pages ${startPage}-${endPage}. The file may be corrupted, encrypted, or image-based.`);
     }
   };
 
@@ -248,13 +244,14 @@ export const KnowledgeBase = () => {
 
     try {
       const fileSizeMB = selectedFile.size / (1024 * 1024);
-      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: selectedFile.name });
-      
       const fileExt = selectedFile.name.split('.').pop();
+      
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 5, fileName: selectedFile.name });
+      
+      // Upload original file to storage
       const fileName = `${selectedAgent}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('knowledge-base')
         .upload(filePath, selectedFile);
@@ -265,80 +262,66 @@ export const KnowledgeBase = () => {
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 35, fileName: selectedFile.name });
-
-      let content = '';
-      
+      // Handle PDF with batch processing
       if (fileExt?.toLowerCase() === 'pdf') {
-        console.log(`Parsing PDF client-side: ${selectedFile.name} (${fileSizeMB.toFixed(1)}MB)`);
-        
-        // Parse PDF on client side
-        content = await parsePDFClientSide(selectedFile);
-        
-        console.log(`Extracted ${content.length} characters from PDF`);
-        
-        if (content.length < 100) {
-          throw new Error(`PDF extracted only ${content.length} characters. The PDF may be image-based, encrypted, or corrupted. Try converting to text first.`);
-        }
+        await processPDFInBatches(selectedFile, publicUrl, fileExt);
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
-        content = await selectedFile.text();
-      }
+        // Handle text files (no batching needed)
+        const content = await selectedFile.text();
+        
+        if (!content || content.length === 0) {
+          throw new Error('No content extracted from file. Please ensure the file contains text.');
+        }
 
-      if (!content || content.length === 0) {
-        throw new Error('No content extracted from file. Please ensure the file contains text.');
-      }
+        setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: selectedFile.name });
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 70, fileName: selectedFile.name });
-
-      const { data: kbEntry, error: dbError } = await supabase
-        .from('knowledge_base')
-        .insert({
-          title: selectedFile.name,
-          category: `agent_${selectedAgent}`,
-          file_path: publicUrl,
-          file_type: fileExt,
-          content: content,
-        })
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 80, fileName: selectedFile.name });
-
-      const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
-        'chunk-and-embed-pdf',
-        {
-          body: {
-            document_id: kbEntry.id,
-            content: content,
+        const { data: kbEntry, error: dbError } = await supabase
+          .from('knowledge_base')
+          .insert({
             title: selectedFile.name,
             category: `agent_${selectedAgent}`,
-          },
-        }
-      );
+            file_path: publicUrl,
+            file_type: fileExt,
+            content: content,
+          })
+          .select()
+          .single();
 
-      if (chunkError) {
-        console.error('Chunking error:', chunkError);
-        throw new Error(chunkError.message || 'Failed to chunk document');
+        if (dbError) throw dbError;
+
+        setUploadProgress({ isUploading: true, stage: 'chunking', progress: 75, fileName: selectedFile.name });
+
+        const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
+          'chunk-and-embed-pdf',
+          {
+            body: {
+              document_id: kbEntry.id,
+              content: content,
+              title: selectedFile.name,
+              category: `agent_${selectedAgent}`,
+            },
+          }
+        );
+
+        if (chunkError) throw chunkError;
+
+        queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+        
+        setUploadProgress({ 
+          isUploading: true, 
+          stage: 'complete', 
+          progress: 100, 
+          chunks: chunkData?.chunks_created || 0,
+          fileName: selectedFile.name
+        });
+        
+        setTimeout(() => {
+          setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+          setSelectedFile(null);
+        }, 5000);
+        
+        toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
       }
-
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
-      
-      setUploadProgress({ 
-        isUploading: true, 
-        stage: 'complete', 
-        progress: 100, 
-        chunks: chunkData?.chunks_created || 0,
-        fileName: selectedFile.name
-      });
-      
-      setTimeout(() => {
-        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
-        setSelectedFile(null);
-      }, 5000);
-      
-      toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
     } catch (error: any) {
       console.error('File processing error:', error);
       setUploadProgress({ 
@@ -353,6 +336,192 @@ export const KnowledgeBase = () => {
       setTimeout(() => {
         setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
       }, 8000);
+    }
+  };
+
+  const processPDFInBatches = async (file: File, publicUrl: string, fileExt: string) => {
+    try {
+      // Get total page count
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const totalPages = pdf.numPages;
+      
+      const PAGES_PER_BATCH = 50;
+      const totalBatches = Math.ceil(totalPages / PAGES_PER_BATCH);
+      
+      console.log(`📕 Processing ${totalPages}-page PDF in ${totalBatches} batches`);
+      
+      // Initialize batch tracking
+      const batchDetails = Array.from({ length: totalBatches }, (_, i) => ({
+        batchNumber: i + 1,
+        startPage: i * PAGES_PER_BATCH + 1,
+        endPage: Math.min((i + 1) * PAGES_PER_BATCH, totalPages),
+        status: 'pending' as 'pending' | 'processing' | 'complete' | 'failed',
+        chunks: undefined as number | undefined,
+        error: undefined as string | undefined,
+      }));
+      
+      setUploadProgress({
+        isUploading: true,
+        stage: 'processing',
+        progress: 10,
+        fileName: file.name,
+        totalPages,
+        totalBatches,
+        currentBatch: 0,
+        batchDetails,
+      });
+
+      // Create parent document
+      const { data: parentDoc, error: parentError } = await supabase
+        .from('knowledge_base')
+        .insert({
+          title: file.name,
+          category: `agent_${selectedAgent}`,
+          file_path: publicUrl,
+          file_type: fileExt,
+          content: `Full document: ${totalPages} pages, processed in ${totalBatches} batches`,
+        })
+        .select()
+        .single();
+
+      if (parentError) throw parentError;
+
+      let totalChunksCreated = 0;
+
+      // Process each batch sequentially
+      for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+        const startPage = batchNum * PAGES_PER_BATCH + 1;
+        const endPage = Math.min((batchNum + 1) * PAGES_PER_BATCH, totalPages);
+        
+        // Update batch status to processing
+        const updatedDetails = [...batchDetails];
+        updatedDetails[batchNum].status = 'processing';
+        
+        setUploadProgress({
+          isUploading: true,
+          stage: 'processing',
+          progress: 10 + Math.floor((batchNum / totalBatches) * 70),
+          fileName: file.name,
+          totalPages,
+          totalBatches,
+          currentBatch: batchNum + 1,
+          batchDetails: updatedDetails,
+        });
+
+        try {
+          // Extract text from this batch
+          const batchContent = await parsePDFBatch(file, startPage, endPage);
+          
+          if (batchContent.length < 50) {
+            throw new Error(`Batch ${batchNum + 1} extracted only ${batchContent.length} characters`);
+          }
+
+          // Store batch document
+          const batchTitle = `${file.name} - Pages ${startPage}-${endPage}`;
+          const { data: batchDoc, error: batchError } = await supabase
+            .from('knowledge_base')
+            .insert({
+              title: batchTitle,
+              category: `agent_${selectedAgent}`,
+              parent_document_id: parentDoc.id,
+              content: batchContent,
+              file_type: 'pdf_batch',
+            })
+            .select()
+            .single();
+
+          if (batchError) throw batchError;
+
+          // Chunk and embed this batch
+          const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
+            'chunk-and-embed-pdf',
+            {
+              body: {
+                document_id: batchDoc.id,
+                content: batchContent,
+                title: batchTitle,
+                category: `agent_${selectedAgent}`,
+              },
+            }
+          );
+
+          if (chunkError) throw chunkError;
+
+          const chunksCreated = chunkData?.chunks_created || 0;
+          totalChunksCreated += chunksCreated;
+
+          // Mark batch as complete
+          updatedDetails[batchNum].status = 'complete';
+          updatedDetails[batchNum].chunks = chunksCreated;
+          
+          setUploadProgress({
+            isUploading: true,
+            stage: 'processing',
+            progress: 10 + Math.floor(((batchNum + 1) / totalBatches) * 70),
+            fileName: file.name,
+            totalPages,
+            totalBatches,
+            currentBatch: batchNum + 1,
+            batchDetails: updatedDetails,
+            chunks: totalChunksCreated,
+          });
+
+          console.log(`✅ Batch ${batchNum + 1}/${totalBatches} complete: ${chunksCreated} chunks`);
+        } catch (batchError: any) {
+          console.error(`❌ Batch ${batchNum + 1} failed:`, batchError);
+          
+          // Mark batch as failed
+          updatedDetails[batchNum].status = 'failed';
+          updatedDetails[batchNum].error = batchError.message;
+          
+          setUploadProgress({
+            isUploading: true,
+            stage: 'processing',
+            progress: 10 + Math.floor(((batchNum + 1) / totalBatches) * 70),
+            fileName: file.name,
+            totalPages,
+            totalBatches,
+            currentBatch: batchNum + 1,
+            batchDetails: updatedDetails,
+            chunks: totalChunksCreated,
+          });
+
+          // Continue with next batch instead of failing completely
+          toast.error(`Batch ${batchNum + 1} failed. Continuing with remaining batches...`);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+
+      const failedBatches = batchDetails.filter(b => b.status === 'failed').length;
+      
+      setUploadProgress({
+        isUploading: true,
+        stage: 'complete',
+        progress: 100,
+        fileName: file.name,
+        totalPages,
+        totalBatches,
+        currentBatch: totalBatches,
+        batchDetails,
+        chunks: totalChunksCreated,
+      });
+
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+        setSelectedFile(null);
+      }, 8000);
+
+      if (failedBatches === 0) {
+        toast.success(`✅ All ${totalBatches} batches processed! Created ${totalChunksCreated} searchable chunks from ${totalPages} pages.`);
+      } else {
+        toast.warning(`⚠️ ${totalBatches - failedBatches} of ${totalBatches} batches succeeded. Created ${totalChunksCreated} chunks. ${failedBatches} batches failed.`);
+      }
+    } catch (error: any) {
+      console.error('Batch processing error:', error);
+      throw error;
     }
   };
 
@@ -429,7 +598,9 @@ export const KnowledgeBase = () => {
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold">
                         {uploadProgress.stage === 'uploading' && '📤 Uploading File...'}
-                        {uploadProgress.stage === 'processing' && '📄 Extracting Content...'}
+                        {uploadProgress.stage === 'processing' && uploadProgress.totalBatches && uploadProgress.totalBatches > 1 
+                          ? `📕 Processing Large Document (${uploadProgress.totalPages} pages)`
+                          : '📄 Extracting Content...'}
                         {uploadProgress.stage === 'chunking' && '✂️ Breaking into Segments...'}
                         {uploadProgress.stage === 'embedding' && '🧠 Generating AI Embeddings...'}
                         {uploadProgress.stage === 'complete' && '✅ Upload Complete!'}
@@ -438,6 +609,15 @@ export const KnowledgeBase = () => {
                       <p className="text-sm text-muted-foreground mt-1">
                         {uploadProgress.fileName}
                       </p>
+                      {uploadProgress.totalBatches && uploadProgress.totalBatches > 1 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Batch {uploadProgress.currentBatch} of {uploadProgress.totalBatches} 
+                          {uploadProgress.currentBatch && uploadProgress.batchDetails && (
+                            <> (Pages {uploadProgress.batchDetails[uploadProgress.currentBatch - 1]?.startPage}-
+                            {uploadProgress.batchDetails[uploadProgress.currentBatch - 1]?.endPage})</>
+                          )}
+                        </p>
+                      )}
                     </div>
                     <span className="text-2xl font-bold text-primary flex-shrink-0">
                       {uploadProgress.progress}%
@@ -450,12 +630,52 @@ export const KnowledgeBase = () => {
                     indicatorClassName="bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
                   />
 
+                  {/* Batch Progress Details */}
+                  {uploadProgress.batchDetails && uploadProgress.batchDetails.length > 1 && (
+                    <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                      {uploadProgress.batchDetails.map((batch) => (
+                        <div key={batch.batchNumber} className="flex items-center gap-2 text-xs">
+                          {batch.status === 'complete' && (
+                            <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          )}
+                          {batch.status === 'processing' && (
+                            <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+                          )}
+                          {batch.status === 'failed' && (
+                            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                          )}
+                          {batch.status === 'pending' && (
+                            <div className="w-4 h-4 rounded-full border-2 border-muted flex-shrink-0" />
+                          )}
+                          <span className={batch.status === 'complete' ? 'text-green-600' : batch.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}>
+                            Batch {batch.batchNumber}: Pages {batch.startPage}-{batch.endPage}
+                            {batch.status === 'complete' && batch.chunks && ` (${batch.chunks} chunks)`}
+                            {batch.status === 'processing' && ' (processing...)'}
+                            {batch.status === 'failed' && ' (failed)'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="text-sm">
                     {uploadProgress.stage === 'uploading' && (
                       <p className="text-muted-foreground">Saving file to secure storage...</p>
                     )}
-                    {uploadProgress.stage === 'processing' && (
+                    {uploadProgress.stage === 'processing' && !uploadProgress.totalBatches && (
                       <p className="text-muted-foreground">Reading and parsing document content...</p>
+                    )}
+                    {uploadProgress.stage === 'processing' && uploadProgress.totalBatches && uploadProgress.totalBatches > 1 && (
+                      <div className="space-y-1">
+                        <p className="text-muted-foreground">
+                          Processing in {uploadProgress.totalBatches} batches for optimal performance...
+                        </p>
+                        {uploadProgress.chunks !== undefined && uploadProgress.chunks > 0 && (
+                          <p className="text-primary font-semibold">
+                            {uploadProgress.chunks} chunks created so far
+                          </p>
+                        )}
+                      </div>
                     )}
                     {uploadProgress.stage === 'chunking' && (
                       <p className="text-muted-foreground">Splitting into searchable segments...</p>
@@ -464,9 +684,16 @@ export const KnowledgeBase = () => {
                       <p className="text-muted-foreground">Creating vector embeddings for AI search...</p>
                     )}
                     {uploadProgress.stage === 'complete' && uploadProgress.chunks && (
-                      <p className="text-green-600 font-semibold">
-                        Successfully created {uploadProgress.chunks} searchable chunks!
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-green-600 font-semibold">
+                          Successfully created {uploadProgress.chunks} searchable chunks!
+                        </p>
+                        {uploadProgress.totalBatches && uploadProgress.totalBatches > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            Processed {uploadProgress.totalPages} pages in {uploadProgress.totalBatches} batches
+                          </p>
+                        )}
+                      </div>
                     )}
                     {uploadProgress.stage === 'error' && (
                       <p className="text-destructive font-semibold">
