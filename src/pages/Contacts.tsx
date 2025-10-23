@@ -14,6 +14,8 @@ import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
 import { SegmentsSidebar } from "@/components/SegmentsSidebar";
 import { BulkActionsToolbar } from "@/components/BulkActionsToolbar";
 import { ImportContactsDialog } from "@/components/ImportContactsDialog";
+import { AddContactDialog } from "@/components/AddContactDialog";
+import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ContactDetailPanel } from "@/components/ContactDetailPanel";
 
@@ -399,12 +401,9 @@ const Contacts = () => {
                 </p>
               </div>
               <div className="flex gap-2">
+                <CSVImportDialog onImportComplete={loadContacts} />
                 <ImportContactsDialog onImportComplete={loadContacts} />
-                <Button onClick={() => navigate('/contacts/new')} size="sm" className="gap-2 glow-green">
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Add Contact</span>
-                  <span className="sm:hidden">Add</span>
-                </Button>
+                <AddContactDialog onContactAdded={loadContacts} />
               </div>
             </div>
 

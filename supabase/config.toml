@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.render-editor-composition]
 verify_jwt = false
+
+[functions.map-csv-columns]
+verify_jwt = false
