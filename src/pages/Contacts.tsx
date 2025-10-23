@@ -200,26 +200,29 @@ const Contacts = () => {
     
     try {
       const contactIds = Array.from(selectedContacts);
+      const BATCH_SIZE = 50; // Process in smaller batches to avoid URL length limits
       
-      // Delete related records first to avoid foreign key constraint errors
-      const deleteTasks = [
-        supabase.from('contact_activities').delete().in('contact_id', contactIds),
-        supabase.from('contact_assignments').delete().in('contact_id', contactIds),
-        supabase.from('ai_messages').delete().in('contact_id', contactIds),
-        supabase.from('purchases').delete().in('contact_id', contactIds),
-        supabase.from('notifications').delete().in('contact_id', contactIds),
-      ];
-      
-      // Execute all deletions
-      await Promise.all(deleteTasks);
-      
-      // Now delete the contacts
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .in('id', contactIds);
+      // Process deletions in batches
+      for (let i = 0; i < contactIds.length; i += BATCH_SIZE) {
+        const batch = contactIds.slice(i, i + BATCH_SIZE);
+        
+        // Delete related records first
+        await Promise.all([
+          supabase.from('contact_activities').delete().in('contact_id', batch),
+          supabase.from('contact_assignments').delete().in('contact_id', batch),
+          supabase.from('ai_messages').delete().in('contact_id', batch),
+          supabase.from('purchases').delete().in('contact_id', batch),
+          supabase.from('notifications').delete().in('contact_id', batch),
+        ]);
+        
+        // Now delete the contacts
+        const { error } = await supabase
+          .from('contacts')
+          .delete()
+          .in('id', batch);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
       
       toast.success(`Deleted ${selectedContacts.size} contact(s)`);
       setSelectedContacts(new Set());
