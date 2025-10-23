@@ -30,6 +30,8 @@ interface Contact {
   customer_tier: string | null;
   lead_status: string | null;
   lead_score: number | null;
+  likelihood_to_buy_score: number | null;
+  likelihood_category: string | null;
   products_owned: string[] | null;
   tags: string[] | null;
   last_contact_date: string | null;
@@ -39,9 +41,11 @@ interface Contact {
   trading_style: string | null;
   account_size: string | null;
   created_at: string;
+  has_disputed: boolean | null;
+  disputed_amount: number | null;
 }
 
-type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'customer_tier' | 'lead_status' | 'lead_score' | 'products_owned' | 'tags' | 'last_contact_date' | 'total_spent' | 'trading_experience' | 'created_at';
+type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'customer_tier' | 'likelihood_to_buy_score' | 'lead_status' | 'lead_score' | 'products_owned' | 'tags' | 'last_contact_date' | 'total_spent' | 'trading_experience' | 'created_at';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -54,8 +58,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'email', label: 'Email', visible: true },
   { key: 'phone_number', label: 'Phone', visible: true },
   { key: 'customer_tier', label: 'Tier', visible: true },
-  { key: 'lead_status', label: 'Lead Status', visible: true },
-  { key: 'lead_score', label: 'Score', visible: true },
+  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: true },
+  { key: 'lead_status', label: 'Status', visible: false },
+  { key: 'lead_score', label: 'Score', visible: false },
   { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
@@ -101,11 +106,11 @@ const Contacts = () => {
 
   useEffect(() => {
     loadContacts();
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, sortColumn, sortDirection]);
 
   useEffect(() => {
     applyFiltersAndSearch();
-  }, [searchQuery, contacts, filters, selectedSegment, sortColumn, sortDirection]);
+  }, [searchQuery, contacts, filters, selectedSegment]);
 
   const loadContacts = async () => {
     try {
@@ -118,14 +123,17 @@ const Contacts = () => {
       
       setTotalCount(count || 0);
       
-      // Get paginated data
+      // Get paginated data - DEFAULT SORT BY HOT LEADS FIRST
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
+      
+      const orderColumn = sortColumn || 'likelihood_to_buy_score';
+      const orderDirection = sortColumn ? sortDirection === 'asc' : false; // Default desc for likelihood
       
       const { data, error } = await supabase
         .from("contacts")
         .select("*")
-        .order("created_at", { ascending: false })
+        .order(orderColumn, { ascending: orderDirection, nullsFirst: false })
         .range(from, to);
 
       if (error) throw error;
@@ -199,31 +207,20 @@ const Contacts = () => {
       });
     }
 
-    // Apply sorting
-    if (sortColumn) {
-      filtered.sort((a, b) => {
-        const aVal = a[sortColumn as keyof Contact];
-        const bVal = b[sortColumn as keyof Contact];
-        
-        // Handle null/undefined values
-        if (aVal === null || aVal === undefined) return sortDirection === 'asc' ? 1 : -1;
-        if (bVal === null || bVal === undefined) return sortDirection === 'asc' ? -1 : 1;
-        
-        // Handle numbers
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
-        }
-        
-        // Handle strings
-        const aStr = String(aVal).toLowerCase();
-        const bStr = String(bVal).toLowerCase();
-        if (aStr < bStr) return sortDirection === 'asc' ? -1 : 1;
-        if (aStr > bStr) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-
     setFilteredContacts(filtered);
+  };
+
+  const handleColumnSort = (columnKey: ColumnKey) => {
+    if (sortColumn === columnKey) {
+      // Toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column - default to desc for scores, asc for text
+      setSortColumn(columnKey);
+      const numericColumns = ['lead_score', 'likelihood_to_buy_score', 'engagement_score', 'total_spent'];
+      setSortDirection(numericColumns.includes(columnKey) ? 'desc' : 'asc');
+    }
+    setCurrentPage(1); // Reset to first page when sorting
   };
 
   const handleSelectAll = () => {
@@ -421,6 +418,19 @@ const Contacts = () => {
           <Badge className={TIER_COLORS[contact.customer_tier] || 'bg-muted'}>
             {contact.customer_tier}
           </Badge>
+        ) : '-';
+      case 'likelihood_to_buy_score':
+        return contact.likelihood_to_buy_score !== null ? (
+          <div className="flex items-center gap-2">
+            <Badge className={getScoreColor(contact.likelihood_to_buy_score)}>
+              {contact.likelihood_to_buy_score}
+            </Badge>
+            {contact.likelihood_category && (
+              <span className="text-xs text-muted-foreground capitalize">
+                {contact.likelihood_category}
+              </span>
+            )}
+          </div>
         ) : '-';
       case 'lead_status':
         return contact.lead_status ? (

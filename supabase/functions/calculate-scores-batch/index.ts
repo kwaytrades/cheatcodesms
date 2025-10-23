@@ -20,95 +20,101 @@ interface ContactData {
   form_submissions?: any[];
 }
 
-// Scoring logic based on detailed plan
+// NEW SCORING LOGIC: Separate engagement-based status from tier
+// This calculates "Hot/Warm/Cold" status based on recent engagement, not spending
 function calculateScore(contact: ContactData): { score: number; status: string; category: string } {
   let score = 0;
-
-  // 1. REVENUE IMPACT (+30 points max)
-  const revenue = contact.total_spent || 0;
-  if (revenue >= 3000) score += 30;
-  else if (revenue >= 1000) score += 20;
-  else if (revenue >= 500) score += 10;
-  else if (revenue > 0) score += 5;
-
-  // 2. PRODUCT EXPERIENCE IMPACT
-  const products = contact.products_owned || [];
-  let productPoints = 0;
-  let productPenalty = 0;
   
-  // Positive products
-  if (products.some(p => p.includes('EYL Bundle'))) productPoints += 15;
-  if (products.some(p => p.includes('Algo Lifetime'))) productPoints += 12;
-  if (products.some(p => p.includes('Premium Membership'))) productPoints += 10;
-  if (products.some(p => p.includes('Masterclass') || p.includes('4-Week Masterclass'))) productPoints += 8;
-  if (products.some(p => p.includes('Stocks Course'))) productPoints += 8;
-  
-  // Negative product experience
-  if (products.some(p => p.includes('10k Challenge'))) productPenalty += 10;
-  if (products.some(p => p.includes('CCTA'))) productPenalty += 8;
-  if (products.some(p => p.includes('Trade Hero'))) productPenalty += 3;
-  
-  score += Math.min(productPoints, 25); // Cap at 25 points
-  score -= productPenalty;
-
-  // 3. ENGAGEMENT SCORING (+20 points max)
   const tags = contact.tags || [];
+  const products = contact.products_owned || [];
+  const revenue = contact.total_spent || 0;
+
+  // 1. ENGAGEMENT FACTORS (+40 points max)
   let engagementPoints = 0;
   
+  // Active engagement tags
   if (tags.some(t => t.includes('Active Engaged'))) engagementPoints += 15;
   if (tags.some(t => t.includes('Daily SMS'))) engagementPoints += 10;
   
+  // Email/SMS engagement
+  const engagement = contact.engagement_score || 0;
+  if (engagement > 50) engagementPoints += 15;
+  else if (engagement > 20) engagementPoints += 10;
+  
+  // Webinar attendance (recent activity signal)
   const webinars = contact.webinar_attendance?.length || 0;
-  if (webinars >= 3) engagementPoints += 10;
+  if (webinars >= 3) engagementPoints += 15;
   else if (webinars >= 1) engagementPoints += 5;
   
+  // Form submissions (interest signals)
   const forms = contact.form_submissions?.length || 0;
-  if (forms >= 2) engagementPoints += 5;
+  if (forms >= 2) engagementPoints += 10;
+  else if (forms >= 1) engagementPoints += 5;
   
-  score += Math.min(engagementPoints, 20);
+  score += Math.min(engagementPoints, 40);
 
-  // 4. NEGATIVE SIGNALS (-50 points max)
+  // 2. PURCHASE BEHAVIOR (+35 points max)
+  let purchasePoints = 0;
+  
+  // Multiple products = committed customer
+  if (products.length >= 3) purchasePoints += 10;
+  else if (products.length >= 1) purchasePoints += 5;
+  
+  // Premium products (shows high commitment)
+  if (products.some(p => p.includes('EYL Bundle'))) purchasePoints += 10;
+  if (products.some(p => p.includes('Algo Lifetime'))) purchasePoints += 8;
+  if (products.some(p => p.includes('Premium Membership'))) purchasePoints += 8;
+  if (products.some(p => p.includes('Masterclass') || p.includes('4-Week Masterclass'))) purchasePoints += 6;
+  
+  // Recent purchase (TODO: Would need purchase_date to properly calculate recency)
+  // For now, having products + engagement suggests recent activity
+  if (products.length > 0 && engagement > 30) purchasePoints += 15;
+  
+  score += Math.min(purchasePoints, 35);
+
+  // 3. NEGATIVE SIGNALS (-50 points max)
   let negativePoints = 0;
   
+  // HARD STOP for disputes - forces to Cold/Frozen
   if (contact.has_disputed || (contact.disputed_amount && contact.disputed_amount > 0)) {
-    negativePoints += 50; // HARD STOP for disputes
+    negativePoints += 50;
   }
   
+  // Cancellations
   if (tags.some(t => t.includes('Cancelled CCA') || t.includes('Cancelled'))) negativePoints += 15;
-  if (tags.some(t => t.includes('Cold Contact'))) negativePoints += 10;
-  if (tags.some(t => t.includes('Inactive'))) negativePoints += 15;
-  if (tags.some(t => t.includes('10k Challenge'))) negativePoints += 5;
+  
+  // Inactive/Cold signals
+  if (tags.some(t => t.includes('Inactive'))) negativePoints += 20;
+  if (tags.some(t => t.includes('Cold Contact'))) negativePoints += 15;
+  
+  // Problematic product
+  if (products.some(p => p.includes('10k Challenge'))) negativePoints += 10;
   
   score -= negativePoints;
 
-  // 5. BEHAVIORAL BONUS (+10 points max)
-  const engagement = contact.engagement_score || 0;
-  if (engagement > 50) {
-    score += 10;
-  } else if (engagement > 20) {
-    score += 5;
-  }
+  // 4. VIP/HIGH-VALUE BONUS (+15 points max)
+  // Based on revenue tier (separate from engagement)
+  if (revenue >= 3000) score += 15; // VIP tier gets engagement bonus
+  else if (revenue >= 1000) score += 10; // Level 3 tier
+  else if (revenue >= 500) score += 5; // Level 2 tier
 
   // Cap score between 0-100
   score = Math.max(0, Math.min(100, score));
 
-  // Determine category based on likelihood to buy
+  // Determine category based on ENGAGEMENT likelihood to buy
   let category = 'cold';
-  if (score >= 80) category = 'hot';
-  else if (score >= 60) category = 'warm';
-  else if (score >= 40) category = 'neutral';
-  else if (score >= 20) category = 'cold';
+  if (score >= 75) category = 'hot';
+  else if (score >= 50) category = 'warm';
+  else if (score >= 30) category = 'neutral';
+  else if (score >= 15) category = 'cold';
   else category = 'frozen';
 
-  // Determine status (for lead_status field)
+  // Determine status (for lead_status field) - simplified
   let status = 'cold';
-  if (revenue > 0 && products.length > 0) {
-    status = 'customer'; // Has purchased
-  } else if (score >= 70) {
-    status = 'hot'; // High likelihood to buy
-  } else if (score >= 40) {
-    status = 'warm'; // Moderate likelihood
-  }
+  if (score >= 75) status = 'hot';
+  else if (score >= 50) status = 'warm';
+  else if (score >= 30) status = 'neutral';
+  else status = 'cold';
 
   return { score, status, category };
 }

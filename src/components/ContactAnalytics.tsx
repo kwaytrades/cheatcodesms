@@ -126,33 +126,45 @@ export const ContactAnalytics = () => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // Fetch ALL contacts using pagination to avoid Supabase 1000 row limit
-      let allContactsData: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      // Use COUNT queries for better performance instead of fetching all rows
+      const { count: totalContactsCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true });
+
+      // Get likelihood category counts using aggregation
+      const { data: hotLeads } = await supabase
+        .from("contacts")
+        .select("id", { count: 'exact', head: true })
+        .eq("likelihood_category", "hot");
       
-      while (hasMore) {
-        const { data: contactsBatch, error } = await supabase
-          .from("contacts")
-          .select("*")
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) {
-          console.error("Error fetching contacts:", error);
-          break;
-        }
-        
-        if (contactsBatch && contactsBatch.length > 0) {
-          allContactsData = [...allContactsData, ...contactsBatch];
-          page++;
-          hasMore = contactsBatch.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
+      const { data: warmLeads } = await supabase
+        .from("contacts")
+        .select("id", { count: 'exact', head: true })
+        .eq("likelihood_category", "warm");
       
-      const contacts = allContactsData;
+      const { data: coldLeads } = await supabase
+        .from("contacts")
+        .select("id", { count: 'exact', head: true })
+        .eq("likelihood_category", "cold");
+      
+      const { data: frozenLeads } = await supabase
+        .from("contacts")
+        .select("id", { count: 'exact', head: true })
+        .eq("likelihood_category", "frozen");
+
+      // Get active customers (those with tiers Level 1+)
+      const { count: activeCustomerCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true })
+        .in("customer_tier", ["Level 1", "Level 2", "Level 3", "VIP"]);
+
+      // Fetch sample contacts for detailed analysis (limit to recent active ones)
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("*")
+        .order("last_contact_date", { ascending: false, nullsFirst: false })
+        .limit(5000); // Enough for calculations but not overwhelming
+
       setAllContacts(contacts || []);
       
       // Fetch recent messages for activity
@@ -172,8 +184,8 @@ export const ContactAnalytics = () => {
         .select("*")
         .eq("opened", true);
 
-      // Calculate metrics
-      const totalContacts = contacts?.length || 0;
+      // Calculate metrics using the counts we fetched
+      const totalContacts = totalContactsCount || 0;
       
       // Active customers: those who have made purchases (have products or spent money)
       const activeCustomersCount = contacts?.filter((c: any) => 

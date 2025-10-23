@@ -52,12 +52,23 @@ const Analytics = () => {
 
   const loadStats = async () => {
     try {
-      const [campaignsRes, messagesRes, conversationsRes, contactsRes] = await Promise.all([
+      // Use COUNT queries for better performance
+      const [campaignsRes, messagesRes, conversationsRes] = await Promise.all([
         supabase.from("campaigns").select("*"),
         supabase.from("messages").select("*", { count: "exact" }),
         supabase.from("conversations").select("*", { count: "exact" }).eq("status", "active"),
-        supabase.from("contacts").select("status"),
       ]);
+
+      // Get total contacts count (handles all 21K+ contacts)
+      const { count: totalContactsCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true });
+
+      // Get contact status distribution by likelihood_category
+      const { data: contactsForStatus } = await supabase
+        .from("contacts")
+        .select("likelihood_category")
+        .limit(10000);
 
       const totalOutbound = await supabase
         .from("messages")
@@ -79,7 +90,7 @@ const Analytics = () => {
         totalMessages: messagesRes.count || 0,
         activeConversations: conversationsRes.count || 0,
         responseRate,
-        totalContacts: contactsRes.data?.length || 0,
+        totalContacts: totalContactsCount || 0,
       });
 
       // Campaign performance data
@@ -94,15 +105,15 @@ const Analytics = () => {
         setCampaignData(campData);
       }
 
-      // Contact status distribution
-      if (contactsRes.data) {
+      // Contact status distribution by likelihood_category (Hot/Warm/Cold/Frozen)
+      if (contactsForStatus) {
         const statusCounts: Record<string, number> = {};
-        contactsRes.data.forEach((contact: any) => {
-          const status = contact.status || 'Unknown';
-          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        contactsForStatus.forEach((contact: any) => {
+          const category = contact.likelihood_category || 'Unknown';
+          statusCounts[category] = (statusCounts[category] || 0) + 1;
         });
         const statusData = Object.entries(statusCounts).map(([status, count]) => ({
-          status,
+          status: status.charAt(0).toUpperCase() + status.slice(1), // Capitalize
           count,
         }));
         setContactStatusData(statusData);
