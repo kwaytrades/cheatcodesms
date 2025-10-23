@@ -215,13 +215,20 @@ const ContactDetail = () => {
             <ContactQuickInfo contact={contact} />
             <KeyMetrics
               leadScore={contact.lead_score}
+              likelihoodScore={contact.likelihood_to_buy_score}
+              engagementLevel={contact.likelihood_category}
               engagementScore={contact.engagement_score}
               totalSpent={contact.total_spent}
               leadStatus={contact.lead_status}
               customerTier={contact.customer_tier}
               lastContactDate={contact.last_contact_date}
+              productsCount={contact.products_owned?.length || 0}
+              webinarCount={contact.webinar_attendance?.length || 0}
             />
-            <ProductsList purchases={purchases} />
+            <ProductsList 
+              productsOwned={contact.products_owned}
+              totalSpent={contact.total_spent}
+            />
             <TradingProfile
               tradingExperience={contact.trading_experience}
               tradingStyle={contact.trading_style}

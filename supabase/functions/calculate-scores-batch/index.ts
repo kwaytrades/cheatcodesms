@@ -16,59 +16,101 @@ interface ContactData {
   products_owned?: string[];
   tags?: string[];
   lead_status?: string;
+  webinar_attendance?: any[];
+  form_submissions?: any[];
 }
 
-// Scoring logic based on products, spending, and engagement
-function calculateScore(contact: ContactData): { score: number; status: string } {
+// Scoring logic based on detailed plan
+function calculateScore(contact: ContactData): { score: number; status: string; category: string } {
   let score = 0;
 
-  // Products owned (40 points max) - most important signal
-  const productCount = contact.products_owned?.length || 0;
-  if (productCount > 0) {
-    score += Math.min(productCount * 10, 40);
-  }
+  // 1. REVENUE IMPACT (+30 points max)
+  const revenue = contact.total_spent || 0;
+  if (revenue >= 3000) score += 30;
+  else if (revenue >= 1000) score += 20;
+  else if (revenue >= 500) score += 10;
+  else if (revenue > 0) score += 5;
 
-  // Revenue impact (30 points max)
-  if (contact.total_spent) {
-    if (contact.total_spent > 10000) score += 30;
-    else if (contact.total_spent > 5000) score += 20;
-    else if (contact.total_spent > 1000) score += 10;
-    else if (contact.total_spent > 0) score += 5;
-  }
+  // 2. PRODUCT EXPERIENCE IMPACT
+  const products = contact.products_owned || [];
+  let productPoints = 0;
+  let productPenalty = 0;
+  
+  // Positive products
+  if (products.some(p => p.includes('EYL Bundle'))) productPoints += 15;
+  if (products.some(p => p.includes('Algo Lifetime'))) productPoints += 12;
+  if (products.some(p => p.includes('Premium Membership'))) productPoints += 10;
+  if (products.some(p => p.includes('Masterclass') || p.includes('4-Week Masterclass'))) productPoints += 8;
+  if (products.some(p => p.includes('Stocks Course'))) productPoints += 8;
+  
+  // Negative product experience
+  if (products.some(p => p.includes('10k Challenge'))) productPenalty += 10;
+  if (products.some(p => p.includes('CCTA'))) productPenalty += 8;
+  if (products.some(p => p.includes('Trade Hero'))) productPenalty += 3;
+  
+  score += Math.min(productPoints, 25); // Cap at 25 points
+  score -= productPenalty;
 
-  // Engagement (20 points max)
-  if (contact.engagement_score) {
-    score += Math.min(contact.engagement_score, 20);
-  } else {
-    // Fallback: estimate from tags
-    const tagCount = contact.tags?.length || 0;
-    score += Math.min(tagCount * 3, 20);
-  }
+  // 3. ENGAGEMENT SCORING (+20 points max)
+  const tags = contact.tags || [];
+  let engagementPoints = 0;
+  
+  if (tags.some(t => t.includes('Active Engaged'))) engagementPoints += 15;
+  if (tags.some(t => t.includes('Daily SMS'))) engagementPoints += 10;
+  
+  const webinars = contact.webinar_attendance?.length || 0;
+  if (webinars >= 3) engagementPoints += 10;
+  else if (webinars >= 1) engagementPoints += 5;
+  
+  const forms = contact.form_submissions?.length || 0;
+  if (forms >= 2) engagementPoints += 5;
+  
+  score += Math.min(engagementPoints, 20);
 
-  // Bonus for active status (10 points)
-  if (contact.lead_status && ['hot', 'warm', 'customer'].includes(contact.lead_status)) {
-    score += 10;
-  }
-
-  // Negative signals (-20 points)
+  // 4. NEGATIVE SIGNALS (-50 points max)
+  let negativePoints = 0;
+  
   if (contact.has_disputed || (contact.disputed_amount && contact.disputed_amount > 0)) {
-    score -= 20;
+    negativePoints += 50; // HARD STOP for disputes
+  }
+  
+  if (tags.some(t => t.includes('Cancelled CCA') || t.includes('Cancelled'))) negativePoints += 15;
+  if (tags.some(t => t.includes('Cold Contact'))) negativePoints += 10;
+  if (tags.some(t => t.includes('Inactive'))) negativePoints += 15;
+  if (tags.some(t => t.includes('10k Challenge'))) negativePoints += 5;
+  
+  score -= negativePoints;
+
+  // 5. BEHAVIORAL BONUS (+10 points max)
+  const engagement = contact.engagement_score || 0;
+  if (engagement > 50) {
+    score += 10;
+  } else if (engagement > 20) {
+    score += 5;
   }
 
-  // Cap between 0-100
+  // Cap score between 0-100
   score = Math.max(0, Math.min(100, score));
 
-  // Determine status based on score and existing data
+  // Determine category based on likelihood to buy
+  let category = 'cold';
+  if (score >= 80) category = 'hot';
+  else if (score >= 60) category = 'warm';
+  else if (score >= 40) category = 'neutral';
+  else if (score >= 20) category = 'cold';
+  else category = 'frozen';
+
+  // Determine status (for lead_status field)
   let status = 'cold';
-  if (productCount > 0 && contact.total_spent && contact.total_spent > 0) {
+  if (revenue > 0 && products.length > 0) {
     status = 'customer'; // Has purchased
   } else if (score >= 70) {
-    status = 'hot'; // High engagement, likely to buy
+    status = 'hot'; // High likelihood to buy
   } else if (score >= 40) {
-    status = 'warm'; // Moderate engagement
+    status = 'warm'; // Moderate likelihood
   }
 
-  return { score, status };
+  return { score, status, category };
 }
 
 serve(async (req) => {
@@ -101,7 +143,7 @@ serve(async (req) => {
       // Fetch contacts in this chunk
       const { data: contacts, error: fetchError } = await supabase
         .from('contacts')
-        .select('id, email, total_spent, engagement_score, disputed_amount, has_disputed, products_owned, tags, lead_status')
+        .select('id, email, total_spent, engagement_score, disputed_amount, has_disputed, products_owned, tags, lead_status, webinar_attendance, form_submissions')
         .in('id', chunk);
 
       if (fetchError) {
@@ -118,12 +160,14 @@ serve(async (req) => {
       // Calculate scores for each contact
       for (const contact of contacts) {
         try {
-          const { score, status } = calculateScore(contact);
+          const { score, status, category } = calculateScore(contact);
           
           const { error: updateError } = await supabase
             .from('contacts')
             .update({
               lead_score: score,
+              likelihood_to_buy_score: score,
+              likelihood_category: category,
               lead_status: status,
               last_score_update: new Date().toISOString(),
             })

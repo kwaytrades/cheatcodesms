@@ -474,6 +474,7 @@ export type Database = {
           lead_score: number | null
           lead_source: string | null
           lead_status: string | null
+          likelihood_category: string | null
           likelihood_to_buy_score: number | null
           metadata: Json | null
           monday_board_id: string | null
@@ -534,6 +535,7 @@ export type Database = {
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
+          likelihood_category?: string | null
           likelihood_to_buy_score?: number | null
           metadata?: Json | null
           monday_board_id?: string | null
@@ -594,6 +596,7 @@ export type Database = {
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
+          likelihood_category?: string | null
           likelihood_to_buy_score?: number | null
           metadata?: Json | null
           monday_board_id?: string | null

@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Search, Plus, Settings2, Mail, Phone, Filter, TrendingUp } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Search, Plus, Settings2, Mail, Phone, Filter, TrendingUp, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
@@ -96,6 +97,7 @@ const Contacts = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [sortColumn, setSortColumn] = useState<ColumnKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [contactsWithoutScores, setContactsWithoutScores] = useState(0);
 
   useEffect(() => {
     loadContacts();
@@ -529,6 +531,16 @@ const Contacts = () => {
 
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+            {contactsWithoutScores > 0 && (
+              <Alert variant="default" className="mb-2 bg-warning/10 border-warning/30">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                <AlertDescription className="flex items-center justify-between">
+                  <span className="text-sm">{contactsWithoutScores.toLocaleString()} contacts need score calculation</span>
+                  <RecalculateScoresButton />
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="relative flex-1 max-w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -539,10 +551,8 @@ const Contacts = () => {
               />
             </div>
 
-            <div className="flex gap-2">
-              <RecalculateScoresButton />
-              
-              <Button 
+            <div className="flex gap-2">              
+              <Button
                 variant={showFilters ? "default" : "outline"} 
                 size="sm" 
                 onClick={() => setShowFilters(!showFilters)}
