@@ -707,15 +707,77 @@ export const KnowledgeBase = () => {
     mutationFn: async () => {
       if (!selectedAgent) throw new Error("No agent selected");
       
-      const { data, error } = await supabase.functions.invoke('reprocess-metadata', {
-        body: {
-          category: `agent_${selectedAgent}`,
-          documentType: selectedDocumentType || 'textbook'
-        }
+      setUploadProgress({
+        isUploading: true,
+        stage: 'processing',
+        progress: 0,
+        fileName: 'Re-processing documents...'
       });
 
-      if (error) throw error;
-      return data;
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-metadata`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            category: `agent_${selectedAgent}`,
+            documentType: selectedDocumentType || 'textbook'
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to start re-processing');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response stream');
+      }
+
+      let result = { processed: 0, failed: 0, total: 0 };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.type === 'progress') {
+              setUploadProgress({
+                isUploading: true,
+                stage: 'processing',
+                progress: data.percent || 0,
+                chunks: data.processed,
+                fileName: data.currentChapter || 'Re-processing documents...'
+              });
+              result = data;
+            } else if (data.type === 'complete') {
+              setUploadProgress({
+                isUploading: false,
+                stage: 'complete',
+                progress: 100,
+                chunks: data.processed
+              });
+              result = data;
+            }
+          }
+        }
+      }
+
+      return result;
     },
     onSuccess: (data) => {
       toast.success(
@@ -727,8 +789,23 @@ export const KnowledgeBase = () => {
         }
       );
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+      
+      setTimeout(() => {
+        setUploadProgress({
+          isUploading: false,
+          stage: 'idle',
+          progress: 0
+        });
+      }, 3000);
     },
     onError: (error: Error) => {
+      setUploadProgress({
+        isUploading: false,
+        stage: 'error',
+        progress: 0,
+        error: error.message
+      });
+      
       toast.error("Re-processing failed", {
         description: error.message
       });
