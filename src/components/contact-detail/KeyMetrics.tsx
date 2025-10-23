@@ -81,7 +81,7 @@ export const KeyMetrics = ({
         <div>
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Spent</span>
-            <span className="font-medium text-success">${totalSpent.toLocaleString()}</span>
+            <span className="font-medium text-success">${(totalSpent ?? 0).toLocaleString()}</span>
           </div>
         </div>
         
