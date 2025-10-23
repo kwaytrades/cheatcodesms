@@ -20,30 +20,74 @@ serve(async (req) => {
 
     // Define valid contact fields
     const validFields = [
-      'full_name', 'first_name', 'last_name', 'email', 'phone', 
+      // Core contact fields
+      'email', 'first_name', 'last_name', 'full_name', 'phone_number',
+      
+      // Scoring and status
       'lead_status', 'lead_score', 'engagement_score', 'total_spent',
-      'company', 'job_title', 'lead_source', 'referrer', 'utm_campaign',
-      'trading_experience', 'trading_style', 'account_size', 'risk_tolerance',
-      'tags', 'products_owned', 'notes', 'assets_traded'
+      'customer_tier', 'likelihood_to_buy_score', 'engagement_level',
+      
+      // Arrays (semicolon-separated in CSV)
+      'tags', 'products_interested', 'products_owned',
+      
+      // Address fields
+      'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
+      
+      // Transaction fields
+      'amount', 'payment_status', 'transaction_date', 'product_name',
+      'dispute_status', 'disputed_amount', 'has_disputed',
+      
+      // Engagement tracking
+      'webinar_attendance', 'form_submissions', 'quiz_responses',
+      'last_purchase_date',
+      
+      // Other
+      'notes', 'lead_source', 'utm_campaign', 'referrer', 'metadata',
+      'trading_experience', 'account_size', 'risk_tolerance', 'goals',
+      'time_availability', 'assets_traded', 'trading_style',
+      'subscription_status', 'sentiment', 'objections'
     ];
 
-    const prompt = `You are a CSV column mapping assistant. Map the following CSV headers to contact database fields.
+    const prompt = `You are a CSV column mapping expert. Analyze these CSV headers and map them to database fields.
 
-CSV Headers: ${JSON.stringify(headers)}
-Sample Data Row: ${JSON.stringify(sampleRow)}
+CSV Headers: ${headers.join(', ')}
+Sample Row: ${sampleRow.join(' | ')}
 
-Valid Database Fields:
-${validFields.join(', ')}
+Valid Database Fields: ${validFields.join(', ')}
 
-Special Instructions:
-- "tags" and "products_owned" should be arrays (comma/semicolon/pipe separated in CSV)
-- "lead_score", "engagement_score", "total_spent" are numeric
-- "lead_status" should be one of: new, contacted, qualified, converted, lost
-- Map similar column names intelligently (e.g., "name" -> "full_name", "product" -> "products_owned")
-- If a CSV column doesn't match any field, map it to null
+Rules:
+1. Map each CSV header to the most appropriate database field
+2. Use exact field names from the valid fields list
+3. For unmapped columns, use null
+4. Detect data types:
+   - Semicolon/comma/pipe separated values → Array fields (tags, products_owned, products_interested)
+   - Currency/numeric → total_spent, amount, disputed_amount
+   - Date fields → transaction_date, last_purchase_date
+   - Status fields → payment_status, dispute_status, lead_status
+   
+5. Common mappings:
+   - Email variations (Email, E-mail, Email Address) → email
+   - Name fields (First Name, FirstName, Given Name) → first_name
+   - Name fields (Last Name, LastName, Surname, Family Name) → last_name
+   - Phone variations (Phone, Mobile, Cell) → phone_number
+   - Money fields (Amount, Total, Price, Revenue) → amount or total_spent
+   - Product fields (Product, Item, Description) → product_name or products_owned
+   - Status fields (Status, Payment Status) → payment_status
+   - Address fields → address_line1, city, state, postal_code, country
+   - Tags/labels → tags (semicolon-separated array)
+   - Products → products_owned (semicolon-separated array)
+   - Sources → lead_source
+   - Dispute/chargeback → dispute_status, disputed_amount
 
-Return ONLY a JSON object mapping each CSV header to a database field or null. Example:
-{"name": "full_name", "email address": "email", "products": "products_owned", "unknown_column": null}`;
+6. Transaction CSV detection:
+   - If headers contain "Amount" AND "Status" → this is a transaction CSV
+   - Map transaction-specific fields accordingly
+   
+7. Handle array fields:
+   - Products, Tags, Sources → should be marked for array parsing
+
+Return ONLY a JSON object with header:field mappings.
+Example: {"Email": "email", "First Name": "first_name", "Products": "products_owned", "Tags": "tags"}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

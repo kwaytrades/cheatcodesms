@@ -447,17 +447,26 @@ export type Database = {
       contacts: {
         Row: {
           account_size: string | null
+          address_line1: string | null
+          address_line2: string | null
           ai_profile: Json | null
           assets_traded: string[] | null
           avg_response_time: number | null
+          city: string | null
+          country: string | null
           created_at: string
           customer_profile: Json | null
+          customer_tier: string | null
+          disputed_amount: number | null
           email: string | null
+          engagement_level: string | null
           engagement_score: number | null
           engagement_velocity: number | null
           first_name: string | null
+          form_submissions: Json | null
           full_name: string
           goals: string[] | null
+          has_disputed: boolean | null
           id: string
           last_contact_date: string | null
           last_name: string | null
@@ -465,6 +474,7 @@ export type Database = {
           lead_score: number | null
           lead_source: string | null
           lead_status: string | null
+          likelihood_to_buy_score: number | null
           metadata: Json | null
           monday_board_id: string | null
           monday_board_name: string | null
@@ -472,37 +482,51 @@ export type Database = {
           notes: string | null
           objections: string | null
           phone_number: string | null
+          postal_code: string | null
           preferred_contact_method: string | null
           products_interested: string[] | null
           products_owned: string[] | null
+          quiz_responses: Json | null
           referrer: string | null
           risk_tolerance: string | null
           score_trend: string | null
           sentiment: string | null
+          state: string | null
           status: string | null
           subscription_status: string | null
           synced_at: string | null
           tags: string[] | null
+          tier_badge_color: string | null
           time_availability: string | null
           total_spent: number | null
           trading_experience: string | null
           trading_style: string | null
           updated_at: string
           utm_campaign: string | null
+          webinar_attendance: Json | null
         }
         Insert: {
           account_size?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           customer_profile?: Json | null
+          customer_tier?: string | null
+          disputed_amount?: number | null
           email?: string | null
+          engagement_level?: string | null
           engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          form_submissions?: Json | null
           full_name: string
           goals?: string[] | null
+          has_disputed?: boolean | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
@@ -510,6 +534,7 @@ export type Database = {
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
+          likelihood_to_buy_score?: number | null
           metadata?: Json | null
           monday_board_id?: string | null
           monday_board_name?: string | null
@@ -517,37 +542,51 @@ export type Database = {
           notes?: string | null
           objections?: string | null
           phone_number?: string | null
+          postal_code?: string | null
           preferred_contact_method?: string | null
           products_interested?: string[] | null
           products_owned?: string[] | null
+          quiz_responses?: Json | null
           referrer?: string | null
           risk_tolerance?: string | null
           score_trend?: string | null
           sentiment?: string | null
+          state?: string | null
           status?: string | null
           subscription_status?: string | null
           synced_at?: string | null
           tags?: string[] | null
+          tier_badge_color?: string | null
           time_availability?: string | null
           total_spent?: number | null
           trading_experience?: string | null
           trading_style?: string | null
           updated_at?: string
           utm_campaign?: string | null
+          webinar_attendance?: Json | null
         }
         Update: {
           account_size?: string | null
+          address_line1?: string | null
+          address_line2?: string | null
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          city?: string | null
+          country?: string | null
           created_at?: string
           customer_profile?: Json | null
+          customer_tier?: string | null
+          disputed_amount?: number | null
           email?: string | null
+          engagement_level?: string | null
           engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          form_submissions?: Json | null
           full_name?: string
           goals?: string[] | null
+          has_disputed?: boolean | null
           id?: string
           last_contact_date?: string | null
           last_name?: string | null
@@ -555,6 +594,7 @@ export type Database = {
           lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
+          likelihood_to_buy_score?: number | null
           metadata?: Json | null
           monday_board_id?: string | null
           monday_board_name?: string | null
@@ -562,23 +602,28 @@ export type Database = {
           notes?: string | null
           objections?: string | null
           phone_number?: string | null
+          postal_code?: string | null
           preferred_contact_method?: string | null
           products_interested?: string[] | null
           products_owned?: string[] | null
+          quiz_responses?: Json | null
           referrer?: string | null
           risk_tolerance?: string | null
           score_trend?: string | null
           sentiment?: string | null
+          state?: string | null
           status?: string | null
           subscription_status?: string | null
           synced_at?: string | null
           tags?: string[] | null
+          tier_badge_color?: string | null
           time_availability?: string | null
           total_spent?: number | null
           trading_experience?: string | null
           trading_style?: string | null
           updated_at?: string
           utm_campaign?: string | null
+          webinar_attendance?: Json | null
         }
         Relationships: []
       }

@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { TierBadge } from "@/components/ui/tier-badge";
+import { LikelihoodScore } from "@/components/ui/likelihood-score";
 
 interface KeyMetricsProps {
   leadScore?: number;
@@ -8,14 +10,24 @@ interface KeyMetricsProps {
   totalSpent?: number;
   leadStatus?: string;
   lastContactDate?: string;
+  customerTier?: string | null;
+  likelihoodScore?: number | null;
+  engagementLevel?: string | null;
+  productsCount?: number;
+  webinarCount?: number;
 }
 
-export const KeyMetrics = ({
-  leadScore = 0,
-  engagementScore = 0,
-  totalSpent = 0,
+export const KeyMetrics = ({ 
+  leadScore = 0, 
+  engagementScore = 0, 
+  totalSpent = 0, 
   leadStatus = "new",
-  lastContactDate
+  lastContactDate,
+  customerTier,
+  likelihoodScore,
+  engagementLevel,
+  productsCount = 0,
+  webinarCount = 0
 }: KeyMetricsProps) => {
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-score-hot';
@@ -54,6 +66,25 @@ export const KeyMetrics = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
+        {customerTier && (
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-muted-foreground">Tier</span>
+              <TierBadge tier={customerTier} />
+            </div>
+          </div>
+        )}
+
+        {likelihoodScore !== null && likelihoodScore !== undefined && (
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-muted-foreground">Likelihood</span>
+              <LikelihoodScore score={likelihoodScore} showLabel={false} />
+            </div>
+            <Progress value={likelihoodScore} className="h-2" useGradient />
+          </div>
+        )}
+        
         <div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-muted-foreground">Status</span>
@@ -91,6 +122,24 @@ export const KeyMetrics = ({
             <span className="font-medium">{formatTimeAgo(lastContactDate)}</span>
           </div>
         </div>
+
+        {productsCount > 0 && (
+          <div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Products</span>
+              <span className="font-medium">{productsCount}</span>
+            </div>
+          </div>
+        )}
+
+        {webinarCount > 0 && (
+          <div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Webinars</span>
+              <span className="font-medium">{webinarCount}</span>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
