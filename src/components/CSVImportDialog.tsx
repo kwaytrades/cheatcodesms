@@ -109,30 +109,59 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
 
           // Set defaults
           if (!contact.lead_status) contact.lead_status = 'new';
-          if (!contact.full_name && (contact.first_name || contact.last_name)) {
-            contact.full_name = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+          
+          // CRITICAL: Ensure full_name is always set (required field)
+          if (!contact.full_name) {
+            if (contact.first_name || contact.last_name) {
+              contact.full_name = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+            } else if (contact.email) {
+              // Use email username as fallback
+              contact.full_name = contact.email.split('@')[0];
+            } else {
+              // Last resort: use row number
+              contact.full_name = `Contact ${i + batch.indexOf(row) + 1}`;
+            }
           }
 
           return contact;
-        });
+        }).filter(contact => contact.email); // Only import contacts with email
 
-        // Insert batch
+        // Insert batch with upsert to handle duplicates
         const { data, error } = await supabase
           .from('contacts')
-          .insert(contacts)
+          .upsert(contacts, { 
+            onConflict: 'email',
+            ignoreDuplicates: false 
+          })
           .select();
 
         if (error) {
           console.error("Batch insert error:", error);
+          console.error("Failed contacts sample:", contacts.slice(0, 2));
           failed += batch.length;
         } else {
           imported += data?.length || 0;
+        }
+        
+        // Small delay to avoid rate limiting
+        if (i + batchSize < dataRows.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         setProgress(Math.round(((i + batch.length) / dataRows.length) * 100));
       }
 
-      toast.success(`Import complete! Imported: ${imported}, Failed: ${failed}`);
+      const totalProcessed = imported + failed;
+      console.log(`Import complete: ${imported} imported, ${failed} failed out of ${dataRows.length} rows`);
+      
+      if (failed > 0) {
+        toast.warning(`Import complete! Imported: ${imported}, Failed: ${failed}`, {
+          description: "Check console for error details"
+        });
+      } else {
+        toast.success(`Successfully imported ${imported} contacts!`);
+      }
+      
       setOpen(false);
       setFile(null);
       setProgress(0);
