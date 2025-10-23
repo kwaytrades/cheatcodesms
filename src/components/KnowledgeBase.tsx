@@ -47,6 +47,7 @@ export const KnowledgeBase = () => {
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [pdfUploaded, setPdfUploaded] = useState(false);
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ["knowledge-base"],
@@ -104,6 +105,8 @@ export const KnowledgeBase = () => {
     if (!file) return;
 
     setUploading(true);
+    setPdfUploaded(false);
+    
     try {
       // Handle text-based files
       if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
@@ -124,11 +127,6 @@ export const KnowledgeBase = () => {
         
         if (uploadError) throw uploadError;
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from("knowledge-base")
-          .getPublicUrl(filePath);
-
         // Parse PDF content using Supabase edge function
         const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-pdf", {
           body: { filePath }
@@ -136,8 +134,9 @@ export const KnowledgeBase = () => {
 
         if (parseError) throw parseError;
 
-        setContent(parseData.content || "");
+        setContent(parseData.content || "PDF content will be extracted automatically");
         setTitle(file.name.replace(".pdf", ""));
+        setPdfUploaded(true);
         toast.success("PDF parsed successfully!");
       } 
       else {
@@ -145,6 +144,7 @@ export const KnowledgeBase = () => {
       }
     } catch (error: any) {
       toast.error("Failed to process file: " + error.message);
+      setPdfUploaded(false);
     } finally {
       setUploading(false);
     }
@@ -152,15 +152,21 @@ export const KnowledgeBase = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !category || !content) {
-      toast.error("Please fill in all fields");
+    if (!title || !category) {
+      toast.error("Please fill in title and category");
+      return;
+    }
+
+    // Content is optional for PDF uploads as it's auto-extracted
+    if (!content && !pdfUploaded) {
+      toast.error("Please enter content or upload a file");
       return;
     }
 
     addDocument.mutate({
       title,
       category,
-      content,
+      content: content || "Content extracted from uploaded file",
     });
   };
 
@@ -224,14 +230,21 @@ export const KnowledgeBase = () => {
             </div>
 
             <div>
-              <Label htmlFor="content">Content</Label>
+              <Label htmlFor="content">Content {pdfUploaded && "(Auto-extracted from PDF)"}</Label>
               <Textarea
                 id="content"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="Paste or type document content here..."
+                placeholder={pdfUploaded ? "PDF content extracted..." : "Paste or type document content here..."}
                 rows={8}
+                disabled={pdfUploaded}
+                className={pdfUploaded ? "opacity-60" : ""}
               />
+              {pdfUploaded && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Content was automatically extracted from the uploaded PDF
+                </p>
+              )}
             </div>
 
             <Button type="submit" disabled={addDocument.isPending}>
