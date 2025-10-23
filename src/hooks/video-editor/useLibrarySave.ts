@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
-import { useRemotionRender } from "./useRemotionRender";
 
 export const useLibrarySave = (
   overlays: Overlay[],
@@ -15,7 +14,6 @@ export const useLibrarySave = (
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const cancelRef = useRef(false);
-  const { renderVideo } = useRemotionRender();
 
   const saveToLibrary = async (title?: string) => {
     if (overlays.length === 0) {
@@ -27,23 +25,38 @@ export const useLibrarySave = (
     setProgress(0);
     cancelRef.current = false;
 
-    const toastId = toast.loading("Preparing video...");
+    const toastId = toast.loading("Submitting render job...");
 
     try {
       const dimensions = getAspectRatioDimensions();
-      console.log('[Save] Rendering video with Remotion, dimensions:', dimensions);
+      console.log('[Save] Starting server-side render, dimensions:', dimensions);
 
-      // Use Remotion to render the video client-side
-      const videoBlob = await renderVideo(
+      const compositionData = {
         overlays,
         durationInFrames,
         fps,
-        dimensions,
-        ({ progress, message }) => {
-          setProgress(progress);
-          toast.loading(message, { id: toastId });
+        width: dimensions.width,
+        height: dimensions.height,
+      };
+
+      setProgress(10);
+      toast.loading("Starting server render...", { id: toastId });
+
+      // Call edge function to render video server-side
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        'render-editor-composition',
+        {
+          body: {
+            compositionData,
+            title: title || `Editor Video ${new Date().toLocaleDateString()}`,
+          },
         }
       );
+
+      if (invokeError) {
+        console.error('[Save] Invoke error:', invokeError);
+        throw new Error(invokeError.message || 'Failed to start render');
+      }
 
       if (cancelRef.current) {
         setIsLoading(false);
@@ -51,62 +64,10 @@ export const useLibrarySave = (
         return;
       }
 
-      console.log('[Save] Video rendered, blob size:', videoBlob.size, 'bytes');
-
-      if (videoBlob.size === 0) {
-        throw new Error('Rendering produced an empty file');
-      }
-
-      // Upload to storage
-      toast.loading("Uploading to library...", { id: toastId });
-      setProgress(96);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
-
-      const fileName = `editor-${Date.now()}.mp4`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('content-videos')
-        .upload(filePath, videoBlob, {
-          contentType: 'video/mp4',
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error('[Save] Upload error:', uploadError);
-        throw uploadError;
-      }
-
-      setProgress(98);
-
-      // Create database entry
-      const durationSeconds = Math.round(durationInFrames / fps);
-
-      const { error: dbError } = await supabase
-        .from('content_videos')
-        .insert({
-          user_id: user.id,
-          video_url: filePath,
-          duration_seconds: durationSeconds,
-          title: title || `Editor Video ${new Date().toLocaleDateString()}`,
-          source: 'editor',
-          composition_data: {
-            overlays,
-            durationInFrames,
-            fps,
-            width: dimensions.width,
-            height: dimensions.height,
-          },
-          is_final: true,
-        });
-
-      if (dbError) {
-        console.error('[Save] Database error:', dbError);
-        throw dbError;
+      console.log('[Save] Render job submitted:', data);
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Render failed');
       }
 
       setProgress(100);
