@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { getAgentExpirationDate } from "@/lib/agent-utils";
 
 interface AssignAgentDialogProps {
   open: boolean;
@@ -66,14 +67,17 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.functions.invoke("assign-product-agent", {
-        body: {
+      const { error } = await supabase
+        .from("product_agents")
+        .insert({
           contact_id: selectedContact,
           product_type: productType,
-          agent_context: { notes: agentContext },
-          days_active: 30,
-        },
-      });
+          status: "active",
+          direction: "outbound",
+          expiration_date: getAgentExpirationDate(productType),
+          agent_context: agentContext ? { notes: agentContext } : {},
+          last_engagement_at: new Date().toISOString(),
+        });
 
       if (error) throw error;
 

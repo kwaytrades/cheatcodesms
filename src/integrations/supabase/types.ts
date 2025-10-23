@@ -1481,6 +1481,7 @@ export type Database = {
           direction: string | null
           expiration_date: string
           id: string
+          last_engagement_at: string | null
           messages_sent: number | null
           product_id: string | null
           product_type: string
@@ -1498,6 +1499,7 @@ export type Database = {
           direction?: string | null
           expiration_date: string
           id?: string
+          last_engagement_at?: string | null
           messages_sent?: number | null
           product_id?: string | null
           product_type: string
@@ -1515,6 +1517,7 @@ export type Database = {
           direction?: string | null
           expiration_date?: string
           id?: string
+          last_engagement_at?: string | null
           messages_sent?: number | null
           product_id?: string | null
           product_type?: string
@@ -1863,6 +1866,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_inactive_agents: { Args: never; Returns: undefined }
       calculate_lead_score: { Args: { p_contact_id: string }; Returns: number }
       expire_old_agents: { Args: never; Returns: undefined }
       get_customer_context: { Args: { p_contact_id: string }; Returns: Json }

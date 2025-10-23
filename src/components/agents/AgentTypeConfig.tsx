@@ -33,14 +33,18 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     isActive: true,
   });
 
-  // Knowledge base for this agent type
+  // Knowledge base for this agent type with chunk counts
   const { data: knowledgeBase } = useQuery({
     queryKey: ["agent-knowledge", agentType],
     queryFn: async () => {
       const { data } = await supabase
         .from("knowledge_base")
-        .select("*")
+        .select(`
+          *,
+          chunks:knowledge_base!parent_document_id(count)
+        `)
         .eq("category", `agent_${agentType}`)
+        .is("parent_document_id", null)
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -55,7 +59,10 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const toastId = toast({ title: "Uploading...", description: "Uploading file to storage" }).id;
+
     try {
+      // 1. Upload file to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${agentType}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -70,22 +77,63 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
-      const { error: dbError } = await supabase
+      toast({ title: "Processing...", description: "Extracting content from document" });
+
+      // 2. Parse PDF content if applicable
+      let content = `Knowledge base file for ${agentName}`;
+      if (fileExt?.toLowerCase() === 'pdf') {
+        const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
+          body: { file_path: filePath }
+        });
+        
+        if (!parseError && pdfData?.text) {
+          content = pdfData.text;
+        }
+      }
+
+      // 3. Create knowledge base entry
+      const { data: kbEntry, error: dbError } = await supabase
         .from('knowledge_base')
         .insert({
           title: file.name,
           category: `agent_${agentType}`,
           file_path: publicUrl,
           file_type: fileExt,
-          content: `Knowledge base file for ${agentName}`,
-        });
+          content: content,
+        })
+        .select()
+        .single();
 
       if (dbError) throw dbError;
 
+      toast({ title: "Chunking...", description: "Breaking content into searchable segments" });
+
+      // 4. Chunk and embed the document
+      const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
+        'chunk-and-embed-pdf',
+        {
+          body: {
+            document_id: kbEntry.id,
+            content: content,
+            title: file.name,
+            category: `agent_${agentType}`,
+          },
+        }
+      );
+
+      if (chunkError) throw chunkError;
+
       queryClient.invalidateQueries({ queryKey: ["agent-knowledge", agentType] });
-      toast({ title: "Success", description: "File uploaded successfully" });
+      toast({ 
+        title: "Success!", 
+        description: `Processed into ${chunkData?.chunks_created || 0} searchable chunks`
+      });
     } catch (error) {
-      toast({ title: "Error", description: "Failed to upload file", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to process file", 
+        variant: "destructive"
+      });
     }
   };
 
@@ -234,26 +282,40 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
                   No knowledge base files yet. Upload documents to enhance this agent's responses.
                 </p>
               ) : (
-                knowledgeBase?.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-muted-foreground" />
-                      <div>
-                        <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(item.created_at).toLocaleDateString()}
+                knowledgeBase?.map((item) => {
+                  const chunkCount = item.chunks?.[0]?.count || 0;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-muted-foreground" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium">{item.title}</div>
+                            {chunkCount > 0 ? (
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                ✓ {chunkCount} chunks
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                                Not embedded
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(item.created_at).toLocaleDateString()}
+                          </div>
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteKnowledge(item.id, item.file_path)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteKnowledge(item.id, item.file_path)}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>

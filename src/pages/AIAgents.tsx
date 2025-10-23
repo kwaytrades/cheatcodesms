@@ -14,6 +14,8 @@ import { AssignAgentDialog } from "@/components/agents/AssignAgentDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
+import { formatDaysRemaining } from "@/lib/agent-utils";
+import { formatDistanceToNow } from "date-fns";
 
 export default function AIAgents() {
   const navigate = useNavigate();
@@ -37,15 +39,24 @@ export default function AIAgents() {
             phone_number,
             customer_tier
           )
-        `)
-        .order("expiration_date", { ascending: true });
+        `);
 
-      if (statusFilter !== "all") {
+      // Filter out archived agents by default, unless specifically viewing archived
+      if (statusFilter === "archived") {
+        query = query.eq("status", "archived");
+      } else if (statusFilter === "all") {
+        query = query.neq("status", "archived");
+      } else if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
+      } else {
+        query = query.neq("status", "archived");
       }
+
       if (typeFilter !== "all") {
         query = query.eq("product_type", typeFilter);
       }
+
+      query = query.order("assigned_date", { ascending: false });
 
       const { data, error } = await query;
       if (error) throw error;
@@ -88,10 +99,6 @@ export default function AIAgents() {
     agent.contacts.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const calculateDaysRemaining = (expirationDate: string) => {
-    const days = Math.ceil((new Date(expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
-  };
 
   const handleExtendAgent = async (agentId: string) => {
     const newExpiration = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -209,6 +216,7 @@ export default function AIAgents() {
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="expired">Expired</SelectItem>
                   <SelectItem value="converted">Converted</SelectItem>
+                  <SelectItem value="archived">Archived (60d+ inactive)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -232,6 +240,7 @@ export default function AIAgents() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Agent Type</TableHead>
                 <TableHead>Days Remaining</TableHead>
+                <TableHead>Last Activity</TableHead>
                 <TableHead>Messages</TableHead>
                 <TableHead>Replies</TableHead>
                 <TableHead>Status</TableHead>
@@ -241,11 +250,11 @@ export default function AIAgents() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">Loading...</TableCell>
+                  <TableCell colSpan={8} className="text-center">Loading...</TableCell>
                 </TableRow>
               ) : filteredAgents?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">No agents found</TableCell>
+                  <TableCell colSpan={8} className="text-center">No agents found</TableCell>
                 </TableRow>
               ) : (
                 filteredAgents?.map((agent) => (
@@ -259,23 +268,41 @@ export default function AIAgents() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <AgentTypeIcon type={agent.product_type} />
-                        <span className="capitalize">{agent.product_type}</span>
+                        <span className="capitalize">{agent.product_type.replace(/_/g, ' ')}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{calculateDaysRemaining(agent.expiration_date)} days</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium">
+                          {formatDaysRemaining(agent.expiration_date, agent.product_type)}
+                        </span>
+                        {agent.product_type !== 'customer_service' && <span className="text-muted-foreground">days</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {agent.last_engagement_at ? (
+                        <div className="text-sm">
+                          {formatDistanceToNow(new Date(agent.last_engagement_at), { addSuffix: true })}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">Never</div>
+                      )}
+                    </TableCell>
                     <TableCell>{agent.messages_sent}</TableCell>
                     <TableCell>{agent.replies_received}</TableCell>
                     <TableCell>
                       <AgentStatusBadge status={agent.status} />
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExtendAgent(agent.id)}
-                      >
-                        Extend
-                      </Button>
+                      {agent.product_type !== 'customer_service' && agent.status === 'active' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExtendAgent(agent.id)}
+                        >
+                          Extend
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

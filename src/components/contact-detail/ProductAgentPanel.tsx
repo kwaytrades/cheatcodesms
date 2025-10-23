@@ -10,6 +10,7 @@ import { AgentNameBadge } from "@/components/agents/AgentNameBadge";
 import { AgentConflictIndicator } from "@/components/agents/AgentConflictIndicator";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { formatDaysRemaining } from "@/lib/agent-utils";
 
 interface ProductAgentPanelProps {
   contactId: string;
@@ -42,10 +43,6 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
     },
   });
 
-  const calculateDaysRemaining = (expirationDate: string) => {
-    const days = Math.ceil((new Date(expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
-  };
 
   return (
     <>
@@ -72,16 +69,16 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
               return (
                 <div 
                   key={agent.id} 
-                  className={`border rounded-lg p-5 space-y-4 transition-all ${
+                  className={`border rounded-lg p-4 space-y-4 transition-all ${
                     isActive ? 'bg-primary/5 border-primary/30 shadow-lg' : 'hover:border-border/60'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <AgentTypeIcon type={agent.product_type} className="w-12 h-12" />
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <AgentNameBadge agentType={agent.product_type} className="text-base font-semibold" />
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <AgentTypeIcon type={agent.product_type} className="w-10 h-10 flex-shrink-0" />
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <AgentNameBadge agentType={agent.product_type} className="text-sm font-semibold" />
                           <AgentStatusBadge status={agent.status} />
                         </div>
                         <AgentConflictIndicator 
@@ -92,18 +89,22 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
                     </div>
                   </div>
                   
-                  <div className="flex gap-6 bg-muted/30 rounded-lg p-4">
+                  <div className="flex gap-4 bg-muted/30 rounded-lg p-3">
                     <div className="flex flex-col items-center flex-1">
-                      <span className="text-3xl font-bold text-foreground">{agent.messages_sent}</span>
+                      <span className="text-2xl font-bold text-foreground">{agent.messages_sent}</span>
                       <span className="text-xs text-muted-foreground mt-1">Messages</span>
                     </div>
                     <div className="flex flex-col items-center flex-1">
-                      <span className="text-3xl font-bold text-foreground">{agent.replies_received}</span>
+                      <span className="text-2xl font-bold text-foreground">{agent.replies_received}</span>
                       <span className="text-xs text-muted-foreground mt-1">Replies</span>
                     </div>
                     <div className="flex flex-col items-center flex-1">
-                      <span className="text-3xl font-bold text-foreground">{calculateDaysRemaining(agent.expiration_date)}</span>
-                      <span className="text-xs text-muted-foreground mt-1">Days Left</span>
+                      <span className="text-2xl font-bold text-foreground">
+                        {formatDaysRemaining(agent.expiration_date, agent.product_type)}
+                      </span>
+                      <span className="text-xs text-muted-foreground mt-1">
+                        {agent.product_type === 'customer_service' ? 'Indefinite' : 'Days Left'}
+                      </span>
                     </div>
                   </div>
                   
