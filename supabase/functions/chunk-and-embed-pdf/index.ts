@@ -58,39 +58,12 @@ Deno.serve(async (req) => {
     const chunks = chunkText(content);
     console.log(`Created ${chunks.length} chunks`);
 
-    // Generate embeddings using Lovable AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    // Store each chunk with its embedding
+    // Store each chunk WITHOUT embeddings (full-text search will be used)
     const chunkRecords = [];
     
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       
-      // Generate embedding for this chunk
-      const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-3-small',
-          input: chunk,
-        }),
-      });
-
-      if (!embeddingResponse.ok) {
-        console.error('Embedding generation failed:', await embeddingResponse.text());
-        continue;
-      }
-
-      const embeddingData = await embeddingResponse.json();
-      const embedding = embeddingData.data[0].embedding;
-
       // Extract page number from chunk if available
       const pageMatch = chunk.match(/Page (\d+)/);
       const pageNumber = pageMatch ? parseInt(pageMatch[1]) : null;
@@ -99,7 +72,7 @@ Deno.serve(async (req) => {
         title: `${title} - Chunk ${i + 1}`,
         content: chunk,
         category,
-        embedding,
+        embedding: null, // No embeddings - using full-text search
         parent_document_id: document_id,
         chunk_index: i,
         chunk_metadata: {
