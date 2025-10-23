@@ -252,6 +252,7 @@ const ContactDetail = () => {
               emails={emails}
               timeline={timeline}
               onSendMessage={handleSendMessage}
+              contactId={id}
             />
           </div>
 

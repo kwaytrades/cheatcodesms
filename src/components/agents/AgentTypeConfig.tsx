@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Trash2, Plus } from "lucide-react";
+import { Upload, FileText, Trash2, Plus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 
 interface AgentTypeConfigProps {
   agentType: string;
@@ -22,10 +23,17 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("templates");
   const [uploadProgress, setUploadProgress] = useState<{
-    stage: string;
+    isUploading: boolean;
+    stage: 'idle' | 'uploading' | 'processing' | 'chunking' | 'embedding' | 'complete' | 'error';
     progress: number;
     chunks?: number;
-  } | null>(null);
+    fileName?: string;
+    error?: string;
+  }>({
+    isUploading: false,
+    stage: 'idle',
+    progress: 0
+  });
 
   // Config state
   const [config, setConfig] = useState({
@@ -66,11 +74,13 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     
     try {
       // Stage 1: Uploading (0-25%)
-      setUploadProgress({ stage: 'Uploading file to storage...', progress: 25 });
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: file.name });
       
       const fileExt = file.name.split('.').pop();
       const fileName = `${agentType}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
+
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 25, fileName: file.name });
 
       const { error: uploadError } = await supabase.storage
         .from('knowledge-base')
@@ -83,7 +93,7 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         .getPublicUrl(filePath);
 
       // Stage 2: Processing (25-50%)
-      setUploadProgress({ stage: 'Extracting content from document...', progress: 50 });
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 40, fileName: file.name });
 
       let content = `Knowledge base file for ${agentName}`;
       
@@ -98,6 +108,8 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
         content = await file.text();
       }
+
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: file.name });
 
       const { data: kbEntry, error: dbError } = await supabase
         .from('knowledge_base')
@@ -114,10 +126,10 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
       if (dbError) throw dbError;
 
       // Stage 3: Chunking (50-75%)
-      setUploadProgress({ stage: 'Breaking content into searchable segments...', progress: 75 });
+      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: file.name });
 
       // Stage 4: Embedding (75-100%)
-      setUploadProgress({ stage: 'Generating AI embeddings for search...', progress: 90 });
+      setUploadProgress({ isUploading: true, stage: 'embedding', progress: 80, fileName: file.name });
 
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         'chunk-and-embed-pdf',
@@ -140,13 +152,17 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
       
       // Stage 5: Complete (100%)
       setUploadProgress({ 
-        stage: 'Complete!', 
+        isUploading: true, 
+        stage: 'complete', 
         progress: 100, 
-        chunks: chunkData?.chunks_created || 0 
+        chunks: chunkData?.chunks_created || 0,
+        fileName: file.name
       });
       
-      // Clear after 3 seconds
-      setTimeout(() => setUploadProgress(null), 3000);
+      // Clear after 5 seconds
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+      }, 5000);
       
       toast({ 
         title: "Success!", 
@@ -154,7 +170,13 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
       });
     } catch (error) {
       console.error('Upload error:', error);
-      setUploadProgress(null);
+      setUploadProgress({ 
+        isUploading: true, 
+        stage: 'error', 
+        progress: 0, 
+        fileName: file?.name,
+        error: error instanceof Error ? error.message : 'Failed to process file'
+      });
       toast({ 
         title: "Error", 
         description: error instanceof Error ? error.message : "Failed to process file", 
@@ -282,25 +304,69 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         </TabsContent>
 
         <TabsContent value="knowledge" className="space-y-4">
-          {uploadProgress && (
-            <Card className="border-primary/50 bg-primary/5">
-              <CardContent className="pt-6">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{uploadProgress.stage}</span>
-                    <span className="text-sm text-muted-foreground">{uploadProgress.progress}%</span>
+          {uploadProgress.isUploading && (
+            <Card className="border-2 border-primary shadow-2xl bg-primary/5 animate-in fade-in-50 duration-500">
+              <CardContent className="pt-6 pb-6">
+                <div className="space-y-4">
+                  {/* Stage Header with Icon */}
+                  <div className="flex items-center gap-3">
+                    {uploadProgress.stage === 'complete' ? (
+                      <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    ) : uploadProgress.stage === 'error' ? (
+                      <AlertCircle className="w-6 h-6 text-destructive flex-shrink-0" />
+                    ) : (
+                      <Loader2 className="w-6 h-6 text-primary animate-spin flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">
+                        {uploadProgress.stage === 'uploading' && '📤 Uploading File...'}
+                        {uploadProgress.stage === 'processing' && '📄 Extracting Content...'}
+                        {uploadProgress.stage === 'chunking' && '✂️ Breaking into Segments...'}
+                        {uploadProgress.stage === 'embedding' && '🧠 Generating AI Embeddings...'}
+                        {uploadProgress.stage === 'complete' && '✅ Upload Complete!'}
+                        {uploadProgress.stage === 'error' && '❌ Upload Failed'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {uploadProgress.fileName}
+                      </p>
+                    </div>
+                    <span className="text-2xl font-bold text-primary flex-shrink-0">
+                      {uploadProgress.progress}%
+                    </span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress.progress}%` }}
-                    />
+
+                  {/* Progress Bar */}
+                  <Progress 
+                    value={uploadProgress.progress} 
+                    className="h-3"
+                    indicatorClassName="bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
+                  />
+
+                  {/* Stage Details */}
+                  <div className="text-sm">
+                    {uploadProgress.stage === 'uploading' && (
+                      <p className="text-muted-foreground">Saving file to secure storage...</p>
+                    )}
+                    {uploadProgress.stage === 'processing' && (
+                      <p className="text-muted-foreground">Reading and parsing document content...</p>
+                    )}
+                    {uploadProgress.stage === 'chunking' && (
+                      <p className="text-muted-foreground">Splitting into searchable segments...</p>
+                    )}
+                    {uploadProgress.stage === 'embedding' && (
+                      <p className="text-muted-foreground">Creating vector embeddings for AI search...</p>
+                    )}
+                    {uploadProgress.stage === 'complete' && uploadProgress.chunks && (
+                      <p className="text-green-600 font-semibold">
+                        Successfully created {uploadProgress.chunks} searchable chunks!
+                      </p>
+                    )}
+                    {uploadProgress.stage === 'error' && (
+                      <p className="text-destructive font-semibold">
+                        {uploadProgress.error || 'An error occurred during upload'}
+                      </p>
+                    )}
                   </div>
-                  {uploadProgress.chunks && (
-                    <p className="text-sm text-muted-foreground text-center">
-                      ✓ Created {uploadProgress.chunks} searchable chunks
-                    </p>
-                  )}
                 </div>
               </CardContent>
             </Card>

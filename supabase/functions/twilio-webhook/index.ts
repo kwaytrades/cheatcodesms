@@ -170,8 +170,84 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(10);
 
-    // Determine which AI agent to use based on conversation status
-    const agentType = conversation.assigned_agent || 'sales_ai';
+    // ============================================
+    // INTELLIGENT MESSAGE ROUTING LOGIC
+    // ============================================
+
+    // Check if contact has an active product agent
+    let routeToAgent = 'customer_service'; // Default to Casey
+    let activeProductAgent = null;
+    let agentContext = null;
+
+    if (existingContact) {
+      // Look up conversation state to find active agent
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('*, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .eq('contact_id', existingContact.id)
+        .maybeSingle();
+
+      if (convState?.active_agent_id && convState.product_agents) {
+        activeProductAgent = convState.product_agents;
+        
+        // Check if agent is still active and not expired
+        const now = new Date();
+        const expirationDate = new Date(activeProductAgent.expiration_date);
+        const isExpired = now > expirationDate;
+        const isActive = activeProductAgent.status === 'active';
+
+        if (isActive && !isExpired) {
+          // Route to active product agent
+          routeToAgent = activeProductAgent.product_type;
+          agentContext = {
+            agent_id: activeProductAgent.id,
+            product_type: activeProductAgent.product_type,
+            assigned_date: activeProductAgent.assigned_date,
+            context: activeProductAgent.agent_context
+          };
+          
+          console.log(`Routing to active product agent: ${routeToAgent}`);
+          
+          // Update last_engagement_at for both agent and conversation state
+          await supabase
+            .from('product_agents')
+            .update({ 
+              last_engagement_at: now.toISOString(),
+              replies_received: (activeProductAgent.replies_received || 0) + 1
+            })
+            .eq('id', activeProductAgent.id);
+          
+          await supabase
+            .from('conversation_state')
+            .update({ last_engagement_at: now.toISOString() })
+            .eq('id', convState.id);
+        } else {
+          console.log(`Agent ${activeProductAgent.product_type} is expired/inactive, routing to customer service`);
+          routeToAgent = 'customer_service';
+          
+          // Clear active agent if expired
+          if (isExpired) {
+            await supabase
+              .from('conversation_state')
+              .update({ active_agent_id: null })
+              .eq('id', convState.id);
+          }
+        }
+      } else {
+        console.log('No active product agent found, routing to customer service');
+      }
+    } else {
+      console.log('No existing contact found, routing to customer service');
+    }
+
+    // Store the routing decision in conversation
+    await supabase
+      .from('conversations')
+      .update({ assigned_agent: routeToAgent })
+      .eq('id', conversation.id);
+
+    // Determine which AI agent to use
+    const agentType = routeToAgent;
     
     // Map agent_type to message_sender enum
     const messageSender = agentType === 'sales_ai' ? 'ai_sales' : 
@@ -186,6 +262,7 @@ serve(async (req) => {
         agentType: agentType,
         incomingMessage: body,
         history: recentMessages?.reverse() || [],
+        agentContext: agentContext
       },
     });
 

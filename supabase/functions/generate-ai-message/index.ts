@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const {
+    let {
       contact_id,
       agent_id,
       message_type,
@@ -82,6 +82,20 @@ Deno.serve(async (req) => {
     }: GenerateMessageRequest = await req.json();
 
     console.log(`Generating ${message_type} message for contact ${contact_id}`);
+
+    // If no agent_id provided but contact_id is, check for active product agent
+    if (!agent_id && contact_id) {
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('active_agent_id, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .eq('contact_id', contact_id)
+        .maybeSingle();
+      
+      if (convState?.active_agent_id) {
+        agent_id = convState.active_agent_id;
+        console.log(`Auto-detected active agent: ${agent_id}`);
+      }
+    }
 
     // Handle test mode
     const isTestMode = trigger_context?.test_mode === true;
@@ -252,6 +266,10 @@ CUSTOMER PROFILE:
 
 AGENT CONTEXT:
 ${JSON.stringify(agent?.agent_context || {}, null, 2)}
+${agent?.agent_context?.customer_goals ? `\nCustomer Goals: ${agent.agent_context.customer_goals}` : ''}
+${agent?.agent_context?.context ? `\nAdditional Context: ${JSON.stringify(agent.agent_context.context)}` : ''}
+
+YOUR ROLE: ${agent.product_type === 'customer_service' ? 'You handle general inquiries and route to specialists when needed.' : `You focus specifically on ${agent.product_type} and its features.`}
 
 CONVERSATION HISTORY (last 10 messages):
 ${recentMessages?.map(m => `${m.sender}: ${m.body}`).join('\n') || 'No previous messages'}

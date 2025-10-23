@@ -3,6 +3,9 @@ import { SMSChatView } from "./SMSChatView";
 import { EmailHistoryView } from "./EmailHistoryView";
 import { TimelineView } from "./TimelineView";
 import { MessageComposer } from "./MessageComposer";
+import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
@@ -35,14 +38,55 @@ interface CommunicationTabsProps {
   emails: AIMessage[];
   timeline: TimelineEvent[];
   onSendMessage?: (message: string) => void;
+  contactId?: string;
 }
 
 export const CommunicationTabs = ({
   messages,
   emails,
   timeline,
-  onSendMessage
+  onSendMessage,
+  contactId
 }: CommunicationTabsProps) => {
+  // Fetch active agent for this contact
+  const { data: activeAgent } = useQuery({
+    queryKey: ['active-agent', contactId],
+    queryFn: async () => {
+      if (!contactId) return null;
+      
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('active_agent_id, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .eq('contact_id', contactId)
+        .maybeSingle();
+      
+      if (convState?.active_agent_id && convState.product_agents) {
+        const agent = convState.product_agents;
+        const now = new Date();
+        const expirationDate = new Date(agent.expiration_date);
+        const isExpired = now > expirationDate;
+        const isActive = agent.status === 'active';
+        
+        if (isActive && !isExpired) {
+          return agent;
+        }
+      }
+      return null;
+    },
+    enabled: !!contactId
+  });
+
+  const AGENT_NAMES: Record<string, string> = {
+    webinar: 'Wendi',
+    textbook: 'Thomas',
+    flashcards: 'Frank',
+    algo_monthly: 'Adam',
+    ccta: 'Chris',
+    lead_nurture: 'Jamie',
+    sales_agent: 'Sam',
+    customer_service: 'Casey',
+  };
+
   return (
     <div className="flex flex-col h-full">
       <Tabs defaultValue="sms" className="flex-1 flex flex-col">
@@ -58,8 +102,30 @@ export const CommunicationTabs = ({
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="sms" className="flex-1 mt-0">
-          <SMSChatView messages={messages} />
+        <TabsContent value="sms" className="flex-1 mt-0 flex flex-col">
+          {/* Active Agent Indicator */}
+          <div className="px-4 py-2 bg-muted/50 border-b flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Active Agent:</span>
+            {activeAgent ? (
+              <div className="flex items-center gap-2">
+                <AgentTypeIcon type={activeAgent.product_type} className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  {AGENT_NAMES[activeAgent.product_type] || activeAgent.product_type} 
+                  <span className="text-muted-foreground ml-1">
+                    ({activeAgent.product_type.replace(/_/g, ' ')})
+                  </span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <AgentTypeIcon type="customer_service" className="w-4 h-4" />
+                <span className="text-sm font-medium">Customer Service (Casey)</span>
+              </div>
+            )}
+          </div>
+          <div className="flex-1">
+            <SMSChatView messages={messages} />
+          </div>
         </TabsContent>
         
         <TabsContent value="email" className="flex-1 mt-0">
