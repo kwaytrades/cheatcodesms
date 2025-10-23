@@ -81,8 +81,14 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
     '-start_number', '0',
     '-i', 'frame%05d.png',
     
+    // Explicitly set number of frames to encode
+    '-frames:v', totalFrames.toString(),
+    
     // Output framerate (critical for duration)
     '-r', fps.toString(),
+    
+    // Video sync method - prevent frame duplication
+    '-vsync', 'cfr',
     
     // Video encoding
     '-c:v', 'libx264',
@@ -97,9 +103,6 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
     
     // Compatibility and streaming
     '-movflags', '+faststart+frag_keyframe',
-    
-    // Explicitly set duration to prevent miscalculation
-    '-t', (totalFrames / fps).toFixed(2),
     
     'output.mp4'
   ]);
