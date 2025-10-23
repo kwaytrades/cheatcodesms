@@ -12,30 +12,37 @@ interface ChunkRequest {
   category: string;
 }
 
-// Simple chunking function: 1000 tokens (~750 words) with 200 token overlap
-function chunkText(text: string, chunkSize = 1000, overlap = 200): string[] {
-  const words = text.split(/\s+/);
+// Smart chunking: ~2000 chars with 200 char overlap, split on paragraph/sentence boundaries
+function chunkText(text: string, chunkSize = 2000, overlap = 200): string[] {
   const chunks: string[] = [];
-  let currentChunk: string[] = [];
-  let wordCount = 0;
-
-  for (const word of words) {
-    currentChunk.push(word);
-    wordCount++;
-
-    if (wordCount >= chunkSize) {
-      chunks.push(currentChunk.join(' '));
-      // Keep overlap words for context
-      currentChunk = currentChunk.slice(-overlap);
-      wordCount = overlap;
+  let startIndex = 0;
+  
+  while (startIndex < text.length) {
+    let endIndex = Math.min(startIndex + chunkSize, text.length);
+    
+    // Try to end at a paragraph break (but not if we're at the end)
+    if (endIndex < text.length) {
+      const paragraphBreak = text.indexOf('\n\n', endIndex - 100);
+      if (paragraphBreak !== -1 && paragraphBreak < endIndex + 100) {
+        endIndex = paragraphBreak + 2;
+      } else {
+        // Try to end at a sentence
+        const sentenceEnd = text.lastIndexOf('. ', endIndex);
+        if (sentenceEnd !== -1 && sentenceEnd > startIndex + chunkSize - 200) {
+          endIndex = sentenceEnd + 2;
+        }
+      }
     }
+    
+    const chunk = text.slice(startIndex, endIndex).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+    
+    startIndex = endIndex - overlap;
+    if (startIndex >= text.length) break;
   }
-
-  // Add remaining words as final chunk
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '));
-  }
-
+  
   return chunks;
 }
 

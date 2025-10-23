@@ -32,6 +32,7 @@ import { Trash2, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from "lu
 import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
 import { AgentTypeIcon } from "./agents/AgentTypeIcon";
 import { Progress } from "@/components/ui/progress";
+import * as pdfjsLib from 'pdfjs-dist';
 
 const AGENT_TYPES = [
   { id: 'sales_agent', name: 'Sam - Sales Agent', description: 'Proactive outreach to qualify and convert leads' },
@@ -182,14 +183,71 @@ export const KnowledgeBase = () => {
       return;
     }
 
+    // Check file size
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > 50) {
+      toast.error(`File is ${fileSizeMB.toFixed(1)}MB. Maximum supported size is 50MB. Consider splitting the PDF.`);
+      return;
+    }
+
+    if (fileSizeMB > 20) {
+      toast.warning(`Large file detected (${fileSizeMB.toFixed(1)}MB). Processing may take 1-2 minutes.`);
+    }
+
     setSelectedFile(file);
-    toast.success(`File "${file.name}" selected. Click "Add to Knowledge Base" to process.`);
+    toast.success(`File "${file.name}" selected (${fileSizeMB.toFixed(1)}MB). Click "Add to Knowledge Base" to process.`);
+  };
+
+  const parsePDFClientSide = async (file: File): Promise<string> => {
+    try {
+      // Set worker source to use CDN
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      let fullText = '';
+      const maxPages = Math.min(pdf.numPages, 100); // Only first 100 pages
+      const fileSizeMB = file.size / (1024 * 1024);
+      
+      console.log(`PDF has ${pdf.numPages} pages. Processing first ${maxPages} pages...`);
+      
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + '\n\n';
+        
+        // Update progress for large files
+        if (fileSizeMB > 10 && i % 10 === 0) {
+          const progress = 40 + Math.floor((i / maxPages) * 30);
+          setUploadProgress({ 
+            isUploading: true, 
+            stage: 'processing', 
+            progress, 
+            fileName: file.name 
+          });
+        }
+        
+        // Early exit if we have enough content (50k chars is plenty)
+        if (fullText.length > 50000) {
+          console.log(`Extracted ${fullText.length} characters from ${i} pages. Stopping early.`);
+          break;
+        }
+      }
+      
+      return fullText;
+    } catch (error) {
+      console.error('PDF parsing error:', error);
+      throw new Error('Failed to parse PDF. The file may be corrupted, encrypted, or image-based.');
+    }
   };
 
   const handleProcessFile = async () => {
     if (!selectedFile) return;
 
     try {
+      const fileSizeMB = selectedFile.size / (1024 * 1024);
       setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: selectedFile.name });
       
       const fileExt = selectedFile.name.split('.').pop();
@@ -207,33 +265,21 @@ export const KnowledgeBase = () => {
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 40, fileName: selectedFile.name });
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 35, fileName: selectedFile.name });
 
       let content = '';
       
       if (fileExt?.toLowerCase() === 'pdf') {
-        console.log('Parsing PDF:', filePath);
-        const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
-          body: { filePath: filePath }
-        });
+        console.log(`Parsing PDF client-side: ${selectedFile.name} (${fileSizeMB.toFixed(1)}MB)`);
         
-        console.log('PDF parse result:', { data: pdfData, error: parseError });
+        // Parse PDF on client side
+        content = await parsePDFClientSide(selectedFile);
         
-        if (parseError) {
-          throw new Error('Failed to parse PDF: ' + parseError.message);
-        }
-        
-        if (!pdfData?.text && !pdfData?.content) {
-          throw new Error('PDF parsing returned no text content');
-        }
-        
-        content = pdfData.text || pdfData.content;
+        console.log(`Extracted ${content.length} characters from PDF`);
         
         if (content.length < 100) {
           throw new Error(`PDF extracted only ${content.length} characters. The PDF may be image-based, encrypted, or corrupted. Try converting to text first.`);
         }
-        
-        console.log('Extracted PDF content:', content.length, 'characters');
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
         content = await selectedFile.text();
       }
@@ -242,7 +288,7 @@ export const KnowledgeBase = () => {
         throw new Error('No content extracted from file. Please ensure the file contains text.');
       }
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: selectedFile.name });
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 70, fileName: selectedFile.name });
 
       const { data: kbEntry, error: dbError } = await supabase
         .from('knowledge_base')
@@ -258,7 +304,7 @@ export const KnowledgeBase = () => {
 
       if (dbError) throw dbError;
 
-      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: selectedFile.name });
+      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 80, fileName: selectedFile.name });
 
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         'chunk-and-embed-pdf',
@@ -456,7 +502,7 @@ export const KnowledgeBase = () => {
                       <FileText className="h-4 w-4" />
                       <span className="text-sm">{selectedFile.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        ({(selectedFile.size / 1024).toFixed(1)} KB)
+                        ({(selectedFile.size / (1024 * 1024)).toFixed(1)} MB)
                       </span>
                     </div>
                     <Button 
