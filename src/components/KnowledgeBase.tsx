@@ -28,7 +28,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Trash2, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { 
+  Trash2, Upload, FileText, Loader2, CheckCircle2, AlertCircle,
+  Book, BookOpen, Palette, Building2, HelpCircle, MessageSquare,
+  GraduationCap, FileCheck, File, Sparkles
+} from "lucide-react";
 import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
 import { AgentTypeIcon } from "./agents/AgentTypeIcon";
 import { Progress } from "@/components/ui/progress";
@@ -45,12 +49,27 @@ const AGENT_TYPES = [
   { id: 'lead_nurture', name: 'Jamie - Lead Nurture Agent', description: 'General lead nurturing for undecided prospects' },
 ];
 
+const DOCUMENT_TYPES = [
+  { id: 'textbook', name: 'Textbook', description: 'Educational textbook with chapters, quizzes, and exercises', icon: Book },
+  { id: 'book', name: 'Book', description: 'General reading book or novel', icon: BookOpen },
+  { id: 'product_guide', name: 'Product Guide', description: 'Product documentation, user guides, or manuals', icon: FileText },
+  { id: 'style_guide', name: 'Style Guide', description: 'Brand style guide, design system, or content guidelines', icon: Palette },
+  { id: 'company_history', name: 'Company History', description: 'Company background, mission, values, or timeline', icon: Building2 },
+  { id: 'faq', name: 'FAQ Document', description: 'Frequently asked questions and answers', icon: HelpCircle },
+  { id: 'sales_script', name: 'Sales Script', description: 'Sales pitch, objection handling, or conversation scripts', icon: MessageSquare },
+  { id: 'training_material', name: 'Training Material', description: 'Employee training docs or onboarding materials', icon: GraduationCap },
+  { id: 'policy_document', name: 'Policy Document', description: 'Company policies, procedures, or compliance docs', icon: FileCheck },
+  { id: 'general', name: 'General Document', description: 'Any other type of document', icon: File },
+];
+
 export const KnowledgeBase = () => {
   const queryClient = useQueryClient();
   const [selectedAgent, setSelectedAgent] = useState("");
+  const [selectedDocumentType, setSelectedDocumentType] = useState("");
   const [manualContent, setManualContent] = useState({
     title: "",
     content: "",
+    documentType: "",
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{
@@ -322,7 +341,9 @@ export const KnowledgeBase = () => {
     overlap = 200,
     startPage?: number,
     endPage?: number,
-    batchTitle?: string
+    batchTitle?: string,
+    category?: string,
+    documentType?: string
   ): Promise<Array<{ content: string; metadata: any }>> => {
     console.log(`Starting LLM-enhanced chunking for ${text.length} chars`);
     
@@ -339,39 +360,59 @@ export const KnowledgeBase = () => {
       if (start >= text.length - overlap) break;
     }
     
-    console.log(`📦 Created ${rawChunks.length} raw chunks, extracting metadata with LLM...`);
+    // Only use expensive LLM extraction for textbooks
+    const isTextbookDocument = documentType === 'textbook';
+    console.log(`📦 Created ${rawChunks.length} raw chunks, ${isTextbookDocument ? 'extracting metadata with LLM' : 'using basic metadata'}...`);
     
-    // Second pass: enrich with LLM metadata (process in batches for efficiency)
+    // Second pass: enrich with metadata
     let previousMetadata: any = null;
     
     for (let idx = 0; idx < rawChunks.length; idx++) {
-      // Only call LLM every 3 chunks after first detection to save costs
-      // Use cached context for intermediate chunks
-      const shouldCallLLM = idx === 0 || idx % 3 === 0 || 
-        (previousMetadata?.chapter_number !== undefined && idx < 5);
-      
       let metadata;
-      if (shouldCallLLM) {
-        metadata = await buildEnrichedMetadata(
-          rawChunks[idx],
-          idx + 1,
-          rawChunks.length,
-          startPage,
-          endPage,
-          batchTitle,
-          previousMetadata
-        );
-        previousMetadata = metadata;
+      
+      if (isTextbookDocument) {
+        // LLM-based extraction for textbooks only
+        const shouldCallLLM = idx === 0 || idx % 3 === 0 || 
+          (previousMetadata?.chapter_number !== undefined && idx < 5);
+        
+        if (shouldCallLLM) {
+          metadata = await buildEnrichedMetadata(
+            rawChunks[idx],
+            idx + 1,
+            rawChunks.length,
+            startPage,
+            endPage,
+            batchTitle,
+            previousMetadata
+          );
+          previousMetadata = metadata;
+        } else {
+          // Use previous metadata for intermediate chunks (cheaper)
+          metadata = {
+            ...previousMetadata,
+            chunk_index: idx + 1,
+            total_chunks: rawChunks.length,
+            start_page: startPage,
+            end_page: endPage,
+            batch_title: batchTitle,
+            extraction_method: 'cached'
+          };
+        }
       } else {
-        // Use previous metadata for intermediate chunks (cheaper)
+        // Simple metadata for non-textbook documents
         metadata = {
-          ...previousMetadata,
           chunk_index: idx + 1,
           total_chunks: rawChunks.length,
+          content_type: documentType || 'general',
+          document_type: documentType,
+          topics: extractTopics(rawChunks[idx]),
+          keywords: extractKeywords(rawChunks[idx]),
+          page_range: startPage && endPage ? `${startPage}-${endPage}` : null,
+          summary: rawChunks[idx].substring(0, 150) + '...',
           start_page: startPage,
           end_page: endPage,
           batch_title: batchTitle,
-          extraction_method: 'cached'
+          extraction_method: 'basic'
         };
       }
       
@@ -464,8 +505,17 @@ export const KnowledgeBase = () => {
 
       setUploadProgress({ isUploading: true, stage: 'chunking', progress: 50, fileName: doc.title });
       
-      // Chunk content client-side with LLM metadata enrichment
-      const chunks = await chunkTextClientSide(doc.content);
+      // Chunk content client-side with metadata enrichment
+      const chunks = await chunkTextClientSide(
+        doc.content,
+        2000,
+        200,
+        undefined,
+        undefined,
+        undefined,
+        doc.category,
+        manualContent.documentType
+      );
       console.log(`📦 Created ${chunks.length} LLM-enriched chunks for manual document`);
 
       // Store each chunk with metadata
@@ -501,7 +551,7 @@ export const KnowledgeBase = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
-      setManualContent({ title: "", content: "" });
+      setManualContent({ title: "", content: "", documentType: "" });
     },
     onError: (error) => {
       setUploadProgress({ 
@@ -587,7 +637,15 @@ export const KnowledgeBase = () => {
   };
 
   const handleProcessFile = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !selectedAgent) {
+      toast.error("Please select both an agent and a file");
+      return;
+    }
+    
+    if (!selectedDocumentType) {
+      toast.error("Please select a document type before uploading");
+      return;
+    }
 
     try {
       const fileSizeMB = selectedFile.size / (1024 * 1024);
@@ -638,8 +696,17 @@ export const KnowledgeBase = () => {
 
         setUploadProgress({ isUploading: true, stage: 'chunking', progress: 75, fileName: selectedFile.name });
 
-        // Chunk content client-side with LLM metadata enrichment
-        const chunks = await chunkTextClientSide(content);
+        // Chunk content client-side with metadata enrichment
+        const chunks = await chunkTextClientSide(
+          content,
+          2000,
+          200,
+          undefined,
+          undefined,
+          undefined,
+          `agent_${selectedAgent}`,
+          selectedDocumentType
+        );
         console.log(`📦 Created ${chunks.length} LLM-enriched chunks for text file`);
 
         // Store each chunk with metadata
@@ -792,7 +859,9 @@ export const KnowledgeBase = () => {
             200,
             startPage,
             endPage,
-            batchTitle
+            batchTitle,
+            `agent_${selectedAgent}`,
+            selectedDocumentType
           );
           console.log(`📦 Created ${chunks.length} LLM-enriched chunks for batch ${batchNum + 1}`);
 
@@ -912,6 +981,11 @@ export const KnowledgeBase = () => {
       return;
     }
     
+    if (!manualContent.documentType) {
+      toast.error("Please select a document type");
+      return;
+    }
+    
     if (!manualContent.title || !manualContent.content) {
       toast.error("Please fill in title and content");
       return;
@@ -960,6 +1034,50 @@ export const KnowledgeBase = () => {
               </p>
             )}
           </div>
+
+          {/* Document Type Selector - Only show when agent is selected */}
+          {selectedAgent && (
+            <div>
+              <Label htmlFor="document-type-select">Document Type</Label>
+              <Select 
+                value={selectedDocumentType} 
+                onValueChange={setSelectedDocumentType}
+              >
+                <SelectTrigger id="document-type-select" className="w-full">
+                  <SelectValue placeholder="What type of document are you uploading?" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {DOCUMENT_TYPES.map((docType) => (
+                    <SelectItem key={docType.id} value={docType.id}>
+                      <div className="flex items-center gap-2">
+                        <docType.icon className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium">{docType.name}</div>
+                          <div className="text-xs text-muted-foreground">{docType.description}</div>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedDocumentType && (
+                <div className="mt-2 p-2 bg-muted rounded-md">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedDocumentType === 'textbook' ? (
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> 
+                        <strong>Enhanced extraction:</strong> Chapters, quizzes, and topics will be automatically detected using AI
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>Basic extraction:</strong> Document will be split into searchable chunks with simple metadata
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Upload Progress Indicator */}
           {uploadProgress.isUploading && (
@@ -1147,6 +1265,28 @@ export const KnowledgeBase = () => {
                   </div>
 
                   <div>
+                    <Label htmlFor="manual-doc-type">Document Type</Label>
+                    <Select
+                      value={manualContent.documentType}
+                      onValueChange={(value) => setManualContent({ ...manualContent, documentType: value })}
+                    >
+                      <SelectTrigger id="manual-doc-type" className="w-full">
+                        <SelectValue placeholder="Select document type..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        {DOCUMENT_TYPES.map((docType) => (
+                          <SelectItem key={docType.id} value={docType.id}>
+                            <div className="flex items-center gap-2">
+                              <docType.icon className="w-4 h-4" />
+                              <span>{docType.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
                     <Label htmlFor="content">Content</Label>
                     <Textarea
                       id="content"
@@ -1201,13 +1341,27 @@ export const KnowledgeBase = () => {
               <div className="space-y-2">
                 {documents.map((doc) => {
                   const chunkCount = doc.chunks?.[0]?.count || 0;
+                  const metadata = doc.chunk_metadata as { document_type?: string } | null;
+                  const docType = DOCUMENT_TYPES.find(dt => 
+                    metadata?.document_type === dt.id
+                  );
+                  
                   return (
                     <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center gap-3 flex-1">
-                        <FileText className="w-5 h-5 text-muted-foreground" />
+                        {docType ? (
+                          <docType.icon className="w-5 h-5 text-muted-foreground" />
+                        ) : (
+                          <FileText className="w-5 h-5 text-muted-foreground" />
+                        )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <div className="font-medium">{doc.title}</div>
+                            {docType && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                {docType.name}
+                              </span>
+                            )}
                             {chunkCount > 0 ? (
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                                 ✓ {chunkCount} chunks

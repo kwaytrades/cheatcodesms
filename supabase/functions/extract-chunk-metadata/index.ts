@@ -12,6 +12,8 @@ interface MetadataRequest {
     chapter_number?: number;
     chapter_title?: string;
   };
+  category?: string;
+  documentType?: string;
 }
 
 serve(async (req) => {
@@ -20,7 +22,21 @@ serve(async (req) => {
   }
 
   try {
-    const { text, pageNumber, previousChapterContext }: MetadataRequest = await req.json();
+    const { text, pageNumber, previousChapterContext, category, documentType }: MetadataRequest = await req.json();
+    
+    // Early exit for non-textbook documents - return basic metadata
+    if (documentType !== 'textbook') {
+      return new Response(JSON.stringify({
+        chunk_index: null,
+        content_type: documentType || 'general',
+        document_type: documentType,
+        topics: [],
+        keywords: [],
+        summary: text.substring(0, 100) + '...',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
