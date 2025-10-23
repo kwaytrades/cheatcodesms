@@ -6,6 +6,8 @@ import { Plus } from "lucide-react";
 import { AgentStatusBadge } from "@/components/agents/AgentStatusBadge";
 import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AssignAgentDialog } from "@/components/agents/AssignAgentDialog";
+import { AgentNameBadge } from "@/components/agents/AgentNameBadge";
+import { AgentConflictIndicator } from "@/components/agents/AgentConflictIndicator";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 
@@ -25,6 +27,18 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
         .eq("contact_id", contactId)
         .order("assigned_date", { ascending: false });
       return data || [];
+    },
+  });
+
+  const { data: conversationState } = useQuery({
+    queryKey: ["conversation-state", contactId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("conversation_state")
+        .select("active_agent_id, agent_queue")
+        .eq("contact_id", contactId)
+        .single();
+      return data;
     },
   });
 
@@ -49,35 +63,53 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
           {agents?.length === 0 ? (
             <p className="text-sm text-muted-foreground">No agents assigned yet</p>
           ) : (
-            agents?.map((agent) => (
-              <div key={agent.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <AgentTypeIcon type={agent.product_type} className="w-8 h-8" />
-                    <div>
-                      <div className="font-medium capitalize">{agent.product_type.replace("_", " ")}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {calculateDaysRemaining(agent.expiration_date)} days remaining
+            agents?.map((agent) => {
+              const isActive = agent.id === conversationState?.active_agent_id;
+              const queueData = conversationState?.agent_queue as Array<{ agent_id: string }> | undefined;
+              const queuePosition = queueData?.findIndex((q) => q.agent_id === agent.id);
+              const isQueued = queuePosition !== undefined && queuePosition >= 0;
+
+              return (
+                <div 
+                  key={agent.id} 
+                  className={`border rounded-lg p-4 space-y-3 transition-colors ${
+                    isActive ? 'bg-primary/5 border-primary/20' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <AgentTypeIcon type={agent.product_type} className="w-8 h-8" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <AgentNameBadge agentType={agent.product_type} />
+                          <AgentConflictIndicator 
+                            isActive={isActive}
+                            queuePosition={isQueued ? queuePosition + 1 : undefined}
+                          />
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          {calculateDaysRemaining(agent.expiration_date)} days remaining
+                        </div>
                       </div>
                     </div>
+                    <AgentStatusBadge status={agent.status} />
                   </div>
-                  <AgentStatusBadge status={agent.status} />
+                  <div className="flex gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Messages:</span>{" "}
+                      <span className="font-medium">{agent.messages_sent}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Replies:</span>{" "}
+                      <span className="font-medium">{agent.replies_received}</span>
+                    </div>
+                    {agent.conversion_achieved && (
+                      <Badge variant="default">Converted</Badge>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Messages:</span>{" "}
-                    <span className="font-medium">{agent.messages_sent}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Replies:</span>{" "}
-                    <span className="font-medium">{agent.replies_received}</span>
-                  </div>
-                  {agent.conversion_achieved && (
-                    <Badge variant="default">Converted</Badge>
-                  )}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>

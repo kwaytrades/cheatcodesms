@@ -54,7 +54,11 @@ export const KnowledgeBase = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("knowledge_base")
-        .select("*")
+        .select(`
+          *,
+          chunks:knowledge_base!parent_document_id(count)
+        `)
+        .is("parent_document_id", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -64,18 +68,42 @@ export const KnowledgeBase = () => {
 
   const addDocument = useMutation({
     mutationFn: async (doc: { title: string; category: string; content: string; file_path?: string; file_type?: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("knowledge_base")
-        .insert([doc]);
+        .insert([doc])
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Automatically chunk and embed the document
+      toast.info("Processing and embedding document...");
+      const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
+        "chunk-and-embed-pdf",
+        {
+          body: {
+            document_id: data.id,
+            content: doc.content,
+            title: doc.title,
+            category: doc.category,
+          },
+        }
+      );
+
+      if (chunkError) {
+        toast.error("Document added but chunking failed: " + chunkError.message);
+      } else {
+        toast.success(`Document embedded into ${chunkData?.chunks_created || 0} searchable chunks`);
+      }
+
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
       setTitle("");
       setCategory("");
       setContent("");
-      toast.success("Document added to knowledge base");
+      setPdfUploaded(false);
     },
     onError: (error) => {
       toast.error("Failed to add document: " + error.message);
@@ -270,32 +298,47 @@ export const KnowledgeBase = () => {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      {doc.title}
-                    </TableCell>
-                    <TableCell>{doc.category}</TableCell>
-                    <TableCell>
-                      {new Date(doc.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteDocument.mutate(doc.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {documents.map((doc) => {
+                  const chunkCount = doc.chunks?.[0]?.count || 0;
+                  return (
+                    <TableRow key={doc.id}>
+                      <TableCell className="flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        {doc.title}
+                      </TableCell>
+                      <TableCell>{doc.category}</TableCell>
+                      <TableCell>
+                        {chunkCount > 0 ? (
+                          <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
+                            ✓ Embedded ({chunkCount} chunks)
+                          </span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-full">
+                            Not Embedded
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(doc.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteDocument.mutate(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           ) : (

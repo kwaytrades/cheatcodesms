@@ -33,6 +33,31 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
     enabled: !contactId,
   });
 
+  const { data: activeAgent } = useQuery({
+    queryKey: ["active-agent", selectedContact || contactId],
+    queryFn: async () => {
+      const targetContactId = selectedContact || contactId;
+      if (!targetContactId) return null;
+
+      const { data: state } = await supabase
+        .from("conversation_state")
+        .select("active_agent_id")
+        .eq("contact_id", targetContactId)
+        .single();
+
+      if (!state?.active_agent_id) return null;
+
+      const { data: agent } = await supabase
+        .from("product_agents")
+        .select("product_type")
+        .eq("id", state.active_agent_id)
+        .single();
+
+      return agent;
+    },
+    enabled: !!(selectedContact || contactId),
+  });
+
   const handleAssign = async () => {
     if (!selectedContact || !productType) {
       toast({ title: "Error", description: "Please select a contact and product type", variant: "destructive" });
@@ -69,6 +94,12 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
           <DialogDescription>
             Assign an AI concierge agent to guide this contact through their product journey
           </DialogDescription>
+          {activeAgent && (
+            <div className="mt-2 p-2 bg-muted rounded text-sm">
+              <span className="text-muted-foreground">Currently active: </span>
+              <span className="font-medium capitalize">{activeAgent.product_type.replace("_", " ")}</span>
+            </div>
+          )}
         </DialogHeader>
         <div className="space-y-4">
           {!contactId && (
