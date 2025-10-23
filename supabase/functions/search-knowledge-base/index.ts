@@ -69,14 +69,35 @@ serve(async (req) => {
         throw error;
       }
 
-      // Score and rank results based on relevance
+      // Score and rank results with robust JSONB metadata handling
       const scoredResults = (searchResults || []).map((doc: any) => {
         let score = 0;
-        const metadata = doc.chunk_metadata || {};
+        
+        // Safely extract metadata - handle JSONB strings and objects
+        let metadata = doc.chunk_metadata || {};
+        if (typeof metadata === 'string') {
+          try {
+            metadata = JSON.parse(metadata);
+          } catch (e) {
+            console.error('Failed to parse chunk_metadata:', e);
+            metadata = {};
+          }
+        }
+        
         const lowerQuery = query.toLowerCase();
+        let chapterNum = metadata.chapter_number;
+        
+        // Fallback: Try to extract chapter from title if missing
+        if (!chapterNum && doc.title) {
+          const titleMatch = doc.title.match(/Chapter (\d+)|Pages (\d+)-(\d+)/i);
+          if (titleMatch) {
+            chapterNum = titleMatch[1] ? parseInt(titleMatch[1]) : Math.floor(parseInt(titleMatch[2] || '0') / 50) + 1;
+            console.log('Inferred chapter from title:', { title: doc.title, chapter: chapterNum });
+          }
+        }
         
         // Exact chapter match = highest priority
-        if (chapterNumber && metadata.chapter_number === parseInt(chapterNumber)) {
+        if (chapterNumber && chapterNum === parseInt(chapterNumber)) {
           score += 100;
         }
         
@@ -111,7 +132,16 @@ serve(async (req) => {
           score += 10;
         }
         
-        return { ...doc, relevance_score: score };
+        return { 
+          ...doc, 
+          relevance_score: score,
+          chapter_number: chapterNum,
+          chapter_title: metadata.chapter_title,
+          section_title: metadata.section_title,
+          topics: metadata.topics || [],
+          keywords: metadata.keywords || [],
+          summary: metadata.summary
+        };
       });
       
       // Sort by relevance score
@@ -160,15 +190,15 @@ serve(async (req) => {
       relevance_score: doc.relevance_score || 0,
       chunk_metadata: doc.chunk_metadata,
       context_chunks: doc.context_chunks,
-      // Extract key metadata for easy access
-      chapter_number: doc.chunk_metadata?.chapter_number,
-      chapter_title: doc.chunk_metadata?.chapter_title,
-      section_title: doc.chunk_metadata?.section_title,
-      topics: doc.chunk_metadata?.topics || [],
-      keywords: doc.chunk_metadata?.keywords || [],
-      content_type: doc.chunk_metadata?.content_type,
-      complexity: doc.chunk_metadata?.complexity,
-      summary: doc.chunk_metadata?.summary,
+      // Use already-extracted metadata from scoring
+      chapter_number: doc.chapter_number,
+      chapter_title: doc.chapter_title,
+      section_title: doc.section_title,
+      topics: doc.topics || [],
+      keywords: doc.keywords || [],
+      summary: doc.summary,
+      content_type: typeof doc.chunk_metadata === 'object' ? doc.chunk_metadata?.content_type : undefined,
+      complexity: typeof doc.chunk_metadata === 'object' ? doc.chunk_metadata?.complexity : undefined,
     })) || [];
 
     return new Response(

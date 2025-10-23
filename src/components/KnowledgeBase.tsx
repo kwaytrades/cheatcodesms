@@ -79,36 +79,68 @@ export const KnowledgeBase = () => {
 
   // ============= METADATA EXTRACTION UTILITIES =============
   
-  // Extract chapter information from content
+  // Extract chapter information from content with multiple detection strategies
   const extractChapterInfo = (text: string, startPage?: number) => {
-    // Look for chapter patterns
-    const chapterPatterns = [
-      /chapter\s+(\d+)[:\s]+([^\n]+)/i,
-      /chapter\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[:\s]+([^\n]+)/i,
-      /(\d+)\.\s+([A-Z][^\n]{10,80})\n/,
-    ];
+    // Strategy 1: Standard "Chapter N: Title" or "Chapter N - Title" format
+    const standardMatch = text.match(/chapter\s+(\d+)[:\s\-]+([^\n]+)/i);
+    if (standardMatch) {
+      const chapterNum = parseInt(standardMatch[1]);
+      const chapterTitle = standardMatch[2]?.trim();
+      console.log('✅ Chapter detected (standard):', { chapterNum, chapterTitle });
+      return { chapter_number: chapterNum, chapter_title: chapterTitle };
+    }
     
-    for (const pattern of chapterPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        const chapterNum = match[1];
-        const chapterTitle = match[2]?.trim();
-        
-        // Convert word numbers to digits
-        const wordToNum: Record<string, number> = {
-          one: 1, two: 2, three: 3, four: 4, five: 5,
-          six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
-          eleven: 11, twelve: 12
-        };
-        
-        const finalNum = isNaN(Number(chapterNum)) 
-          ? wordToNum[chapterNum.toLowerCase()] 
-          : Number(chapterNum);
-        
-        return { chapter_number: finalNum, chapter_title: chapterTitle };
+    // Strategy 2: All caps chapter heading (e.g., "CHAPTER 3" followed by title)
+    const capsMatch = text.match(/CHAPTER\s+(\d+)[:\s]*\n+([^\n]+)/);
+    if (capsMatch) {
+      const chapterNum = parseInt(capsMatch[1]);
+      const chapterTitle = capsMatch[2]?.trim();
+      console.log('✅ Chapter detected (all caps):', { chapterNum, chapterTitle });
+      return { chapter_number: chapterNum, chapter_title: chapterTitle };
+    }
+    
+    // Strategy 3: Word form chapters (e.g., "Chapter One: Introduction")
+    const wordMatch = text.match(/chapter\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[:\s]+([^\n]+)/i);
+    if (wordMatch) {
+      const wordToNum: Record<string, number> = {
+        one: 1, two: 2, three: 3, four: 4, five: 5,
+        six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+        eleven: 11, twelve: 12
+      };
+      const chapterNum = wordToNum[wordMatch[1].toLowerCase()];
+      const chapterTitle = wordMatch[2]?.trim();
+      console.log('✅ Chapter detected (word form):', { chapterNum, chapterTitle });
+      return { chapter_number: chapterNum, chapter_title: chapterTitle };
+    }
+    
+    // Strategy 4: Numbered title format (e.g., "3. Technical Analysis")
+    const numberedMatch = text.match(/^(\d+)\.\s+([A-Z][^\n]{10,80})/m);
+    if (numberedMatch) {
+      const chapterNum = parseInt(numberedMatch[1]);
+      const chapterTitle = numberedMatch[2]?.trim();
+      console.log('✅ Chapter detected (numbered):', { chapterNum, chapterTitle });
+      return { chapter_number: chapterNum, chapter_title: chapterTitle };
+    }
+    
+    // Strategy 5: Table of Contents format
+    if (text.includes('Table of Contents') || text.includes('CONTENTS')) {
+      const tocMatch = text.match(/(\d+)\.\s+([A-Z][^\n]+)\s+\.+\s+(\d+)/);
+      if (tocMatch) {
+        const chapterNum = parseInt(tocMatch[1]);
+        const chapterTitle = tocMatch[2]?.trim();
+        console.log('✅ Chapter detected (TOC):', { chapterNum, chapterTitle });
+        return { chapter_number: chapterNum, chapter_title: chapterTitle };
       }
     }
     
+    // Strategy 6: Use page number heuristics as last resort (50 pages per chapter)
+    if (startPage && startPage > 0) {
+      const estimatedChapter = Math.floor((startPage - 1) / 50) + 1;
+      console.log('⚠️ Chapter estimated from page:', { startPage, estimatedChapter });
+      return { chapter_number: estimatedChapter, chapter_title: null };
+    }
+    
+    console.log('❌ No chapter detected');
     return null;
   };
 
@@ -340,6 +372,14 @@ export const KnowledgeBase = () => {
     metadata.has_formula = /[=+\-*/()]/g.test(content) && content.length < 500;
     metadata.has_list = /^[\s]*[-•*]\s/m.test(content);
     metadata.has_numbered_list = /^\s*\d+\.\s/m.test(content);
+    
+    // Log final metadata for debugging
+    console.log(`📊 Metadata for chunk ${chunkIndex}/${totalChunks}:`, {
+      chapter: metadata.chapter_number,
+      title: metadata.chapter_title,
+      topics: metadata.topics?.length || 0,
+      keywords: metadata.keywords?.length || 0
+    });
     
     return metadata;
   };

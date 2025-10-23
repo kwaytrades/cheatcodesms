@@ -237,34 +237,60 @@ Deno.serve(async (req) => {
         }
       });
       if (kbData?.results && kbData.results.length > 0) {
-        knowledgeContext = kbData.results.map((r: any) => {
-          let contextStr = '';
-          
-          // Add chapter/section context if available
-          if (r.chapter_number && r.chapter_title) {
-            contextStr += `\n[Chapter ${r.chapter_number}: ${r.chapter_title}]`;
-          }
-          if (r.section_title) {
-            contextStr += `\nSection: ${r.section_title}`;
-          }
-          
-          // Add topic context
-          if (r.topics && r.topics.length > 0) {
-            contextStr += `\nTopics: ${r.topics.join(', ')}`;
-          }
-          
-          // Add summary if available
-          if (r.summary) {
-            contextStr += `\nSummary: ${r.summary}`;
-          }
-          
-          // Add content
-          contextStr += `\n\nContent:\n${r.content}`;
-          
-          return contextStr;
-        }).join('\n\n---\n\n');
+        // Group results by chapter for structured context
+        const byChapter = kbData.results.reduce((acc: any, doc: any) => {
+          const chapter = doc.chapter_number || 'general';
+          if (!acc[chapter]) acc[chapter] = [];
+          acc[chapter].push(doc);
+          return acc;
+        }, {});
         
-        console.log(`Knowledge base context: ${kbData.results.length} chunks found with metadata`);
+        // Build chapter summary
+        const chapterList = Object.keys(byChapter)
+          .filter(ch => ch !== 'general')
+          .map(ch => {
+            const firstDoc = byChapter[ch][0];
+            return `- Chapter ${ch}${firstDoc.chapter_title ? ': ' + firstDoc.chapter_title : ''}`;
+          })
+          .join('\n');
+        
+        // Build detailed content organized by chapter
+        const detailedContent = Object.entries(byChapter).map(([chapter, docs]: [string, any]) => {
+          const firstDoc = docs[0];
+          const headerLabel = chapter !== 'general' 
+            ? `Chapter ${chapter}${firstDoc.chapter_title ? ': ' + firstDoc.chapter_title : ''}` 
+            : 'General Information';
+          
+          return `
+## ${headerLabel}
+
+${docs.map((doc: any, idx: number) => `
+### ${doc.section_title || doc.title || `Section ${idx + 1}`}
+${doc.topics?.length ? `Topics: ${doc.topics.join(', ')}` : ''}
+${doc.summary ? `Summary: ${doc.summary}` : ''}
+
+${doc.content}
+`).join('\n---\n')}
+`;
+        }).join('\n\n');
+        
+        knowledgeContext = `
+RELEVANT KNOWLEDGE BASE INFORMATION:
+
+${chapterList ? `AVAILABLE CHAPTERS:\n${chapterList}\n\n` : ''}
+
+DETAILED CONTENT:
+${detailedContent}
+
+INSTRUCTIONS FOR USING THIS INFORMATION:
+- ALWAYS cite the specific chapter when referencing information (e.g., "According to Chapter 3...")
+- If asked about chapter location, be specific: "That topic is covered in Chapter X: [Title]"
+- Reference section titles and topics to provide detailed, accurate context
+- If information spans multiple chapters, mention all relevant chapters
+- Use the chapter structure to help the customer navigate the material
+`;
+        
+        console.log(`Knowledge base context: ${kbData.results.length} chunks found, grouped into ${Object.keys(byChapter).length} sections`);
       }
     } catch (kbError) {
       console.error('Knowledge base search failed:', kbError);
