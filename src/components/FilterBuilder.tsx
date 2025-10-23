@@ -137,52 +137,34 @@ export function FilterBuilder({ filters, onFiltersChange, onSave }: FilterBuilde
         >
           🔥 Hot Leads
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onFiltersChange([
-              { id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'VIP' }
-            ]);
-          }}
-          className="text-xs"
-        >
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'hot' }])} className="text-xs">
+          🔥 Hot Leads
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'warm' }])} className="text-xs">
+          🟡 Warm Leads
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'cold' }])} className="text-xs">
+          ❄️ Cold Leads
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 1' }])} className="text-xs">
+          Level 1
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 2' }])} className="text-xs">
+          Level 2
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 3' }])} className="text-xs">
+          Level 3
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'VIP' }])} className="text-xs">
           👑 VIP Only
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onFiltersChange([
-              { id: crypto.randomUUID(), field: 'total_spent', operator: 'greater', value: '1000' }
-            ]);
-          }}
-          className="text-xs"
-        >
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'total_spent', operator: 'greater', value: '1000' }])} className="text-xs">
           💰 High Spenders
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onFiltersChange([
-              { id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'SHITLIST' }
-            ]);
-          }}
-          className="text-xs"
-        >
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'SHITLIST' }])} className="text-xs">
           ⚠️ SHITLIST
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onFiltersChange([
-              { id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater', value: '75' }
-            ]);
-          }}
-          className="text-xs"
-        >
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater', value: '70' }])} className="text-xs">
           📈 High Likelihood
         </Button>
       </div>

@@ -249,41 +249,35 @@ export const ContactAnalytics = () => {
         .slice(0, 20);
       setActiveCustomers(topCustomers);
 
-      // Purchase intent funnel - use likelihood_category when available, fallback to lead_score
-      const intentCounts = {
-        cold: contacts?.filter((c: any) => {
-          if (c.likelihood_category) {
-            return c.likelihood_category === 'cold' || c.likelihood_category === 'frozen';
-          }
-          return !c.lead_score || c.lead_score < 25;
-        }).length || 0,
-        warm: contacts?.filter((c: any) => {
-          if (c.likelihood_category) {
-            return c.likelihood_category === 'warm' || c.likelihood_category === 'neutral';
-          }
-          return c.lead_score >= 25 && c.lead_score < 50;
-        }).length || 0,
-        hot: contacts?.filter((c: any) => {
-          if (c.likelihood_category) {
-            return c.likelihood_category === 'hot';
-          }
-          return c.lead_score >= 50 && c.lead_score < 75;
-        }).length || 0,
-        ready: contacts?.filter((c: any) => {
-          // Ready to buy: customers with purchases and high scores
-          const hasPurchases = (c.products_owned && c.products_owned.length > 0) || (c.total_spent && c.total_spent > 0);
-          if (c.likelihood_category) {
-            return hasPurchases && c.likelihood_category === 'hot' && c.lead_score >= 75;
-          }
-          return c.lead_score >= 75;
-        }).length || 0,
-      };
-      const totalIntent = Object.values(intentCounts).reduce((a, b) => a + b, 0);
+      // Purchase Intent Funnel - Use COUNT queries for accuracy
+      const { count: coldCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true })
+        .in("likelihood_category", ["cold", "frozen"]);
+
+      const { count: warmCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true })
+        .in("likelihood_category", ["warm", "neutral"]);
+
+      const { count: hotCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true })
+        .eq("likelihood_category", "hot");
+
+      // Ready to Buy: hot leads with high score
+      const { count: readyCount } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true })
+        .eq("likelihood_category", "hot")
+        .gte("likelihood_to_buy_score", 80);
+
+      const totalIntent = (coldCount || 0) + (warmCount || 0) + (hotCount || 0) + (readyCount || 0);
       setPurchaseIntent([
-        { stage: 'Cold', count: intentCounts.cold, percentage: totalIntent > 0 ? Math.round((intentCounts.cold / totalIntent) * 100) : 0 },
-        { stage: 'Warm', count: intentCounts.warm, percentage: totalIntent > 0 ? Math.round((intentCounts.warm / totalIntent) * 100) : 0 },
-        { stage: 'Hot', count: intentCounts.hot, percentage: totalIntent > 0 ? Math.round((intentCounts.hot / totalIntent) * 100) : 0 },
-        { stage: 'Ready to Buy', count: intentCounts.ready, percentage: totalIntent > 0 ? Math.round((intentCounts.ready / totalIntent) * 100) : 0 },
+        { stage: 'Cold', count: coldCount || 0, percentage: totalIntent > 0 ? Math.round(((coldCount || 0) / totalIntent) * 100) : 0 },
+        { stage: 'Warm', count: warmCount || 0, percentage: totalIntent > 0 ? Math.round(((warmCount || 0) / totalIntent) * 100) : 0 },
+        { stage: 'Hot', count: hotCount || 0, percentage: totalIntent > 0 ? Math.round(((hotCount || 0) / totalIntent) * 100) : 0 },
+        { stage: 'Ready to Buy', count: readyCount || 0, percentage: totalIntent > 0 ? Math.round(((readyCount || 0) / totalIntent) * 100) : 0 },
       ]);
 
       // Sentiment breakdown

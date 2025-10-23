@@ -3,20 +3,24 @@ import { MessageSquare, Mail, Tag, Trash2, Download } from "lucide-react";
 
 interface BulkActionsToolbarProps {
   selectedCount: number;
+  totalCount: number;
   onSendSMS: () => void;
   onSendEmail: () => void;
   onAddTags: () => void;
   onExport: () => void;
   onDelete: () => void;
+  onDeleteAll?: () => void;
 }
 
 export function BulkActionsToolbar({
   selectedCount,
+  totalCount,
   onSendSMS,
   onSendEmail,
   onAddTags,
   onExport,
   onDelete,
+  onDeleteAll,
 }: BulkActionsToolbarProps) {
   if (selectedCount === 0) return null;
 
@@ -46,8 +50,14 @@ export function BulkActionsToolbar({
           </Button>
           <Button variant="destructive" size="sm" onClick={onDelete} className="gap-2">
             <Trash2 className="h-4 w-4" />
-            Delete
+            Delete Selected
           </Button>
+          {onDeleteAll && selectedCount === totalCount && (
+            <Button variant="destructive" size="sm" onClick={onDeleteAll} className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              Delete All
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -109,38 +109,72 @@ const Contacts = () => {
   }, [currentPage, pageSize, sortColumn, sortDirection]);
 
   useEffect(() => {
+    loadContacts();
+  }, [currentPage, sortColumn, sortDirection, filters]);
+  
+  useEffect(() => {
     applyFiltersAndSearch();
-  }, [searchQuery, contacts, filters, selectedSegment]);
+  }, [searchQuery, contacts, selectedSegment]);
 
   const loadContacts = async () => {
     try {
       setLoading(true);
       
-      // Get total count
-      const { count } = await supabase
-        .from("contacts")
-        .select("*", { count: 'exact', head: true });
+      // Build base query with filters
+      let countQuery = supabase.from("contacts").select("*", { count: 'exact', head: true });
+      let dataQuery = supabase.from("contacts").select("*");
       
+      // Apply filters to both queries
+      filters.forEach(filter => {
+        const { field, operator, value } = filter;
+        
+        switch (operator) {
+          case 'equals':
+            countQuery = countQuery.eq(field, value);
+            dataQuery = dataQuery.eq(field, value);
+            break;
+          case 'contains':
+            countQuery = countQuery.ilike(field, `%${value}%`);
+            dataQuery = dataQuery.ilike(field, `%${value}%`);
+            break;
+          case 'greater':
+          case 'greater_than':
+            countQuery = countQuery.gt(field, value);
+            dataQuery = dataQuery.gt(field, value);
+            break;
+          case 'less':
+          case 'less_than':
+            countQuery = countQuery.lt(field, value);
+            dataQuery = dataQuery.lt(field, value);
+            break;
+          case 'in':
+            const values = typeof value === 'string' ? value.split(',').map((v: string) => v.trim()) : value;
+            countQuery = countQuery.in(field, values);
+            dataQuery = dataQuery.in(field, values);
+            break;
+        }
+      });
+      
+      // Get total count with filters
+      const { count } = await countQuery;
       setTotalCount(count || 0);
       
-      // Get paginated data - DEFAULT SORT BY HOT LEADS FIRST
+      // Apply pagination and sorting to data query
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
+      dataQuery = dataQuery.range(from, to);
       
       const orderColumn = sortColumn || 'likelihood_to_buy_score';
-      const orderDirection = sortColumn ? sortDirection === 'asc' : false; // Default desc for likelihood
+      const orderDirection = sortColumn ? sortDirection === 'asc' : false;
+      dataQuery = dataQuery.order(orderColumn, { ascending: orderDirection, nullsFirst: false });
       
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("*")
-        .order(orderColumn, { ascending: orderDirection, nullsFirst: false })
-        .range(from, to);
-
+      const { data, error } = await dataQuery;
+      
       if (error) throw error;
       setContacts(data || []);
-    } catch (error) {
-      console.error("Error loading contacts:", error);
-      toast.error("Failed to load contacts");
+      setFilteredContacts(data || []);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load contacts");
     } finally {
       setLoading(false);
     }
@@ -616,26 +650,14 @@ const Contacts = () => {
         {/* Bulk Actions Toolbar */}
         <BulkActionsToolbar
           selectedCount={selectedContacts.size}
+          totalCount={totalCount}
           onSendSMS={() => toast.info('SMS feature coming soon')}
           onSendEmail={() => toast.info('Email feature coming soon')}
           onAddTags={() => toast.info('Tags feature coming soon')}
           onExport={handleExportCSV}
           onDelete={handleDeleteSelected}
+          onDeleteAll={selectedContacts.size === totalCount ? handleDeleteAll : undefined}
         />
-
-        {/* Delete All Button - shown when no selection */}
-        {selectedContacts.size === 0 && totalCount > 0 && (
-          <div className="px-4 py-2 border-b bg-destructive/5">
-            <Button 
-              variant="destructive" 
-              size="sm"
-              onClick={handleDeleteAll}
-              className="gap-2"
-            >
-              Delete All {totalCount.toLocaleString()} Contacts
-            </Button>
-          </div>
-        )}
 
         {/* Table */}
         <div className="flex-1 overflow-auto">

@@ -13,37 +13,23 @@ export const InsightsPanel = ({ contact, purchases = [], messages = [], aiMessag
   const generateInsights = () => {
     const insights: string[] = [];
 
-    // Purchase patterns
-    if (purchases.length > 0) {
-      const sortedPurchases = [...purchases].sort((a, b) => 
-        new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime()
-      );
-      const lastPurchase = sortedPurchases[0];
-      const daysSinceLastPurchase = Math.floor(
-        (Date.now() - new Date(lastPurchase.purchase_date).getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      if (daysSinceLastPurchase <= 30) {
-        insights.push(`Recent buyer - last purchase ${daysSinceLastPurchase} days ago`);
-      } else if (daysSinceLastPurchase > 90) {
-        insights.push(`⚠️ No purchase in ${daysSinceLastPurchase} days - re-engagement opportunity`);
-      }
-
-      if (purchases.length >= 3) {
-        insights.push(`Repeat customer with ${purchases.length} purchases`);
-      }
-
-      // Check for patterns in purchase timing
-      const purchaseDates = purchases.map(p => new Date(p.purchase_date));
-      const intervals = purchaseDates.slice(0, -1).map((date, i) => 
-        Math.abs(date.getTime() - purchaseDates[i + 1].getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      if (avgInterval && !isNaN(avgInterval)) {
-        insights.push(`Typical purchase cycle: ~${Math.round(avgInterval)} days`);
+    // Purchase patterns - check contact.products_owned and total_spent
+    const hasPurchases = (contact?.products_owned && contact.products_owned.length > 0) 
+                         || (contact?.total_spent && contact.total_spent > 0);
+    
+    if (hasPurchases) {
+      const totalSpent = contact?.total_spent || 0;
+      const productCount = contact?.products_owned?.length || 0;
+      insights.push(`Total purchases: ${productCount} products ($${totalSpent.toLocaleString()})`);
+      
+      if (contact?.last_contact_date) {
+        const daysSinceContact = Math.floor(
+          (Date.now() - new Date(contact.last_contact_date).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        insights.push(`Last activity: ${daysSinceContact} days ago`);
       }
     } else {
-      insights.push("No purchases yet - warm lead for first conversion");
+      insights.push("No purchase history");
     }
 
     // Products owned
@@ -53,24 +39,31 @@ export const InsightsPanel = ({ contact, purchases = [], messages = [], aiMessag
     }
 
     // Communication patterns
-    const allMessages = [...messages, ...aiMessages];
-    if (allMessages.length > 0) {
-      const emailMessages = aiMessages.filter(m => m.channel === 'email');
-      const smsMessages = messages.length + aiMessages.filter(m => m.channel === 'sms').length;
+    const totalMessages = messages.length + aiMessages.length;
+    if (totalMessages > 0) {
+      insights.push(`${totalMessages} total communications`);
       
-      if (emailMessages.length > 0 && smsMessages > 0) {
-        const emailEngagement = emailMessages.filter(m => m.opened || m.replied).length;
-        const emailRate = Math.round((emailEngagement / emailMessages.length) * 100);
-        insights.push(`Email engagement: ${emailRate}%`);
+      const recentMessages = [...messages, ...aiMessages]
+        .sort((a, b) => new Date(b.created_at || b.sent_at).getTime() - new Date(a.created_at || a.sent_at).getTime())
+        .slice(0, 3);
+      
+      if (recentMessages.length > 0) {
+        const lastMessageDate = recentMessages[0].created_at || recentMessages[0].sent_at;
+        insights.push(`Last message: ${formatDistanceToNow(new Date(lastMessageDate), { addSuffix: true })}`);
       }
+    }
 
-      const recentMessages = allMessages.slice(0, 5);
-      const lastMessage = recentMessages[0];
-      if (lastMessage?.created_at) {
-        insights.push(`Last contacted ${formatDistanceToNow(new Date(lastMessage.created_at), { addSuffix: true })}`);
-      }
-    } else {
-      insights.push("No communication history - cold start");
+    // Notes
+    if (contact?.notes) {
+      const notePreview = contact.notes.length > 50 
+        ? contact.notes.substring(0, 50) + '...' 
+        : contact.notes;
+      insights.push(`Note: ${notePreview}`);
+    }
+
+    // Tags
+    if (contact?.tags && contact.tags.length > 0) {
+      insights.push(`Tags: ${contact.tags.join(', ')}`);
     }
 
     // Engagement level
