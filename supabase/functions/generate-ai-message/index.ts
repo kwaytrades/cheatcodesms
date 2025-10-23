@@ -83,90 +83,132 @@ Deno.serve(async (req) => {
 
     console.log(`Generating ${message_type} message for contact ${contact_id}`);
 
-    // Check for agent conflicts
-    const { data: conversationState } = await supabase
-      .from('conversation_state')
-      .select('active_agent_id, agent_priority, agent_queue')
-      .eq('contact_id', contact_id)
-      .single();
+    // Handle test mode
+    const isTestMode = trigger_context?.test_mode === true;
+    
+    let agent: any;
+    let conversationState: any = null;
+    let contact: any;
+    let purchases: any[] = [];
+    let recentMessages: any[] = [];
 
-    const { data: agent } = await supabase
-      .from('product_agents')
-      .select('*')
-      .eq('id', agent_id)
-      .single();
+    if (isTestMode) {
+      // Use mock data for testing
+      console.log('Test mode enabled, using mock data');
+      agent = {
+        id: agent_id,
+        product_type: 'customer_service',
+        product_id: null,
+        status: 'active',
+        agent_context: {
+          test_mode: true,
+          customer_goals: trigger_context.customer_goals || 'General support'
+        }
+      };
+      contact = {
+        id: contact_id,
+        full_name: trigger_context.customer_name || 'Test Customer',
+        email: 'test@example.com',
+        phone_number: '+1234567890',
+        customer_tier: 'LEAD',
+        total_spent: 0,
+        lead_score: 50,
+        engagement_score: 50,
+        personality_type: 'relationship_builder'
+      };
+    } else {
+      // Check for agent conflicts
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('active_agent_id, agent_priority, agent_queue')
+        .eq('contact_id', contact_id)
+        .single();
+      conversationState = convState;
 
-    if (!agent) {
-      throw new Error('Agent not found');
+      const { data: agentData } = await supabase
+        .from('product_agents')
+        .select('*')
+        .eq('id', agent_id)
+        .single();
+
+      if (!agentData) {
+        throw new Error('Agent not found');
+      }
+      agent = agentData;
     }
 
     const requestPriority = AGENT_PRIORITIES[agent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
 
-    // If another agent has priority, add to queue instead
-    if (conversationState?.active_agent_id && 
-        conversationState.active_agent_id !== agent_id && 
-        (conversationState.agent_priority || 0) > requestPriority) {
-      
-      console.log(`Agent conflict detected for ${agent.product_type}, adding to queue`);
-      
-      const currentQueue = conversationState.agent_queue || [];
+    if (!isTestMode) {
+      // If another agent has priority, add to queue instead
+      if (conversationState?.active_agent_id && 
+          conversationState.active_agent_id !== agent_id && 
+          (conversationState.agent_priority || 0) > requestPriority) {
+        
+        console.log(`Agent conflict detected for ${agent.product_type}, adding to queue`);
+        
+        const currentQueue = conversationState.agent_queue || [];
+        await supabase
+          .from('conversation_state')
+          .update({
+            agent_queue: [...currentQueue, {
+              agent_id,
+              message_type,
+              queued_at: new Date().toISOString(),
+            }],
+          })
+          .eq('contact_id', contact_id);
+          
+        return new Response(
+          JSON.stringify({
+            success: true,
+            queued: true,
+            message: 'Message queued due to active agent with higher priority',
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        );
+      }
+
+      // Update active agent
       await supabase
         .from('conversation_state')
         .update({
-          agent_queue: [...currentQueue, {
-            agent_id,
-            message_type,
-            queued_at: new Date().toISOString(),
-          }],
+          active_agent_id: agent_id,
+          agent_priority: requestPriority,
         })
         .eq('contact_id', contact_id);
-        
-      return new Response(
-        JSON.stringify({
-          success: true,
-          queued: true,
-          message: 'Message queued due to active agent with higher priority',
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      );
-    }
 
-    // Update active agent
-    await supabase
-      .from('conversation_state')
-      .update({
-        active_agent_id: agent_id,
-        agent_priority: requestPriority,
-      })
-      .eq('contact_id', contact_id);
+      // Load full customer context
+      const { data: contactData } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contact_id)
+        .single();
+      contact = contactData;
 
-    // Load full customer context
-    const { data: contact } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('id', contact_id)
-      .single();
-
-    const { data: purchases } = await supabase
-      .from('purchases')
-      .select('*')
-      .eq('contact_id', contact_id)
-      .order('purchase_date', { ascending: false })
-      .limit(5);
-
-    const { data: recentMessages } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', (await supabase
-        .from('conversations')
-        .select('id')
+      const { data: purchaseData } = await supabase
+        .from('purchases')
+        .select('*')
         .eq('contact_id', contact_id)
-        .single())?.data?.id || '')
-      .order('created_at', { ascending: false })
-      .limit(10);
+        .order('purchase_date', { ascending: false })
+        .limit(5);
+      purchases = purchaseData || [];
+
+      const { data: messageData } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', (await supabase
+          .from('conversations')
+          .select('id')
+          .eq('contact_id', contact_id)
+          .single())?.data?.id || '')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      recentMessages = messageData || [];
+    }
 
     // Search knowledge base for relevant context
     let knowledgeContext = '';
@@ -270,6 +312,21 @@ Return JSON:
 
     const messageContent = JSON.parse(aiResponse.choices[0].message.content);
     console.log('AI generated message:', messageContent);
+
+    if (isTestMode) {
+      // In test mode, just return the generated message without saving
+      return new Response(
+        JSON.stringify({
+          success: true,
+          test_mode: true,
+          message: messageContent
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      );
+    }
 
     // Schedule the message to be sent immediately
     const { data: scheduledMessage, error: scheduleError } = await supabase

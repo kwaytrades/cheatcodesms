@@ -58,10 +58,11 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const toastId = toast({ title: "Uploading...", description: "Uploading file to storage" }).id;
-
+    
     try {
+      // Show initial upload toast
+      toast({ title: "Uploading...", description: "Uploading file to storage" });
+
       // 1. Upload file to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${agentType}_${Date.now()}.${fileExt}`;
@@ -77,11 +78,14 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
+      // Show processing toast
       toast({ title: "Processing...", description: "Extracting content from document" });
 
-      // 2. Parse PDF content if applicable
+      // 2. Read file content
       let content = `Knowledge base file for ${agentName}`;
+      
       if (fileExt?.toLowerCase() === 'pdf') {
+        // Parse PDF
         const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
           body: { file_path: filePath }
         });
@@ -89,6 +93,9 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         if (!parseError && pdfData?.text) {
           content = pdfData.text;
         }
+      } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
+        // Read text files directly
+        content = await file.text();
       }
 
       // 3. Create knowledge base entry
@@ -106,6 +113,7 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
 
       if (dbError) throw dbError;
 
+      // Show chunking toast
       toast({ title: "Chunking...", description: "Breaking content into searchable segments" });
 
       // 4. Chunk and embed the document
@@ -121,14 +129,20 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         }
       );
 
-      if (chunkError) throw chunkError;
+      if (chunkError) {
+        console.error('Chunk error:', chunkError);
+        throw new Error(chunkError.message || 'Failed to chunk and embed document');
+      }
 
       queryClient.invalidateQueries({ queryKey: ["agent-knowledge", agentType] });
+      
+      // Show success toast
       toast({ 
         title: "Success!", 
         description: `Processed into ${chunkData?.chunks_created || 0} searchable chunks`
       });
     } catch (error) {
+      console.error('Upload error:', error);
       toast({ 
         title: "Error", 
         description: error instanceof Error ? error.message : "Failed to process file", 
