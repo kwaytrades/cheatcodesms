@@ -14,6 +14,7 @@ import { InsightsPanel } from "@/components/contact-detail/InsightsPanel";
 import { TagsManager } from "@/components/contact-detail/TagsManager";
 import { QuickNotes } from "@/components/contact-detail/QuickNotes";
 import { CommunicationTabs } from "@/components/contact-detail/CommunicationTabs";
+import { ProductAgentPanel } from "@/components/contact-detail/ProductAgentPanel";
 import { toast } from "sonner";
 
 const ContactDetail = () => {
@@ -264,6 +265,7 @@ const ContactDetail = () => {
               messages={messages}
               aiMessages={emails}
             />
+            <ProductAgentPanel contactId={id} />
             <TagsManager tags={contact.tags} />
             <QuickNotes notes={contact.notes} onSave={handleSaveNotes} />
           </div>
