@@ -107,3 +107,18 @@ verify_jwt = false
 
 [functions.parse-pdf]
 verify_jwt = false
+
+[functions.assign-product-agent]
+verify_jwt = false
+
+[functions.generate-ai-message]
+verify_jwt = false
+
+[functions.send-scheduled-message]
+verify_jwt = false
+
+[functions.detect-personality-type]
+verify_jwt = false
+
+[functions.process-conversation-triggers]
+verify_jwt = false

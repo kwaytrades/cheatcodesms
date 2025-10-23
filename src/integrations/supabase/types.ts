@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_performance_metrics: {
+        Row: {
+          agent_type: string
+          avg_messages_per_customer: number | null
+          avg_time_to_purchase_days: number | null
+          conversion_rate: number | null
+          conversions: number | null
+          created_at: string | null
+          customers_served: number | null
+          id: string
+          message_open_rate: number | null
+          messages_sent: number | null
+          negative_sentiment_rate: number | null
+          neutral_sentiment_rate: number | null
+          period_end: string
+          period_start: string
+          positive_sentiment_rate: number | null
+          reply_rate: number | null
+          revenue_generated: number | null
+        }
+        Insert: {
+          agent_type: string
+          avg_messages_per_customer?: number | null
+          avg_time_to_purchase_days?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          customers_served?: number | null
+          id?: string
+          message_open_rate?: number | null
+          messages_sent?: number | null
+          negative_sentiment_rate?: number | null
+          neutral_sentiment_rate?: number | null
+          period_end: string
+          period_start: string
+          positive_sentiment_rate?: number | null
+          reply_rate?: number | null
+          revenue_generated?: number | null
+        }
+        Update: {
+          agent_type?: string
+          avg_messages_per_customer?: number | null
+          avg_time_to_purchase_days?: number | null
+          conversion_rate?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          customers_served?: number | null
+          id?: string
+          message_open_rate?: number | null
+          messages_sent?: number | null
+          negative_sentiment_rate?: number | null
+          neutral_sentiment_rate?: number | null
+          period_end?: string
+          period_start?: string
+          positive_sentiment_rate?: number | null
+          reply_rate?: number | null
+          revenue_generated?: number | null
+        }
+        Relationships: []
+      }
       ai_messages: {
         Row: {
           ai_prompt: string | null
@@ -379,28 +439,34 @@ export type Database = {
       }
       contact_activities: {
         Row: {
+          activity_metadata: Json | null
           activity_type: string
           contact_id: string
           created_at: string
           description: string | null
           id: string
           metadata: Json | null
+          score_impact: number | null
         }
         Insert: {
+          activity_metadata?: Json | null
           activity_type: string
           contact_id: string
           created_at?: string
           description?: string | null
           id?: string
           metadata?: Json | null
+          score_impact?: number | null
         }
         Update: {
+          activity_metadata?: Json | null
           activity_type?: string
           contact_id?: string
           created_at?: string
           description?: string | null
           id?: string
           metadata?: Json | null
+          score_impact?: number | null
         }
         Relationships: [
           {
@@ -452,6 +518,7 @@ export type Database = {
           ai_profile: Json | null
           assets_traded: string[] | null
           avg_response_time: number | null
+          behavioral_tags: string[] | null
           city: string | null
           country: string | null
           created_at: string
@@ -463,12 +530,15 @@ export type Database = {
           engagement_score: number | null
           engagement_velocity: number | null
           first_name: string | null
+          form_responses: Json | null
           form_submissions: Json | null
           full_name: string
           goals: string[] | null
           has_disputed: boolean | null
           id: string
           last_contact_date: string | null
+          last_engagement_action: string | null
+          last_engagement_date: string | null
           last_name: string | null
           last_score_update: string | null
           lead_score: number | null
@@ -482,6 +552,7 @@ export type Database = {
           monday_item_id: string | null
           notes: string | null
           objections: string | null
+          personality_type: string | null
           phone_number: string | null
           postal_code: string | null
           preferred_contact_method: string | null
@@ -513,6 +584,7 @@ export type Database = {
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          behavioral_tags?: string[] | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -524,12 +596,15 @@ export type Database = {
           engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          form_responses?: Json | null
           form_submissions?: Json | null
           full_name: string
           goals?: string[] | null
           has_disputed?: boolean | null
           id?: string
           last_contact_date?: string | null
+          last_engagement_action?: string | null
+          last_engagement_date?: string | null
           last_name?: string | null
           last_score_update?: string | null
           lead_score?: number | null
@@ -543,6 +618,7 @@ export type Database = {
           monday_item_id?: string | null
           notes?: string | null
           objections?: string | null
+          personality_type?: string | null
           phone_number?: string | null
           postal_code?: string | null
           preferred_contact_method?: string | null
@@ -574,6 +650,7 @@ export type Database = {
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          behavioral_tags?: string[] | null
           city?: string | null
           country?: string | null
           created_at?: string
@@ -585,12 +662,15 @@ export type Database = {
           engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          form_responses?: Json | null
           form_submissions?: Json | null
           full_name?: string
           goals?: string[] | null
           has_disputed?: boolean | null
           id?: string
           last_contact_date?: string | null
+          last_engagement_action?: string | null
+          last_engagement_date?: string | null
           last_name?: string | null
           last_score_update?: string | null
           lead_score?: number | null
@@ -604,6 +684,7 @@ export type Database = {
           monday_item_id?: string | null
           notes?: string | null
           objections?: string | null
+          personality_type?: string | null
           phone_number?: string | null
           postal_code?: string | null
           preferred_contact_method?: string | null
@@ -770,6 +851,59 @@ export type Database = {
             columns: ["script_id"]
             isOneToOne: false
             referencedRelation: "content_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_state: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          current_conversation_phase: string | null
+          id: string
+          last_engagement_at: string | null
+          last_message_sent_at: string | null
+          last_topic: string | null
+          messages_sent_this_week: number | null
+          messages_sent_today: number | null
+          updated_at: string | null
+          waiting_for_reply: boolean | null
+          waiting_until: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          current_conversation_phase?: string | null
+          id?: string
+          last_engagement_at?: string | null
+          last_message_sent_at?: string | null
+          last_topic?: string | null
+          messages_sent_this_week?: number | null
+          messages_sent_today?: number | null
+          updated_at?: string | null
+          waiting_for_reply?: boolean | null
+          waiting_until?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          current_conversation_phase?: string | null
+          id?: string
+          last_engagement_at?: string | null
+          last_message_sent_at?: string | null
+          last_topic?: string | null
+          messages_sent_this_week?: number | null
+          messages_sent_today?: number | null
+          updated_at?: string | null
+          waiting_for_reply?: boolean | null
+          waiting_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_state_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -1270,6 +1404,65 @@ export type Database = {
           },
         ]
       }
+      product_agents: {
+        Row: {
+          agent_context: Json
+          assigned_date: string
+          contact_id: string
+          conversion_achieved: boolean | null
+          conversion_date: string | null
+          created_at: string | null
+          expiration_date: string
+          id: string
+          messages_sent: number | null
+          product_id: string | null
+          product_type: string
+          replies_received: number | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          agent_context?: Json
+          assigned_date?: string
+          contact_id: string
+          conversion_achieved?: boolean | null
+          conversion_date?: string | null
+          created_at?: string | null
+          expiration_date: string
+          id?: string
+          messages_sent?: number | null
+          product_id?: string | null
+          product_type: string
+          replies_received?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          agent_context?: Json
+          assigned_date?: string
+          contact_id?: string
+          conversion_achieved?: boolean | null
+          conversion_date?: string | null
+          created_at?: string | null
+          expiration_date?: string
+          id?: string
+          messages_sent?: number | null
+          product_id?: string | null
+          product_type?: string
+          replies_received?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_agents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string | null
@@ -1344,6 +1537,75 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_messages: {
+        Row: {
+          agent_id: string | null
+          channel: string
+          contact_id: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          message_body: string
+          message_type: string
+          personalization_data: Json | null
+          retry_count: number | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          subject: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          channel: string
+          contact_id: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_body: string
+          message_type: string
+          personalization_data?: Json | null
+          retry_count?: number | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          channel?: string
+          contact_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          message_body?: string
+          message_type?: string
+          personalization_data?: Json | null
+          retry_count?: number | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "product_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -1533,6 +1795,7 @@ export type Database = {
     }
     Functions: {
       calculate_lead_score: { Args: { p_contact_id: string }; Returns: number }
+      expire_old_agents: { Args: never; Returns: undefined }
       get_customer_context: { Args: { p_contact_id: string }; Returns: Json }
       match_documents: {
         Args: {
@@ -1549,6 +1812,8 @@ export type Database = {
           title: string
         }[]
       }
+      reset_daily_message_counters: { Args: never; Returns: undefined }
+      reset_weekly_message_counters: { Args: never; Returns: undefined }
     }
     Enums: {
       agent_type: "sales_ai" | "cs_ai" | "human_team"
