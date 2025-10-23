@@ -294,10 +294,20 @@ Return JSON:
   "reasoning": "Why this message fits this customer now"
 }`;
 
-    // Call Lovable AI
-    const { data: aiResponse, error: aiError } = await supabase.functions.invoke('lovable-chat-completion', {
-      body: {
-        model: 'google/gemini-2.5-pro',
+    // Call Lovable AI directly
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
+    }
+
+    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { 
@@ -307,12 +317,17 @@ Return JSON:
         ],
         temperature: 0.8,
         response_format: { type: 'json_object' }
-      }
+      })
     });
 
-    if (aiError) throw aiError;
+    if (!aiResponse.ok) {
+      const errorText = await aiResponse.text();
+      console.error('Lovable AI error:', aiResponse.status, errorText);
+      throw new Error(`Lovable AI error: ${aiResponse.status}`);
+    }
 
-    const messageContent = JSON.parse(aiResponse.choices[0].message.content);
+    const aiData = await aiResponse.json();
+    const messageContent = JSON.parse(aiData.choices[0].message.content);
     console.log('AI generated message:', messageContent);
 
     if (isTestMode) {
