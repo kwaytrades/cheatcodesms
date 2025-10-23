@@ -47,8 +47,10 @@ const AGENT_TYPES = [
 export const KnowledgeBase = () => {
   const queryClient = useQueryClient();
   const [selectedAgent, setSelectedAgent] = useState("");
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [manualContent, setManualContent] = useState({
+    title: "",
+    content: "",
+  });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{
     isUploading: boolean;
@@ -89,7 +91,7 @@ export const KnowledgeBase = () => {
     },
   });
 
-  const addDocument = useMutation({
+  const addManualDocument = useMutation({
     mutationFn: async (doc: { title: string; category: string; content: string; file_path?: string; file_type?: string }) => {
       setUploadProgress({ isUploading: true, stage: 'uploading', progress: 25, fileName: doc.title });
       
@@ -140,8 +142,7 @@ export const KnowledgeBase = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
-      setTitle("");
-      setContent("");
+      setManualContent({ title: "", content: "" });
     },
     onError: (error) => {
       setUploadProgress({ 
@@ -211,15 +212,28 @@ export const KnowledgeBase = () => {
       let content = '';
       
       if (fileExt?.toLowerCase() === 'pdf') {
+        console.log('Parsing PDF:', filePath);
         const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
-          body: { file_path: filePath }
+          body: { filePath: filePath }
         });
         
-        if (!parseError && pdfData?.text) {
-          content = pdfData.text;
-        } else {
-          throw new Error('Failed to parse PDF: ' + (parseError?.message || 'No text extracted'));
+        console.log('PDF parse result:', { data: pdfData, error: parseError });
+        
+        if (parseError) {
+          throw new Error('Failed to parse PDF: ' + parseError.message);
         }
+        
+        if (!pdfData?.text && !pdfData?.content) {
+          throw new Error('PDF parsing returned no text content');
+        }
+        
+        content = pdfData.text || pdfData.content;
+        
+        if (content.length < 100) {
+          throw new Error(`PDF extracted only ${content.length} characters. The PDF may be image-based, encrypted, or corrupted. Try converting to text first.`);
+        }
+        
+        console.log('Extracted PDF content:', content.length, 'characters');
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
         content = await selectedFile.text();
       }
@@ -245,7 +259,6 @@ export const KnowledgeBase = () => {
       if (dbError) throw dbError;
 
       setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: selectedFile.name });
-      setUploadProgress({ isUploading: true, stage: 'embedding', progress: 80, fileName: selectedFile.name });
 
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         'chunk-and-embed-pdf',
@@ -260,7 +273,8 @@ export const KnowledgeBase = () => {
       );
 
       if (chunkError) {
-        throw new Error(chunkError.message || 'Failed to chunk and embed document');
+        console.error('Chunking error:', chunkError);
+        throw new Error(chunkError.message || 'Failed to chunk document');
       }
 
       queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
@@ -280,6 +294,7 @@ export const KnowledgeBase = () => {
       
       toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
     } catch (error: any) {
+      console.error('File processing error:', error);
       setUploadProgress({ 
         isUploading: true, 
         stage: 'error', 
@@ -288,10 +303,14 @@ export const KnowledgeBase = () => {
         error: error.message
       });
       toast.error("Failed to process file: " + error.message);
+      
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+      }, 8000);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedAgent) {
@@ -299,15 +318,15 @@ export const KnowledgeBase = () => {
       return;
     }
     
-    if (!title || !content) {
+    if (!manualContent.title || !manualContent.content) {
       toast.error("Please fill in title and content");
       return;
     }
 
-    addDocument.mutate({
-      title,
+    addManualDocument.mutate({
+      title: manualContent.title,
       category: `agent_${selectedAgent}`,
-      content,
+      content: manualContent.content,
     });
   };
 
@@ -459,42 +478,50 @@ export const KnowledgeBase = () => {
 
           {/* Manual Content Entry */}
           {selectedAgent && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="title">Document Title</Label>
-                <Input
-                  id="title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Product FAQ, Objection Handling Guide"
-                />
-              </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Or Add Content Manually</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleManualSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="title">Document Title</Label>
+                    <Input
+                      id="title"
+                      value={manualContent.title}
+                      onChange={(e) => setManualContent({ ...manualContent, title: e.target.value })}
+                      placeholder="e.g., Product FAQ, Objection Handling Guide"
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="content">Content</Label>
-                <Textarea
-                  id="content"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Paste or type document content here..."
-                  rows={8}
-                />
-              </div>
+                  <div>
+                    <Label htmlFor="content">Content</Label>
+                    <Textarea
+                      id="content"
+                      value={manualContent.content}
+                      onChange={(e) => setManualContent({ ...manualContent, content: e.target.value })}
+                      placeholder="Paste or type document content here..."
+                      rows={8}
+                    />
+                  </div>
 
-              <Button 
-                type="submit" 
-                disabled={addDocument.isPending || uploadProgress.isUploading}
-              >
-                {uploadProgress.isUploading ? (
-                  <>
-                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                    Processing...
-                  </>
-                ) : (
-                  "Add to Knowledge Base"
-                )}
-              </Button>
-            </form>
+                  <Button 
+                    type="submit" 
+                    disabled={addManualDocument.isPending}
+                    className="w-full"
+                  >
+                    {addManualDocument.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      "Add Document"
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           )}
 
           {!selectedAgent && (

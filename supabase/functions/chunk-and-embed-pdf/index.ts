@@ -53,6 +53,11 @@ Deno.serve(async (req) => {
     const { document_id, content, title, category }: ChunkRequest = await req.json();
 
     console.log(`Chunking document: ${title} (${content.length} chars)`);
+    
+    // Validate content length
+    if (!content || content.length < 100) {
+      throw new Error(`Content too short to chunk (${content?.length || 0} chars). Minimum 100 characters required.`);
+    }
 
     // Chunk the content
     const chunks = chunkText(content);

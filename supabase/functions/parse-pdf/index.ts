@@ -48,8 +48,10 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
+        text: textContent,
         content: textContent,
-        pageCount: 1 // Simple implementation doesn't provide page count
+        length: textContent.length,
+        pageCount: 1
       }),
       { 
         headers: { 
@@ -76,58 +78,105 @@ serve(async (req) => {
   }
 });
 
-// Simple PDF text extraction
+// Enhanced PDF text extraction
 async function extractTextFromPDF(pdfData: Uint8Array): Promise<string> {
   try {
-    // Convert to string and extract text between stream markers
     const decoder = new TextDecoder('utf-8', { fatal: false });
     const text = decoder.decode(pdfData);
     
-    // Extract text content between BT and ET markers (basic PDF text extraction)
-    const btPattern = /BT\s+(.*?)\s+ET/gs;
-    const matches = text.matchAll(btPattern);
+    console.log('PDF data size:', pdfData.length, 'bytes');
     
     let extractedText = '';
-    for (const match of matches) {
-      // Extract text from Tj and TJ operators
-      const textContent = match[1];
-      const tjPattern = /\((.*?)\)\s*Tj/g;
-      const tjMatches = textContent.matchAll(tjPattern);
+    const textChunks: string[] = [];
+    
+    // Method 1: Extract from BT/ET blocks (text objects)
+    const btPattern = /BT\s+([\s\S]*?)\s+ET/g;
+    let btMatches = text.matchAll(btPattern);
+    
+    for (const match of btMatches) {
+      const textBlock = match[1];
       
+      // Extract text from Tj operators: (text) Tj
+      const tjPattern = /\(([^)]+)\)\s*Tj/g;
+      let tjMatches = textBlock.matchAll(tjPattern);
       for (const tjMatch of tjMatches) {
-        extractedText += tjMatch[1] + ' ';
+        textChunks.push(tjMatch[1]);
       }
       
-      // Also extract from array format [(text)] TJ
-      const tjArrayPattern = /\[\((.*?)\)\]\s*TJ/g;
-      const tjArrayMatches = textContent.matchAll(tjArrayPattern);
-      
+      // Extract text from TJ operators: [(text)] TJ or [(text)(more)] TJ
+      const tjArrayPattern = /\[([\s\S]*?)\]\s*TJ/g;
+      let tjArrayMatches = textBlock.matchAll(tjArrayPattern);
       for (const tjArrayMatch of tjArrayMatches) {
-        extractedText += tjArrayMatch[1] + ' ';
+        const arrayContent = tjArrayMatch[1];
+        const textInParens = /\(([^)]+)\)/g;
+        let parenMatches = arrayContent.matchAll(textInParens);
+        for (const parenMatch of parenMatches) {
+          textChunks.push(parenMatch[1]);
+        }
+      }
+      
+      // Extract text from ' and " operators (move and show text)
+      const quotePattern = /\(([^)]+)\)\s*['"]|<([0-9A-Fa-f]+)>\s*['"]]/g;
+      let quoteMatches = textBlock.matchAll(quotePattern);
+      for (const quoteMatch of quoteMatches) {
+        if (quoteMatch[1]) textChunks.push(quoteMatch[1]);
       }
     }
     
-    // Clean up the text
-    extractedText = extractedText
-      .replace(/\\n/g, '\n')
-      .replace(/\\r/g, '\r')
-      .replace(/\\/g, '')
+    // Method 2: Extract from stream objects
+    const streamPattern = /stream\s+([\s\S]*?)\s+endstream/g;
+    let streamMatches = text.matchAll(streamPattern);
+    
+    for (const match of streamMatches) {
+      const streamData = match[1];
+      // Look for readable text sequences in streams
+      const readablePattern = /\(([^)]{3,})\)/g;
+      let readableMatches = streamData.matchAll(readablePattern);
+      for (const readableMatch of readableMatches) {
+        textChunks.push(readableMatch[1]);
+      }
+    }
+    
+    // Combine all extracted chunks
+    extractedText = textChunks
+      .map(chunk => chunk
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\(/g, '(')
+        .replace(/\\\)/g, ')')
+        .replace(/\\\\/g, '\\')
+      )
+      .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
     
-    // If basic extraction didn't work, try to extract any readable text
-    if (extractedText.length < 100) {
-      // Fallback: extract any printable ASCII characters in sequences
-      const readable = text.match(/[\x20-\x7E]{4,}/g);
-      if (readable) {
-        extractedText = readable.join(' ').slice(0, 10000);
+    console.log('Extracted text length:', extractedText.length, 'characters');
+    console.log('First 500 chars:', extractedText.substring(0, 500));
+    
+    // If we still don't have enough text, try a more aggressive extraction
+    if (extractedText.length < 200) {
+      console.log('Attempting aggressive text extraction...');
+      const allParenContent = text.match(/\(([^)]{3,}?)\)/g);
+      if (allParenContent && allParenContent.length > 0) {
+        extractedText = allParenContent
+          .map(s => s.slice(1, -1))
+          .join(' ')
+          .replace(/\\n/g, '\n')
+          .replace(/\s+/g, ' ')
+          .trim();
+        console.log('Aggressive extraction yielded:', extractedText.length, 'characters');
       }
     }
     
-    return extractedText || 'Unable to extract text from PDF. The PDF may be image-based or encrypted.';
+    if (extractedText.length < 100) {
+      throw new Error(`Only extracted ${extractedText.length} characters. PDF may be image-based, encrypted, or use unsupported encoding.`);
+    }
+    
+    return extractedText;
     
   } catch (error) {
     console.error('PDF extraction error:', error);
-    return 'Error extracting text from PDF: ' + (error instanceof Error ? error.message : 'Unknown error');
+    throw error;
   }
 }
