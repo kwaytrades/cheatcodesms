@@ -26,6 +26,7 @@ interface Contact {
   last_name: string | null;
   email: string | null;
   phone_number: string | null;
+  customer_tier: string | null;
   lead_status: string | null;
   lead_score: number | null;
   products_owned: string[] | null;
@@ -39,7 +40,7 @@ interface Contact {
   created_at: string;
 }
 
-type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'lead_status' | 'lead_score' | 'products_owned' | 'tags' | 'last_contact_date' | 'total_spent' | 'trading_experience' | 'created_at';
+type ColumnKey = 'full_name' | 'email' | 'phone_number' | 'customer_tier' | 'lead_status' | 'lead_score' | 'products_owned' | 'tags' | 'last_contact_date' | 'total_spent' | 'trading_experience' | 'created_at';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -51,9 +52,10 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'full_name', label: 'Name', visible: true },
   { key: 'email', label: 'Email', visible: true },
   { key: 'phone_number', label: 'Phone', visible: true },
-  { key: 'lead_status', label: 'Status', visible: true },
-  { key: 'lead_score', label: 'Lead Score', visible: true },
-  { key: 'products_owned', label: 'Products Owned', visible: true },
+  { key: 'customer_tier', label: 'Tier', visible: true },
+  { key: 'lead_status', label: 'Lead Status', visible: true },
+  { key: 'lead_score', label: 'Score', visible: true },
+  { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
   { key: 'total_spent', label: 'Lifetime Value', visible: false },
@@ -62,13 +64,19 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 ];
 
 const STATUS_COLORS: Record<string, string> = {
-  'new': 'bg-info/10 text-info border-info/20',
   'cold': 'bg-info/20 text-info border-info/30',
   'warm': 'bg-warning/20 text-warning border-warning/30',
   'hot': 'bg-destructive/20 text-destructive border-destructive/30',
   'customer': 'bg-status-customer/10 text-status-customer border-status-customer/20',
-  'vip': 'bg-status-vip/10 text-status-vip border-status-vip/20',
-  'churned': 'bg-status-churned/10 text-status-churned border-status-churned/20',
+};
+
+const TIER_COLORS: Record<string, string> = {
+  'LEAD': 'bg-muted text-muted-foreground border-muted',
+  'Level 1': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  'Level 2': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+  'Level 3': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+  'VIP': 'bg-status-vip/10 text-status-vip border-status-vip/20',
+  'SHITLIST': 'bg-status-churned/10 text-status-churned border-status-churned/20',
 };
 
 const Contacts = () => {
@@ -86,6 +94,8 @@ const Contacts = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(1000);
   const [totalCount, setTotalCount] = useState(0);
+  const [sortColumn, setSortColumn] = useState<ColumnKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
     loadContacts();
@@ -184,6 +194,30 @@ const Contacts = () => {
               return true;
           }
         });
+      });
+    }
+
+    // Apply sorting
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        const aVal = a[sortColumn as keyof Contact];
+        const bVal = b[sortColumn as keyof Contact];
+        
+        // Handle null/undefined values
+        if (aVal === null || aVal === undefined) return sortDirection === 'asc' ? 1 : -1;
+        if (bVal === null || bVal === undefined) return sortDirection === 'asc' ? -1 : 1;
+        
+        // Handle numbers
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+        }
+        
+        // Handle strings
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+        if (aStr < bStr) return sortDirection === 'asc' ? -1 : 1;
+        if (aStr > bStr) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
       });
     }
 
@@ -379,6 +413,12 @@ const Contacts = () => {
             <Phone className="h-3 w-3 text-muted-foreground" />
             <span>{contact.phone_number}</span>
           </div>
+        ) : '-';
+      case 'customer_tier':
+        return contact.customer_tier ? (
+          <Badge className={TIER_COLORS[contact.customer_tier] || 'bg-muted'}>
+            {contact.customer_tier}
+          </Badge>
         ) : '-';
       case 'lead_status':
         return contact.lead_status ? (
@@ -587,7 +627,27 @@ const Contacts = () => {
                   />
                 </TableHead>
                 {visibleColumns.map((col) => (
-                  <TableHead key={col.key}>{col.label}</TableHead>
+                  <TableHead 
+                    key={col.key}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      if (sortColumn === col.key) {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn(col.key);
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      {col.label}
+                      {sortColumn === col.key && (
+                        <span className="text-xs">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>

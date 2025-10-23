@@ -18,26 +18,36 @@ interface ContactData {
   lead_status?: string;
 }
 
-// Simplified scoring logic focused on key metrics
+// Scoring logic based on products, spending, and engagement
 function calculateScore(contact: ContactData): { score: number; status: string } {
   let score = 0;
 
-  // Revenue impact (40 points max)
-  if (contact.total_spent) {
-    if (contact.total_spent > 10000) score += 40;
-    else if (contact.total_spent > 5000) score += 30;
-    else if (contact.total_spent > 1000) score += 20;
-    else if (contact.total_spent > 0) score += 10;
+  // Products owned (40 points max) - most important signal
+  const productCount = contact.products_owned?.length || 0;
+  if (productCount > 0) {
+    score += Math.min(productCount * 10, 40);
   }
 
-  // Engagement (30 points max)
+  // Revenue impact (30 points max)
+  if (contact.total_spent) {
+    if (contact.total_spent > 10000) score += 30;
+    else if (contact.total_spent > 5000) score += 20;
+    else if (contact.total_spent > 1000) score += 10;
+    else if (contact.total_spent > 0) score += 5;
+  }
+
+  // Engagement (20 points max)
   if (contact.engagement_score) {
-    score += Math.min(contact.engagement_score, 30);
+    score += Math.min(contact.engagement_score, 20);
   } else {
-    // Fallback: estimate from products and tags
-    const productCount = contact.products_owned?.length || 0;
+    // Fallback: estimate from tags
     const tagCount = contact.tags?.length || 0;
-    score += Math.min((productCount * 5) + (tagCount * 3), 30);
+    score += Math.min(tagCount * 3, 20);
+  }
+
+  // Bonus for active status (10 points)
+  if (contact.lead_status && ['hot', 'warm', 'customer'].includes(contact.lead_status)) {
+    score += 10;
   }
 
   // Negative signals (-20 points)
@@ -48,11 +58,15 @@ function calculateScore(contact: ContactData): { score: number; status: string }
   // Cap between 0-100
   score = Math.max(0, Math.min(100, score));
 
-  // Determine status
+  // Determine status based on score and existing data
   let status = 'cold';
-  if (score >= 80) status = 'ready_to_buy';
-  else if (score >= 60) status = 'hot';
-  else if (score >= 40) status = 'warm';
+  if (productCount > 0 && contact.total_spent && contact.total_spent > 0) {
+    status = 'customer'; // Has purchased
+  } else if (score >= 70) {
+    status = 'hot'; // High engagement, likely to buy
+  } else if (score >= 40) {
+    status = 'warm'; // Moderate engagement
+  }
 
   return { score, status };
 }

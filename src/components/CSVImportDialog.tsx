@@ -121,15 +121,23 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
                 const items = value.split(/[,;|]/).map((v: string) => v.trim()).filter(Boolean);
                 contact[mappedField] = items.length > 0 ? items : [];
               }
-              // Handle status mapping to customer_tier
-              else if (mappedField === 'customer_tier' || (header.toLowerCase() === 'status' && mappedField === 'lead_status')) {
-                // Map Status to customer_tier
+              // Handle customer_tier and derive lead_status
+              else if (mappedField === 'customer_tier') {
                 contact.customer_tier = value;
-                // Also set a reasonable lead_status
-                if (value.toLowerCase() === 'vip') {
-                  contact.lead_status = 'customer';
+                // Derive lead_status from customer_tier
+                const tierUpper = value.toUpperCase();
+                if (tierUpper === 'VIP' || tierUpper.includes('LEVEL 3')) {
+                  contact.lead_status = 'hot';
+                } else if (tierUpper.includes('LEVEL 2')) {
+                  contact.lead_status = 'warm';
+                } else if (tierUpper.includes('LEVEL 1')) {
+                  contact.lead_status = 'warm';
+                } else if (tierUpper === 'LEAD') {
+                  contact.lead_status = 'cold';
+                } else if (tierUpper === 'SHITLIST') {
+                  contact.lead_status = 'cold';
                 } else {
-                  contact.lead_status = contact.lead_status || 'new';
+                  contact.lead_status = 'cold';
                 }
               }
               // Regular string fields
@@ -139,8 +147,9 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
             }
           });
 
-          // Set defaults
-          if (!contact.lead_status) contact.lead_status = 'new';
+          // Set defaults - only if customer_tier wasn't set
+          if (!contact.lead_status) contact.lead_status = 'cold';
+          if (!contact.customer_tier) contact.customer_tier = 'LEAD';
           if (contact.disputed_amount && contact.disputed_amount > 0) {
             contact.has_disputed = true;
           }
