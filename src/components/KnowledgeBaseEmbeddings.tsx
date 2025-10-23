@@ -1,18 +1,9 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { Loader2, Zap } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
+import { Search } from "lucide-react";
 
 export function KnowledgeBaseEmbeddings() {
-  const queryClient = useQueryClient();
-  const [progress, setProgress] = useState(0);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  // Get count of documents without embeddings
   const { data: stats } = useQuery({
     queryKey: ["knowledge-base-stats"],
     queryFn: async () => {
@@ -23,74 +14,9 @@ export function KnowledgeBaseEmbeddings() {
       if (error) throw error;
       
       const total = data.length;
-      const withEmbeddings = data.filter((doc: any) => doc.embedding !== null).length;
-      const withoutEmbeddings = total - withEmbeddings;
+      const chunked = data.filter((doc: any) => doc.parent_document_id !== null).length;
       
-      return { total, withEmbeddings, withoutEmbeddings };
-    },
-  });
-
-  const generateEmbeddings = useMutation({
-    mutationFn: async () => {
-      setIsGenerating(true);
-      setProgress(0);
-
-      // Get all documents that need embeddings
-      const { data: allDocs, error } = await supabase
-        .from("knowledge_base")
-        .select("*");
-      
-      if (error) throw error;
-      
-      const documents = allDocs?.filter((doc: any) => doc.embedding === null) || [];
-
-      if (!documents || documents.length === 0) {
-        throw new Error("No documents need embeddings");
-      }
-
-      console.log(`Generating embeddings for ${documents.length} documents`);
-
-      // Generate embeddings for each document
-      const total = documents.length;
-      let completed = 0;
-
-      for (const doc of documents) {
-        if (!doc.content) {
-          completed++;
-          setProgress((completed / total) * 100);
-          continue;
-        }
-
-        const { error: embeddingError } = await supabase.functions.invoke(
-          "generate-embeddings",
-          {
-            body: {
-              documentId: doc.id,
-              content: doc.content,
-            },
-          }
-        );
-
-        if (embeddingError) {
-          console.error(`Failed to generate embedding for ${doc.id}:`, embeddingError);
-        }
-
-        completed++;
-        setProgress((completed / total) * 100);
-      }
-
-      return { processed: completed };
-    },
-    onSuccess: (data) => {
-      toast.success(`Generated embeddings for ${data.processed} documents`);
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base-stats"] });
-      setIsGenerating(false);
-      setProgress(0);
-    },
-    onError: (error: Error) => {
-      toast.error(`Failed to generate embeddings: ${error.message}`);
-      setIsGenerating(false);
-      setProgress(0);
+      return { total, chunked };
     },
   });
 
@@ -98,11 +24,11 @@ export function KnowledgeBaseEmbeddings() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Zap className="h-5 w-5" />
-          Vector Search Embeddings
+          <Search className="h-5 w-5" />
+          AI-Powered Search
         </CardTitle>
         <CardDescription>
-          Generate semantic embeddings for knowledge base documents to enable AI-powered similarity search
+          Your knowledge base uses full-text search combined with semantic chunking for accurate results
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -113,48 +39,18 @@ export function KnowledgeBaseEmbeddings() {
               <span className="font-medium">{stats.total}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span>With Embeddings:</span>
-              <span className="font-medium text-green-600">{stats.withEmbeddings}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Need Embeddings:</span>
-              <span className="font-medium text-orange-600">{stats.withoutEmbeddings}</span>
+              <span>Searchable Chunks:</span>
+              <span className="font-medium text-green-600">{stats.chunked}</span>
             </div>
           </div>
         )}
 
-        {isGenerating && (
-          <div className="space-y-2">
-            <Progress value={progress} />
-            <p className="text-sm text-muted-foreground text-center">
-              Generating embeddings... {Math.round(progress)}%
-            </p>
-          </div>
-        )}
-
-        <Button
-          onClick={() => generateEmbeddings.mutate()}
-          disabled={isGenerating || stats?.withoutEmbeddings === 0}
-          className="w-full"
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Zap className="mr-2 h-4 w-4" />
-              Generate Embeddings for {stats?.withoutEmbeddings || 0} Documents
-            </>
-          )}
-        </Button>
-
-        {stats?.withoutEmbeddings === 0 && (
-          <p className="text-sm text-green-600 text-center">
-            ✓ All documents have embeddings
+        <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <p className="text-sm text-blue-900 dark:text-blue-100">
+            <strong>✓ Search is Active</strong><br/>
+            Documents are automatically chunked into searchable segments. The AI uses full-text search with context-aware ranking to find relevant information.
           </p>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
