@@ -188,14 +188,16 @@ export const KnowledgeBase = () => {
   const extractMetadataWithLLM = async (
     text: string, 
     pageNumber?: number,
-    previousChapterContext?: { chapter_number?: number; chapter_title?: string }
+    previousChapterContext?: { chapter_number?: number; chapter_title?: string },
+    documentType?: string
   ) => {
     try {
       const { data, error } = await supabase.functions.invoke('extract-chunk-metadata', {
         body: { 
           text: text.substring(0, 2000), // Send first 2000 chars
           pageNumber,
-          previousChapterContext 
+          previousChapterContext,
+          documentType
         }
       });
 
@@ -228,7 +230,8 @@ export const KnowledgeBase = () => {
       previousMetadata ? {
         chapter_number: previousMetadata.chapter_number,
         chapter_title: previousMetadata.chapter_title
-      } : undefined
+      } : undefined,
+      'textbook'
     );
 
     if (!llmMetadata) {
