@@ -218,6 +218,7 @@ const ContactDetail = () => {
               engagementScore={contact.engagement_score}
               totalSpent={contact.total_spent}
               leadStatus={contact.lead_status}
+              customerTier={contact.customer_tier}
               lastContactDate={contact.last_contact_date}
             />
             <ProductsList purchases={purchases} />

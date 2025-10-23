@@ -17,7 +17,7 @@ import { ImportContactsDialog } from "@/components/ImportContactsDialog";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { ContactDetailPanel } from "@/components/ContactDetailPanel";
+import { RecalculateScoresButton } from "@/components/RecalculateScoresButton";
 
 interface Contact {
   id: string;
@@ -540,6 +540,8 @@ const Contacts = () => {
             </div>
 
             <div className="flex gap-2">
+              <RecalculateScoresButton />
+              
               <Button 
                 variant={showFilters ? "default" : "outline"} 
                 size="sm" 
