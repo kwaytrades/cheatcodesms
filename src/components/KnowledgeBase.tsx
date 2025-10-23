@@ -77,6 +77,22 @@ export const KnowledgeBase = () => {
     progress: 0
   });
 
+  // Client-side chunking function (moved from edge function to avoid resource limits)
+  const chunkTextClientSide = (text: string, chunkSize = 2000, overlap = 200): string[] => {
+    const chunks: string[] = [];
+    let start = 0;
+    
+    while (start < text.length) {
+      const end = Math.min(start + chunkSize, text.length);
+      chunks.push(text.slice(start, end));
+      start = end - overlap; // Create overlap between chunks
+      
+      if (start >= text.length - overlap) break;
+    }
+    
+    return chunks;
+  };
+
   const { data: documents, isLoading } = useQuery({
     queryKey: ["knowledge-base", selectedAgent],
     queryFn: async () => {
@@ -119,23 +135,28 @@ export const KnowledgeBase = () => {
 
       setUploadProgress({ isUploading: true, stage: 'chunking', progress: 50, fileName: doc.title });
       
-      const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
-        "chunk-and-embed-pdf",
-        {
-          body: {
-            document_id: data.id,
-            content: doc.content,
-            title: doc.title,
-            category: doc.category,
-          },
-        }
-      );
+      // Chunk content client-side
+      const chunks = chunkTextClientSide(doc.content);
+      console.log(`📦 Created ${chunks.length} chunks for manual document`);
 
-      if (chunkError) {
-        throw chunkError;
+      // Store each chunk directly to database
+      for (let i = 0; i < chunks.length; i++) {
+        await supabase
+          .from('knowledge_base')
+          .insert({
+            title: `${doc.title} - Chunk ${i + 1}`,
+            content: chunks[i],
+            category: doc.category,
+            parent_document_id: data.id,
+            chunk_index: i + 1,
+            chunk_metadata: {
+              chunk_size: chunks[i].length,
+              total_chunks: chunks.length
+            }
+          });
       }
 
-      const chunksCreated = chunkData?.chunks_created || 0;
+      const chunksCreated = chunks.length;
       setUploadProgress({ 
         isUploading: true, 
         stage: 'complete', 
@@ -291,19 +312,26 @@ export const KnowledgeBase = () => {
 
         setUploadProgress({ isUploading: true, stage: 'chunking', progress: 75, fileName: selectedFile.name });
 
-        const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
-          'chunk-and-embed-pdf',
-          {
-            body: {
-              document_id: kbEntry.id,
-              content: content,
-              title: selectedFile.name,
-              category: `agent_${selectedAgent}`,
-            },
-          }
-        );
+        // Chunk content client-side
+        const chunks = chunkTextClientSide(content);
+        console.log(`📦 Created ${chunks.length} chunks for text file`);
 
-        if (chunkError) throw chunkError;
+        // Store each chunk directly to database
+        for (let i = 0; i < chunks.length; i++) {
+          await supabase
+            .from('knowledge_base')
+            .insert({
+              title: `${selectedFile.name} - Chunk ${i + 1}`,
+              content: chunks[i],
+              category: `agent_${selectedAgent}`,
+              parent_document_id: kbEntry.id,
+              chunk_index: i + 1,
+              chunk_metadata: {
+                chunk_size: chunks[i].length,
+                total_chunks: chunks.length
+              }
+            });
+        }
 
         queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
         
@@ -311,7 +339,7 @@ export const KnowledgeBase = () => {
           isUploading: true, 
           stage: 'complete', 
           progress: 100, 
-          chunks: chunkData?.chunks_created || 0,
+          chunks: chunks.length,
           fileName: selectedFile.name
         });
         
@@ -320,7 +348,7 @@ export const KnowledgeBase = () => {
           setSelectedFile(null);
         }, 5000);
         
-        toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
+        toast.success(`File processed into ${chunks.length} searchable chunks`);
       }
     } catch (error: any) {
       console.error('File processing error:', error);
@@ -434,22 +462,48 @@ export const KnowledgeBase = () => {
 
           if (batchError) throw batchError;
 
-          // Chunk and embed this batch
-          const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
-            'chunk-and-embed-pdf',
-            {
-              body: {
-                document_id: batchDoc.id,
-                content: batchContent,
-                title: batchTitle,
+          // Chunk the content client-side (no edge function call - faster and more reliable)
+          const chunks = chunkTextClientSide(batchContent);
+          console.log(`📦 Created ${chunks.length} chunks for batch ${batchNum + 1}`);
+
+          // Store each chunk directly to database
+          for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+            const chunkProgress = ((chunkIndex / chunks.length) * (70 / totalBatches));
+            
+            setUploadProgress({
+              isUploading: true,
+              stage: 'processing',
+              progress: 10 + Math.floor((batchNum / totalBatches) * 70) + Math.floor(chunkProgress),
+              fileName: file.name,
+              totalPages,
+              totalBatches,
+              currentBatch: batchNum + 1,
+              batchDetails: updatedDetails,
+            });
+
+            const { error: chunkError } = await supabase
+              .from('knowledge_base')
+              .insert({
+                title: `${batchTitle} - Chunk ${chunkIndex + 1}`,
+                content: chunks[chunkIndex],
                 category: `agent_${selectedAgent}`,
-              },
+                parent_document_id: batchDoc.id,
+                chunk_index: chunkIndex + 1,
+                chunk_metadata: {
+                  chunk_size: chunks[chunkIndex].length,
+                  total_chunks: chunks.length,
+                  start_page: startPage,
+                  end_page: endPage
+                }
+              });
+
+            if (chunkError) {
+              console.error(`Error creating chunk ${chunkIndex + 1}:`, chunkError);
+              throw chunkError;
             }
-          );
+          }
 
-          if (chunkError) throw chunkError;
-
-          const chunksCreated = chunkData?.chunks_created || 0;
+          const chunksCreated = chunks.length;
           totalChunksCreated += chunksCreated;
 
           // Mark batch as complete
