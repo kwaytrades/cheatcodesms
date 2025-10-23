@@ -375,6 +375,25 @@ async function handleNextBestAction(supabase: any, contactId: string, context: a
   const purchases = context?.purchases || [];
   const recentMessages = context?.recentMessages || [];
 
+  // Search knowledge base for relevant context
+  let knowledgeContext = "";
+  try {
+    const messageText = recentMessages.map((m: any) => m.body || m.message_body || '').join(' ');
+    const searchQuery = `${contact?.full_name} ${contact?.products_interested?.join(' ')} ${messageText}`.slice(0, 500);
+    
+    const { data: kbData, error: kbError } = await supabase.functions.invoke('search-knowledge-base', {
+      body: { query: searchQuery, matchCount: 3 }
+    });
+    
+    if (!kbError && kbData?.results?.length > 0) {
+      knowledgeContext = `\n\nRELEVANT KNOWLEDGE BASE CONTEXT:\n${kbData.results.map((r: any) => 
+        `- ${r.title} (${r.category}): ${r.content.slice(0, 200)}...`
+      ).join('\n')}`;
+    }
+  } catch (err) {
+    console.log('Knowledge base search failed:', err);
+  }
+
   let contextText = `CONTACT INFORMATION:
 - Name: ${contact?.full_name || 'Unknown'}
 - Customer Tier: ${contact?.customer_tier || 'LEAD'}
@@ -395,7 +414,7 @@ ${recentMessages.slice(0, 10).map((m: any) => {
   const sender = m.sender === 'customer' ? 'Customer' : m.channel ? `AI (${m.channel})` : 'Agent';
   const body = m.body || m.message_body || '';
   return `${sender}: ${body}`;
-}).join('\n') || 'No recent messages'}`;
+}).join('\n') || 'No recent messages'}${knowledgeContext}`;
 
   const messageText = recentMessages.map((m: any) => m.body).join(' ');
   const productMentions = extractProductInterests(messageText);
@@ -412,26 +431,36 @@ ${recentMessages.slice(0, 10).map((m: any) => {
       .eq('id', contactId);
   }
 
-  const prompt = `You are a customer success strategist. Based on the contact information and conversation history below, suggest ONE specific next best action.
+  const prompt = `You are an elite customer success strategist with deep expertise in sales psychology and customer behavior analysis. Based on the comprehensive contact data below, suggest ONE highly strategic next best action.
 
 ${contextText}
 
+STRATEGIC ANALYSIS FRAMEWORK:
+1. Customer Journey Stage: Where are they in the buying journey?
+2. Engagement Signals: What actions indicate readiness or hesitation?
+3. Value Proposition: What specific product/service matches their needs?
+4. Timing: Is now the optimal time to act?
+5. Channel: What communication method will be most effective?
+
 Return a JSON object with:
 {
-  "suggestion": "One sentence describing the specific action to take",
-  "confidence": 85
+  "suggestion": "One powerful, specific action with clear rationale",
+  "confidence": 85,
+  "reasoning": "Brief 1-sentence explanation of why this is the best action"
 }
 
 The suggestion should be:
-- ONE clear, actionable step (not a list)
-- Based on the customer's ACTUAL data (tier, score, conversation, purchases)
-- Specific to this customer's situation
-- Under 15 words
+- ONE clear, actionable step with specific channel/method
+- Data-driven based on likelihood score, engagement, purchase history
+- Personalized to this customer's unique situation and interests
+- Include the recommended channel (SMS, Email, Call, WhatsApp)
+- Under 20 words but highly specific
 
-Examples of good suggestions:
-- "Send VIP upsell SMS. High spender, engaged, ready."
-- "Follow up email about abandoned cart."
-- "Call to discuss dispute resolution."`;
+Examples of excellent suggestions:
+- "Send personalized WhatsApp with Crypto course upsell. 85% likelihood + recent interest."
+- "Schedule call to address dispute. High value customer at risk of churn."
+- "Email VIP tier upgrade offer. Spent $5K, high engagement, ripe for upsell."
+- "Follow up SMS on abandoned cart. Product viewed 3x, needs nudge."`;
 
   try {
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -441,12 +470,12 @@ Examples of good suggestions:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
-          { role: 'system', content: 'You are a customer success strategist. Return only valid JSON.' },
+          { role: 'system', content: 'You are an elite customer success strategist with expertise in sales psychology, customer behavior analysis, and conversion optimization. Analyze customer data deeply and provide strategic, data-driven recommendations. Return only valid JSON.' },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.7,
+        temperature: 0.8,
       }),
     });
 

@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.sync-contacts]
 verify_jwt = false
+
+[functions.parse-pdf]
+verify_jwt = false

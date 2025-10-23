@@ -105,17 +105,46 @@ export const KnowledgeBase = () => {
 
     setUploading(true);
     try {
-      // Read file content if it's text-based
+      // Handle text-based files
       if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
         const text = await file.text();
         setContent(text);
         setTitle(file.name);
         toast.success("File content loaded");
-      } else {
-        toast.error("Only text files (.txt, .md) are supported for now");
+      } 
+      // Handle PDF files
+      else if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+        toast.info("Processing PDF... This may take a moment.");
+        
+        // Upload PDF to storage first
+        const filePath = `knowledge-base/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("knowledge-base")
+          .upload(filePath, file);
+        
+        if (uploadError) throw uploadError;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from("knowledge-base")
+          .getPublicUrl(filePath);
+
+        // Parse PDF content using Supabase edge function
+        const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-pdf", {
+          body: { filePath }
+        });
+
+        if (parseError) throw parseError;
+
+        setContent(parseData.content || "");
+        setTitle(file.name.replace(".pdf", ""));
+        toast.success("PDF parsed successfully!");
+      } 
+      else {
+        toast.error("Only text files (.txt, .md) and PDFs are supported");
       }
     } catch (error: any) {
-      toast.error("Failed to read file: " + error.message);
+      toast.error("Failed to process file: " + error.message);
     } finally {
       setUploading(false);
     }
@@ -156,7 +185,7 @@ export const KnowledgeBase = () => {
                   type="file"
                   onChange={handleFileUpload}
                   disabled={uploading}
-                  accept=".txt,.md"
+                  accept=".txt,.md,.pdf"
                   className="cursor-pointer"
                 />
                 <Button type="button" size="icon" disabled={uploading}>
@@ -164,7 +193,7 @@ export const KnowledgeBase = () => {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Supported: .txt, .md files
+                Supported: .txt, .md, .pdf files
               </p>
             </div>
 
