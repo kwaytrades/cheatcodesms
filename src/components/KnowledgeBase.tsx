@@ -49,6 +49,7 @@ export const KnowledgeBase = () => {
   const [selectedAgent, setSelectedAgent] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{
     isUploading: boolean;
     stage: 'idle' | 'uploading' | 'processing' | 'chunking' | 'embedding' | 'complete' | 'error';
@@ -171,7 +172,7 @@ export const KnowledgeBase = () => {
     },
   });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -180,17 +181,24 @@ export const KnowledgeBase = () => {
       return;
     }
 
+    setSelectedFile(file);
+    toast.success(`File "${file.name}" selected. Click "Add to Knowledge Base" to process.`);
+  };
+
+  const handleProcessFile = async () => {
+    if (!selectedFile) return;
+
     try {
-      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: file.name });
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: selectedFile.name });
       
-      const fileExt = file.name.split('.').pop();
+      const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${selectedAgent}_${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('knowledge-base')
-        .upload(filePath, file);
+        .upload(filePath, selectedFile);
 
       if (uploadError) throw uploadError;
 
@@ -198,7 +206,7 @@ export const KnowledgeBase = () => {
         .from('knowledge-base')
         .getPublicUrl(filePath);
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 40, fileName: file.name });
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 40, fileName: selectedFile.name });
 
       let content = '';
       
@@ -209,17 +217,23 @@ export const KnowledgeBase = () => {
         
         if (!parseError && pdfData?.text) {
           content = pdfData.text;
+        } else {
+          throw new Error('Failed to parse PDF: ' + (parseError?.message || 'No text extracted'));
         }
       } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
-        content = await file.text();
+        content = await selectedFile.text();
       }
 
-      setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: file.name });
+      if (!content || content.length === 0) {
+        throw new Error('No content extracted from file. Please ensure the file contains text.');
+      }
+
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: selectedFile.name });
 
       const { data: kbEntry, error: dbError } = await supabase
         .from('knowledge_base')
         .insert({
-          title: file.name,
+          title: selectedFile.name,
           category: `agent_${selectedAgent}`,
           file_path: publicUrl,
           file_type: fileExt,
@@ -230,8 +244,8 @@ export const KnowledgeBase = () => {
 
       if (dbError) throw dbError;
 
-      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: file.name });
-      setUploadProgress({ isUploading: true, stage: 'embedding', progress: 80, fileName: file.name });
+      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: selectedFile.name });
+      setUploadProgress({ isUploading: true, stage: 'embedding', progress: 80, fileName: selectedFile.name });
 
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         'chunk-and-embed-pdf',
@@ -239,7 +253,7 @@ export const KnowledgeBase = () => {
           body: {
             document_id: kbEntry.id,
             content: content,
-            title: file.name,
+            title: selectedFile.name,
             category: `agent_${selectedAgent}`,
           },
         }
@@ -256,23 +270,21 @@ export const KnowledgeBase = () => {
         stage: 'complete', 
         progress: 100, 
         chunks: chunkData?.chunks_created || 0,
-        fileName: file.name
+        fileName: selectedFile.name
       });
       
       setTimeout(() => {
         setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+        setSelectedFile(null);
       }, 5000);
       
       toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
-      
-      // Reset file input
-      e.target.value = '';
     } catch (error: any) {
       setUploadProgress({ 
         isUploading: true, 
         stage: 'error', 
         progress: 0, 
-        fileName: file?.name,
+        fileName: selectedFile?.name,
         error: error.message
       });
       toast.error("Failed to process file: " + error.message);
@@ -404,27 +416,42 @@ export const KnowledgeBase = () => {
 
           {/* Quick File Upload */}
           {selectedAgent && (
-            <div>
-              <Label htmlFor="file-upload">Upload Document</Label>
-              <div className="flex gap-2 mt-2">
+            <div className="space-y-3">
+              <Label htmlFor="file-upload">Select Document File</Label>
+              <div className="flex gap-2">
                 <Input
                   id="file-upload"
                   type="file"
-                  onChange={handleFileUpload}
+                  onChange={handleFileSelect}
                   disabled={uploadProgress.isUploading}
                   accept=".txt,.md,.pdf"
                   className="cursor-pointer"
                 />
-                <Button 
-                  type="button" 
-                  size="icon" 
-                  disabled={uploadProgress.isUploading || !selectedAgent}
-                  onClick={() => document.getElementById('file-upload')?.click()}
-                >
-                  <Upload className="h-4 w-4" />
-                </Button>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              
+              {selectedFile && !uploadProgress.isUploading && (
+                <div className="bg-muted p-3 rounded-lg space-y-2">
+                  <p className="text-sm font-medium">Selected File:</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm">{selectedFile.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({(selectedFile.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    <Button 
+                      onClick={handleProcessFile}
+                      size="sm"
+                      disabled={uploadProgress.isUploading}
+                    >
+                      Add to Knowledge Base
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
                 Supported: .txt, .md, .pdf files
               </p>
             </div>

@@ -232,6 +232,7 @@ Deno.serve(async (req) => {
       const { data: kbData } = await supabase.functions.invoke('search-knowledge-base', {
         body: {
           query: `${agent?.product_type} product information customer support`,
+          category: `agent_${agent.product_type}`,
           match_count: 3
         }
       });
