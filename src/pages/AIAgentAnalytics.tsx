@@ -3,9 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bot, BarChart3, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export default function AIAgentAnalytics() {
+  const navigate = useNavigate();
   const [period, setPeriod] = useState("30");
 
   const { data: metrics } = useQuery({
@@ -49,6 +53,23 @@ export default function AIAgentAnalytics() {
           </SelectContent>
         </Select>
       </div>
+
+      <Tabs value="analytics" className="w-full">
+        <TabsList>
+          <TabsTrigger value="dashboard" onClick={() => navigate("/agents")}>
+            <Bot className="w-4 h-4 mr-2" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="analytics" onClick={() => navigate("/agents/analytics")}>
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>

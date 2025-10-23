@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Bot, Plus, Filter, Download } from "lucide-react";
+import { Bot, Plus, Filter, Download, BarChart3, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgentStatusBadge } from "@/components/agents/AgentStatusBadge";
 import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AssignAgentDialog } from "@/components/agents/AssignAgentDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function AIAgents() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -118,6 +121,23 @@ export default function AIAgents() {
           Assign Agent
         </Button>
       </div>
+
+      <Tabs value="dashboard" className="w-full">
+        <TabsList>
+          <TabsTrigger value="dashboard" onClick={() => navigate("/agents")}>
+            <Bot className="w-4 h-4 mr-2" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="analytics" onClick={() => navigate("/agents/analytics")}>
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

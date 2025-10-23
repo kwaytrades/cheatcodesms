@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,6 +66,9 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Assign Product Agent</DialogTitle>
+          <DialogDescription>
+            Assign an AI concierge agent to guide this contact through their product journey
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           {!contactId && (

@@ -5,9 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Bot, BarChart3, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AIAgentSettings() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [settings, setSettings] = useState({
     maxMessagesPerDay: 2,
@@ -29,6 +33,23 @@ export default function AIAgentSettings() {
         <h1 className="text-3xl font-bold">AI Agent Settings</h1>
         <p className="text-muted-foreground">Configure agent behavior and messaging rules</p>
       </div>
+
+      <Tabs value="settings" className="w-full">
+        <TabsList>
+          <TabsTrigger value="dashboard" onClick={() => navigate("/agents")}>
+            <Bot className="w-4 h-4 mr-2" />
+            Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="analytics" onClick={() => navigate("/agents/analytics")}>
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
+            <Settings className="w-4 h-4 mr-2" />
+            Settings
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <Card>
         <CardHeader>
