@@ -31,7 +31,7 @@ import { toast } from "sonner";
 import { 
   Trash2, Upload, FileText, Loader2, CheckCircle2, AlertCircle,
   Book, BookOpen, Palette, Building2, HelpCircle, MessageSquare,
-  GraduationCap, FileCheck, File, Sparkles
+  GraduationCap, FileCheck, File, Sparkles, RefreshCw
 } from "lucide-react";
 import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
 import { AgentTypeIcon } from "./agents/AgentTypeIcon";
@@ -703,6 +703,38 @@ export const KnowledgeBase = () => {
     },
   });
 
+  const reprocessMetadata = useMutation({
+    mutationFn: async () => {
+      if (!selectedAgent) throw new Error("No agent selected");
+      
+      const { data, error } = await supabase.functions.invoke('reprocess-metadata', {
+        body: {
+          category: `agent_${selectedAgent}`,
+          documentType: selectedDocumentType || 'textbook'
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(
+        `✅ Re-processed ${data.processed} chunks!`,
+        {
+          description: data.failed > 0 
+            ? `${data.failed} chunks failed to process` 
+            : 'All chunks updated with rich metadata including quiz questions'
+        }
+      );
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+    },
+    onError: (error: Error) => {
+      toast.error("Re-processing failed", {
+        description: error.message
+      });
+    }
+  });
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1222,6 +1254,50 @@ export const KnowledgeBase = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Re-Process Metadata Button */}
+          {selectedAgent && documents && documents.length > 0 && (
+            <Card className="bg-muted/50">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-1">
+                    <RefreshCw className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <h3 className="font-medium text-sm">Update Existing Documents</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Re-process {documents.length} existing documents to extract enhanced metadata including:
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                      <li>• Chapter numbers and titles</li>
+                      <li>• Topics, keywords, and complexity levels</li>
+                      <li>• Quiz questions with answers (for textbooks)</li>
+                      <li>• Content summaries and searchable questions</li>
+                    </ul>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => reprocessMetadata.mutate()}
+                      disabled={reprocessMetadata.isPending || !selectedDocumentType}
+                      className="w-full mt-2"
+                    >
+                      {reprocessMetadata.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Re-processing {documents.length} documents...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Re-Process All Documents
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Upload Progress Indicator */}

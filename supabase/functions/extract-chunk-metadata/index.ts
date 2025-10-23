@@ -54,9 +54,17 @@ CRITICAL RULES:
 4. REJECT headers/footers (like "Page 42" or "Chapter 3 Summary")
 5. REJECT table of contents entries
 6. If no clear chapter marker exists, use previous chapter context if provided
-7. Topics should be specific trading/finance concepts found in the text
-8. Content type should be: instructional, definition, example, exercise, summary, or reference
-9. Complexity: beginner (basic concepts), intermediate (requires prior knowledge), or advanced (expert level)
+7. DETECT quiz/test sections and extract questions WITH answers
+8. Topics should be specific trading/finance concepts found in the text
+9. Content type should be: instructional, definition, example, exercise, summary, quiz, or reference
+10. Complexity: beginner (basic concepts), intermediate (requires prior knowledge), or advanced (expert level)
+
+QUIZ DETECTION:
+- Look for patterns like "Chapter Review Questions", "Practice Quiz", "Test Your Knowledge"
+- Identify numbered questions with options (1. A) B) C) D))
+- Capture True/False questions
+- Capture fill-in-the-blank questions
+- Include answer keys if present (often marked "Answers: 1.B 2.A 3.D")
 
 ${previousChapterContext ? `CONTEXT: Previous chunk was in Chapter ${previousChapterContext.chapter_number}: "${previousChapterContext.chapter_title}"` : ''}`;
 
@@ -108,8 +116,42 @@ ${text.substring(0, 2000)}`;
                 },
                 content_type: {
                   type: 'string',
-                  enum: ['instructional', 'definition', 'example', 'exercise', 'summary', 'reference'],
+                  enum: ['instructional', 'definition', 'example', 'exercise', 'summary', 'quiz', 'reference'],
                   description: 'Type of content in this chunk'
+                },
+                is_quiz_question: {
+                  type: 'boolean',
+                  description: 'True if this chunk contains quiz/test questions'
+                },
+                quiz_questions: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      question_number: { type: 'integer' },
+                      question_text: { type: 'string' },
+                      question_type: { 
+                        type: 'string',
+                        enum: ['multiple_choice', 'true_false', 'short_answer', 'matching', 'fill_blank']
+                      },
+                      options: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Answer options (e.g., ["A) Bulls", "B) Bears", "C) Traders"])'
+                      },
+                      correct_answer: {
+                        type: 'string',
+                        description: 'The correct answer if visible in text (e.g., "B" or "False")'
+                      }
+                    },
+                    required: ['question_number', 'question_text', 'question_type']
+                  },
+                  description: 'Array of quiz questions found in this chunk with their answers'
+                },
+                quiz_type: {
+                  type: ['string', 'null'],
+                  enum: ['chapter_review', 'practice_quiz', 'midterm', 'final_exam', 'self_assessment', null],
+                  description: 'Type of quiz if this is a quiz section'
                 },
                 complexity: {
                   type: 'string',
