@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, lazy } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
@@ -29,6 +29,7 @@ import ContentLibrary from "./pages/content-studio/ContentLibrary";
 import StyleGuides from "./pages/content-studio/StyleGuides";
 import VideoEditor from "./pages/content-studio/VideoEditor";
 import AIVideoGeneration from "./pages/content-studio/AIVideoGeneration";
+import AgentTesting from "./pages/content-studio/AgentTesting";
 
 const queryClient = new QueryClient();
 
@@ -55,7 +56,7 @@ const App = () => (
             <Route path="agents/analytics" element={<AIAgentAnalytics />} />
             <Route path="agents/types" element={<AIAgentTypes />} />
             <Route path="agents/settings" element={<AIAgentSettings />} />
-            <Route path="agents/test" element={<lazy(() => import('@/pages/content-studio/AgentTesting'))} />
+            <Route path="agents/test" element={<AgentTesting />} />
             <Route path="content-studio" element={<ContentStudio />}>
               <Route index element={<Navigate to="news" replace />} />
               <Route path="news" element={<NewsDiscovery />} />
