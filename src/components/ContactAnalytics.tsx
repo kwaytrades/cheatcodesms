@@ -150,15 +150,12 @@ export const ContactAnalytics = () => {
       // Calculate metrics
       const totalContacts = contacts?.length || 0;
       
-      // Active customers: those who sent/received messages in last 30 days
-      const activeContactIds = new Set(
-        recentMessages?.map((m: any) => {
-          const conv = conversations?.find((c: any) => c.id === m.conversation_id);
-          return conv?.contact_id;
-        }).filter(Boolean)
-      );
-      const activeCustomers = activeContactIds.size;
-      const activePercentage = totalContacts > 0 ? Math.round((activeCustomers / totalContacts) * 100) : 0;
+      // Active customers: those who have made purchases (have products or spent money)
+      const activeCustomersCount = contacts?.filter((c: any) => 
+        (c.products_owned && c.products_owned.length > 0) || 
+        (c.total_spent && c.total_spent > 0)
+      ).length || 0;
+      const activePercentage = totalContacts > 0 ? Math.round((activeCustomersCount / totalContacts) * 100) : 0;
 
       // Engagement rate: contacts with any activity
       const engagedContacts = contacts?.filter((c: any) => 
@@ -181,7 +178,7 @@ export const ContactAnalytics = () => {
 
       setMetrics({
         totalContacts,
-        activeCustomers,
+        activeCustomers: activeCustomersCount,
         activePercentage,
         engagementRate,
         sentimentScore: avgSentiment,
@@ -215,19 +212,41 @@ export const ContactAnalytics = () => {
         .slice(0, 20);
       setActiveCustomers(topCustomers);
 
-      // Purchase intent funnel
+      // Purchase intent funnel - use likelihood_category when available, fallback to lead_score
       const intentCounts = {
-        cold: contacts?.filter((c: any) => !c.lead_score || c.lead_score < 25).length || 0,
-        warm: contacts?.filter((c: any) => c.lead_score >= 25 && c.lead_score < 50).length || 0,
-        hot: contacts?.filter((c: any) => c.lead_score >= 50 && c.lead_score < 75).length || 0,
-        ready: contacts?.filter((c: any) => c.lead_score >= 75).length || 0,
+        cold: contacts?.filter((c: any) => {
+          if (c.likelihood_category) {
+            return c.likelihood_category === 'cold' || c.likelihood_category === 'frozen';
+          }
+          return !c.lead_score || c.lead_score < 25;
+        }).length || 0,
+        warm: contacts?.filter((c: any) => {
+          if (c.likelihood_category) {
+            return c.likelihood_category === 'warm' || c.likelihood_category === 'neutral';
+          }
+          return c.lead_score >= 25 && c.lead_score < 50;
+        }).length || 0,
+        hot: contacts?.filter((c: any) => {
+          if (c.likelihood_category) {
+            return c.likelihood_category === 'hot';
+          }
+          return c.lead_score >= 50 && c.lead_score < 75;
+        }).length || 0,
+        ready: contacts?.filter((c: any) => {
+          // Ready to buy: customers with purchases and high scores
+          const hasPurchases = (c.products_owned && c.products_owned.length > 0) || (c.total_spent && c.total_spent > 0);
+          if (c.likelihood_category) {
+            return hasPurchases && c.likelihood_category === 'hot' && c.lead_score >= 75;
+          }
+          return c.lead_score >= 75;
+        }).length || 0,
       };
       const totalIntent = Object.values(intentCounts).reduce((a, b) => a + b, 0);
       setPurchaseIntent([
-        { stage: 'Cold', count: intentCounts.cold, percentage: Math.round((intentCounts.cold / totalIntent) * 100) },
-        { stage: 'Warm', count: intentCounts.warm, percentage: Math.round((intentCounts.warm / totalIntent) * 100) },
-        { stage: 'Hot', count: intentCounts.hot, percentage: Math.round((intentCounts.hot / totalIntent) * 100) },
-        { stage: 'Ready to Buy', count: intentCounts.ready, percentage: Math.round((intentCounts.ready / totalIntent) * 100) },
+        { stage: 'Cold', count: intentCounts.cold, percentage: totalIntent > 0 ? Math.round((intentCounts.cold / totalIntent) * 100) : 0 },
+        { stage: 'Warm', count: intentCounts.warm, percentage: totalIntent > 0 ? Math.round((intentCounts.warm / totalIntent) * 100) : 0 },
+        { stage: 'Hot', count: intentCounts.hot, percentage: totalIntent > 0 ? Math.round((intentCounts.hot / totalIntent) * 100) : 0 },
+        { stage: 'Ready to Buy', count: intentCounts.ready, percentage: totalIntent > 0 ? Math.round((intentCounts.ready / totalIntent) * 100) : 0 },
       ]);
 
       // Sentiment breakdown
@@ -319,13 +338,34 @@ export const ContactAnalytics = () => {
     let customers: any[] = [];
     
     if (stage.stage === 'Cold') {
-      customers = allContacts.filter((c: any) => !c.lead_score || c.lead_score < 25);
+      customers = allContacts.filter((c: any) => {
+        if (c.likelihood_category) {
+          return c.likelihood_category === 'cold' || c.likelihood_category === 'frozen';
+        }
+        return !c.lead_score || c.lead_score < 25;
+      });
     } else if (stage.stage === 'Warm') {
-      customers = allContacts.filter((c: any) => c.lead_score >= 25 && c.lead_score < 50);
+      customers = allContacts.filter((c: any) => {
+        if (c.likelihood_category) {
+          return c.likelihood_category === 'warm' || c.likelihood_category === 'neutral';
+        }
+        return c.lead_score >= 25 && c.lead_score < 50;
+      });
     } else if (stage.stage === 'Hot') {
-      customers = allContacts.filter((c: any) => c.lead_score >= 50 && c.lead_score < 75);
+      customers = allContacts.filter((c: any) => {
+        if (c.likelihood_category) {
+          return c.likelihood_category === 'hot';
+        }
+        return c.lead_score >= 50 && c.lead_score < 75;
+      });
     } else if (stage.stage === 'Ready to Buy') {
-      customers = allContacts.filter((c: any) => c.lead_score >= 75);
+      customers = allContacts.filter((c: any) => {
+        const hasPurchases = (c.products_owned && c.products_owned.length > 0) || (c.total_spent && c.total_spent > 0);
+        if (c.likelihood_category) {
+          return hasPurchases && c.likelihood_category === 'hot' && c.lead_score >= 75;
+        }
+        return c.lead_score >= 75;
+      });
     }
 
     setSelectedStage({
