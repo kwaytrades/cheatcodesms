@@ -13,6 +13,28 @@ interface GenerateMessageRequest {
   channel?: 'sms' | 'email';
 }
 
+const AGENT_NAMES = {
+  webinar: 'Wendi',
+  textbook: 'Thomas',
+  flashcards: 'Frank',
+  algo_monthly: 'Adam',
+  ccta: 'Chris',
+  lead_nurture: 'Jamie',
+  sales_agent: 'Sam',
+  customer_service: 'Casey',
+};
+
+const AGENT_PRIORITIES = {
+  customer_service: 10,
+  sales_agent: 5,
+  webinar: 3,
+  textbook: 3,
+  flashcards: 3,
+  algo_monthly: 3,
+  ccta: 3,
+  lead_nurture: 1,
+};
+
 const PERSONALITY_TONES = {
   analytical: {
     style: 'Professional, data-driven, detailed',
@@ -61,17 +83,71 @@ Deno.serve(async (req) => {
 
     console.log(`Generating ${message_type} message for contact ${contact_id}`);
 
-    // Load full customer context
-    const { data: contact } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('id', contact_id)
+    // Check for agent conflicts
+    const { data: conversationState } = await supabase
+      .from('conversation_state')
+      .select('active_agent_id, agent_priority, agent_queue')
+      .eq('contact_id', contact_id)
       .single();
 
     const { data: agent } = await supabase
       .from('product_agents')
       .select('*')
       .eq('id', agent_id)
+      .single();
+
+    if (!agent) {
+      throw new Error('Agent not found');
+    }
+
+    const requestPriority = AGENT_PRIORITIES[agent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
+
+    // If another agent has priority, add to queue instead
+    if (conversationState?.active_agent_id && 
+        conversationState.active_agent_id !== agent_id && 
+        (conversationState.agent_priority || 0) > requestPriority) {
+      
+      console.log(`Agent conflict detected for ${agent.product_type}, adding to queue`);
+      
+      const currentQueue = conversationState.agent_queue || [];
+      await supabase
+        .from('conversation_state')
+        .update({
+          agent_queue: [...currentQueue, {
+            agent_id,
+            message_type,
+            queued_at: new Date().toISOString(),
+          }],
+        })
+        .eq('contact_id', contact_id);
+        
+      return new Response(
+        JSON.stringify({
+          success: true,
+          queued: true,
+          message: 'Message queued due to active agent with higher priority',
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    }
+
+    // Update active agent
+    await supabase
+      .from('conversation_state')
+      .update({
+        active_agent_id: agent_id,
+        agent_priority: requestPriority,
+      })
+      .eq('contact_id', contact_id);
+
+    // Load full customer context
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('id', contact_id)
       .single();
 
     const { data: purchases } = await supabase
@@ -112,8 +188,11 @@ Deno.serve(async (req) => {
     const personalityType = contact?.personality_type || 'relationship_builder';
     const toneGuidelines = PERSONALITY_TONES[personalityType as keyof typeof PERSONALITY_TONES];
 
+    // Get agent name
+    const agentName = AGENT_NAMES[agent.product_type as keyof typeof AGENT_NAMES] || 'Your Agent';
+
     // Build AI prompt
-    const systemPrompt = `You are an elite product concierge agent for ${agent?.product_type || 'our product'}.
+    const systemPrompt = `You are ${agentName}, an elite product concierge agent for ${agent?.product_type || 'our product'}.
 
 Your role is to send personalized, conversational messages that feel like they're from a real person who knows the customer's journey, NOT marketing automation.
 
@@ -149,13 +228,15 @@ MESSAGE TYPE: ${message_type}
 
 YOUR TASK:
 Generate a ${channel === 'sms' ? 'text message (max 320 characters)' : 'email'} that:
-1. References their specific goals/challenges from agent_context
-2. Feels conversational and personal, not robotic
-3. Matches their personality type
-4. Has a clear but soft CTA
-5. Uses their name naturally
+1. Introduces yourself as ${agentName} (use this name naturally)
+2. References their specific goals/challenges from agent_context
+3. Feels conversational and personal, not robotic
+4. Matches their personality type
+5. Has a clear but soft CTA
+6. Uses their name naturally
 
 CRITICAL RULES:
+- Always sign as ${agentName}
 - Never sound like marketing automation
 - Reference specific details from their journey
 - Match the tone to personality type

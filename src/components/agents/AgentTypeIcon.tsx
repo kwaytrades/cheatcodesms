@@ -1,4 +1,4 @@
-import { Video, Book, Layers, TrendingUp, Award, Sparkles } from "lucide-react";
+import { Video, Book, Layers, TrendingUp, Award, Sparkles, UserPlus, Headphones } from "lucide-react";
 
 interface AgentTypeIconProps {
   type: string;
@@ -7,6 +7,8 @@ interface AgentTypeIconProps {
 
 export function AgentTypeIcon({ type, className = "w-5 h-5" }: AgentTypeIconProps) {
   const icons = {
+    sales_agent: { Icon: UserPlus, color: "text-cyan-500" },
+    customer_service: { Icon: Headphones, color: "text-pink-500" },
     webinar: { Icon: Video, color: "text-blue-500" },
     textbook: { Icon: Book, color: "text-orange-500" },
     flashcards: { Icon: Layers, color: "text-purple-500" },

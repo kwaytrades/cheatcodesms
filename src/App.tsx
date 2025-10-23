@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, lazy } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
@@ -55,6 +55,7 @@ const App = () => (
             <Route path="agents/analytics" element={<AIAgentAnalytics />} />
             <Route path="agents/types" element={<AIAgentTypes />} />
             <Route path="agents/settings" element={<AIAgentSettings />} />
+            <Route path="agents/test" element={<lazy(() => import('@/pages/content-studio/AgentTesting'))} />
             <Route path="content-studio" element={<ContentStudio />}>
               <Route index element={<Navigate to="news" replace />} />
               <Route path="news" element={<NewsDiscovery />} />

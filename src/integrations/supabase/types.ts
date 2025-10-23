@@ -74,6 +74,39 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_test_results: {
+        Row: {
+          accuracy_score: number | null
+          agent_type: string
+          created_at: string | null
+          id: string
+          knowledge_chunks_used: Json | null
+          messages: Json
+          test_scenario: Json
+          tester_notes: string | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          agent_type: string
+          created_at?: string | null
+          id?: string
+          knowledge_chunks_used?: Json | null
+          messages: Json
+          test_scenario: Json
+          tester_notes?: string | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          agent_type?: string
+          created_at?: string | null
+          id?: string
+          knowledge_chunks_used?: Json | null
+          messages?: Json
+          test_scenario?: Json
+          tester_notes?: string | null
+        }
+        Relationships: []
+      }
       ai_messages: {
         Row: {
           ai_prompt: string | null
@@ -857,6 +890,9 @@ export type Database = {
       }
       conversation_state: {
         Row: {
+          active_agent_id: string | null
+          agent_priority: number | null
+          agent_queue: Json | null
           contact_id: string
           created_at: string | null
           current_conversation_phase: string | null
@@ -871,6 +907,9 @@ export type Database = {
           waiting_until: string | null
         }
         Insert: {
+          active_agent_id?: string | null
+          agent_priority?: number | null
+          agent_queue?: Json | null
           contact_id: string
           created_at?: string | null
           current_conversation_phase?: string | null
@@ -885,6 +924,9 @@ export type Database = {
           waiting_until?: string | null
         }
         Update: {
+          active_agent_id?: string | null
+          agent_priority?: number | null
+          agent_queue?: Json | null
           contact_id?: string
           created_at?: string | null
           current_conversation_phase?: string | null
@@ -899,6 +941,13 @@ export type Database = {
           waiting_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "conversation_state_active_agent_id_fkey"
+            columns: ["active_agent_id"]
+            isOneToOne: false
+            referencedRelation: "product_agents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "conversation_state_contact_id_fkey"
             columns: ["contact_id"]
@@ -1241,38 +1290,55 @@ export type Database = {
       knowledge_base: {
         Row: {
           category: string
+          chunk_index: number | null
+          chunk_metadata: Json | null
           content: string | null
           created_at: string
           embedding: string | null
           file_path: string | null
           file_type: string | null
           id: string
+          parent_document_id: string | null
           title: string
           updated_at: string
         }
         Insert: {
           category: string
+          chunk_index?: number | null
+          chunk_metadata?: Json | null
           content?: string | null
           created_at?: string
           embedding?: string | null
           file_path?: string | null
           file_type?: string | null
           id?: string
+          parent_document_id?: string | null
           title: string
           updated_at?: string
         }
         Update: {
           category?: string
+          chunk_index?: number | null
+          chunk_metadata?: Json | null
           content?: string | null
           created_at?: string
           embedding?: string | null
           file_path?: string | null
           file_type?: string | null
           id?: string
+          parent_document_id?: string | null
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_base_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_base"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -1412,6 +1478,7 @@ export type Database = {
           conversion_achieved: boolean | null
           conversion_date: string | null
           created_at: string | null
+          direction: string | null
           expiration_date: string
           id: string
           messages_sent: number | null
@@ -1428,6 +1495,7 @@ export type Database = {
           conversion_achieved?: boolean | null
           conversion_date?: string | null
           created_at?: string | null
+          direction?: string | null
           expiration_date: string
           id?: string
           messages_sent?: number | null
@@ -1444,6 +1512,7 @@ export type Database = {
           conversion_achieved?: boolean | null
           conversion_date?: string | null
           created_at?: string | null
+          direction?: string | null
           expiration_date?: string
           id?: string
           messages_sent?: number | null

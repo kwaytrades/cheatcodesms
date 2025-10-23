@@ -14,7 +14,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { query, category } = await req.json();
@@ -26,11 +26,11 @@ serve(async (req) => {
     // Try vector search first if we have a query
     if (query) {
       try {
-        // Generate embedding for the search query using OpenAI
-        const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        // Generate embedding for the search query using Lovable AI
+        const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
+            'Authorization': `Bearer ${lovableApiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -45,16 +45,37 @@ serve(async (req) => {
 
           console.log('Using vector search');
 
-          // Use vector similarity search
+          // Use vector similarity search - return chunks
           const { data: vectorResults, error: vectorError } = await supabase.rpc('match_documents', {
             query_embedding: queryEmbedding,
             match_threshold: 0.7,
-            match_count: 15
+            match_count: 5
           });
 
           if (!vectorError && vectorResults && vectorResults.length > 0) {
-            results = vectorResults;
-            console.log('Vector search found', results.length, 'documents');
+            // Enrich with context chunks
+            const enriched = [];
+            for (const result of vectorResults) {
+              const chunk: any = { ...result };
+              
+              // Get adjacent chunks if this is part of a chunked document
+              if (result.parent_document_id) {
+                const { data: siblings } = await supabase
+                  .from('knowledge_base')
+                  .select('content, chunk_index')
+                  .eq('parent_document_id', result.parent_document_id)
+                  .in('chunk_index', [result.chunk_index - 1, result.chunk_index + 1])
+                  .order('chunk_index');
+                
+                if (siblings && siblings.length > 0) {
+                  chunk.context_chunks = siblings;
+                }
+              }
+              enriched.push(chunk);
+            }
+            
+            results = enriched;
+            console.log('Vector search found', results.length, 'chunks');
           }
         }
       } catch (vectorError) {
@@ -104,12 +125,14 @@ serve(async (req) => {
       console.log('Keyword search found', results?.length || 0, 'documents');
     }
 
-    // Return FULL content - no truncation
+    // Return FULL content with chunk metadata
     const formattedResults = results?.map((doc: any) => ({
       title: doc.title,
       category: doc.category,
-      content: doc.content, // Full content, no truncation
+      content: doc.content,
       similarity: doc.similarity || undefined,
+      chunk_metadata: doc.chunk_metadata,
+      context_chunks: doc.context_chunks,
     })) || [];
 
     return new Response(

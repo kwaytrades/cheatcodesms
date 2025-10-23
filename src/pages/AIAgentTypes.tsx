@@ -7,12 +7,14 @@ import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AgentTypeConfig } from "@/components/agents/AgentTypeConfig";
 
 const agentTypes = [
-  { id: "webinar", name: "Webinar Agent", description: "Guides contacts through webinar signup and attendance" },
-  { id: "textbook", name: "Textbook Agent", description: "Helps with textbook purchase decisions and learning path" },
-  { id: "flashcards", name: "Flashcards Agent", description: "Promotes flashcard usage and learning consistency" },
-  { id: "algo_monthly", name: "Algo Monthly Agent", description: "Nurtures algorithmic trading subscription leads" },
-  { id: "ccta", name: "CCTA Agent", description: "Guides through CCTA certification process" },
-  { id: "lead_nurture", name: "Lead Nurture Agent", description: "General lead nurturing for undecided prospects" },
+  { id: "sales_agent", name: "Sam - Sales Agent", description: "Proactive outreach to qualify and convert leads" },
+  { id: "customer_service", name: "Casey - Customer Service", description: "Handles inbound support questions and troubleshooting" },
+  { id: "webinar", name: "Wendi - Webinar Agent", description: "Guides contacts through webinar signup and attendance" },
+  { id: "textbook", name: "Thomas - Textbook Agent", description: "Helps with textbook purchase decisions and learning path" },
+  { id: "flashcards", name: "Frank - Flashcards Agent", description: "Promotes flashcard usage and learning consistency" },
+  { id: "algo_monthly", name: "Adam - Algo Monthly Agent", description: "Nurtures algorithmic trading subscription leads" },
+  { id: "ccta", name: "Chris - CCTA Agent", description: "Guides through CCTA certification process" },
+  { id: "lead_nurture", name: "Jamie - Lead Nurture Agent", description: "General lead nurturing for undecided prospects" },
 ];
 
 export default function AIAgentTypes() {

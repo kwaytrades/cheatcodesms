@@ -27,6 +27,12 @@ verify_jwt = false
 [functions.render-video-remotion]
 verify_jwt = false
 
+[functions.chunk-and-embed-pdf]
+verify_jwt = false
+
+[functions.process-agent-queue]
+verify_jwt = false
+
 [functions.twilio-webhook]
 verify_jwt = false
 
