@@ -103,7 +103,7 @@ const Contacts = () => {
 
   useEffect(() => {
     applyFiltersAndSearch();
-  }, [searchQuery, contacts, filters, selectedSegment]);
+  }, [searchQuery, contacts, filters, selectedSegment, sortColumn, sortDirection]);
 
   const loadContacts = async () => {
     try {
