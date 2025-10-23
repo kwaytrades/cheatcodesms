@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.track-funnel-conversion]
 verify_jwt = false
+
+[functions.render-editor-composition]
+verify_jwt = false

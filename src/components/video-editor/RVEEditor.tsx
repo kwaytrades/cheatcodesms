@@ -5,6 +5,7 @@ import { TimelineProvider } from "@/contexts/video-editor/TimelineContext";
 import { SidebarProvider as UISidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useEditorState } from "@/hooks/video-editor/useEditorState";
 import { useVideoExport } from "@/hooks/video-editor/useVideoExport";
+import { useLibrarySave } from "@/hooks/video-editor/useLibrarySave";
 import { VideoPlayer } from "./VideoPlayer";
 import { EditorSidebar } from "./sidebar/EditorSidebar";
 import { AdvancedTimeline } from "./timeline/AdvancedTimeline";
@@ -23,7 +24,8 @@ import {
   ZoomIn,
   ZoomOut,
   Scissors,
-  Trash2
+  Trash2,
+  Save
 } from "lucide-react";
 import { useTimeline } from "@/contexts/video-editor/TimelineContext";
 import { useKeyboardShortcuts } from "@/hooks/video-editor/useKeyboardShortcuts";
@@ -35,6 +37,12 @@ const EditorControls: React.FC = () => {
   const editorState = useEditorContext();
   const { zoomScale, handleZoom } = useTimeline();
   const { exportVideo, cancelExport, progress: exportProgress, isLoading } = useVideoExport(
+    editorState.overlays,
+    editorState.durationInFrames,
+    30, // FPS
+    editorState.getAspectRatioDimensions
+  );
+  const { saveToLibrary, progress: saveProgress, isLoading: isSaving } = useLibrarySave(
     editorState.overlays,
     editorState.durationInFrames,
     30, // FPS
@@ -184,10 +192,21 @@ const EditorControls: React.FC = () => {
             </Button>
           </div>
 
+          {/* Save to Library Button */}
+          <Button 
+            onClick={() => saveToLibrary()}
+            disabled={editorState.overlays.length === 0 || isSaving}
+            variant="default"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? `Saving ${saveProgress}%` : 'Save to Library'}
+          </Button>
+
           {/* Export Button */}
           <Button 
             onClick={() => setExportDialogOpen(true)}
             disabled={editorState.overlays.length === 0}
+            variant="outline"
           >
             <Download className="h-4 w-4 mr-2" />
             Export

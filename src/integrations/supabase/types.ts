@@ -672,38 +672,47 @@ export type Database = {
       }
       content_videos: {
         Row: {
+          composition_data: Json | null
           created_at: string | null
           duration_seconds: number | null
           file_size_bytes: number | null
           id: string
           is_final: boolean | null
           script_id: string | null
+          source: string | null
           take_number: number | null
           thumbnail_url: string | null
+          title: string | null
           user_id: string
           video_url: string
         }
         Insert: {
+          composition_data?: Json | null
           created_at?: string | null
           duration_seconds?: number | null
           file_size_bytes?: number | null
           id?: string
           is_final?: boolean | null
           script_id?: string | null
+          source?: string | null
           take_number?: number | null
           thumbnail_url?: string | null
+          title?: string | null
           user_id: string
           video_url: string
         }
         Update: {
+          composition_data?: Json | null
           created_at?: string | null
           duration_seconds?: number | null
           file_size_bytes?: number | null
           id?: string
           is_final?: boolean | null
           script_id?: string | null
+          source?: string | null
           take_number?: number | null
           thumbnail_url?: string | null
+          title?: string | null
           user_id?: string
           video_url?: string
         }
