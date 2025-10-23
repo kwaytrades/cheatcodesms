@@ -95,13 +95,42 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
             const value = row[index]?.trim();
             
             if (mappedField && value) {
-              if (mappedField === 'tags' || mappedField === 'products_owned') {
-                // Parse array fields
+              // Handle array fields (semicolon, comma, or pipe separated)
+              if (mappedField === 'tags' || mappedField === 'products_owned' || mappedField === 'products_interested') {
                 contact[mappedField] = value.split(/[,;|]/).map((v: string) => v.trim()).filter(Boolean);
-              } else if (mappedField === 'lead_score' || mappedField === 'engagement_score' || mappedField === 'total_spent') {
-                // Parse numeric fields
+              } 
+              // Handle currency fields (remove $ and commas)
+              else if (mappedField === 'total_spent' || mappedField === 'disputed_amount') {
+                const cleaned = value.replace(/[$,]/g, '');
+                contact[mappedField] = parseFloat(cleaned) || null;
+              }
+              // Handle boolean fields
+              else if (mappedField === 'has_disputed') {
+                contact[mappedField] = value.toLowerCase() === 'true' || parseFloat(value.replace(/[$,]/g, '')) > 0;
+              }
+              // Handle numeric fields
+              else if (mappedField === 'lead_score' || mappedField === 'engagement_score' || mappedField === 'likelihood_to_buy_score') {
                 contact[mappedField] = parseFloat(value) || null;
-              } else {
+              }
+              // Handle JSONB array fields
+              else if (mappedField === 'webinar_attendance' || mappedField === 'form_submissions' || mappedField === 'quiz_responses') {
+                // Parse as array
+                const items = value.split(/[,;|]/).map((v: string) => v.trim()).filter(Boolean);
+                contact[mappedField] = items.length > 0 ? items : [];
+              }
+              // Handle status mapping to customer_tier
+              else if (mappedField === 'customer_tier' || (header.toLowerCase() === 'status' && mappedField === 'lead_status')) {
+                // Map Status to customer_tier
+                contact.customer_tier = value;
+                // Also set a reasonable lead_status
+                if (value.toLowerCase() === 'vip') {
+                  contact.lead_status = 'customer';
+                } else {
+                  contact.lead_status = contact.lead_status || 'new';
+                }
+              }
+              // Regular string fields
+              else {
                 contact[mappedField] = value;
               }
             }
@@ -109,6 +138,9 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
 
           // Set defaults
           if (!contact.lead_status) contact.lead_status = 'new';
+          if (contact.disputed_amount && contact.disputed_amount > 0) {
+            contact.has_disputed = true;
+          }
           
           // CRITICAL: Ensure full_name is always set (required field)
           if (!contact.full_name) {
