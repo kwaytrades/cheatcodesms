@@ -83,10 +83,13 @@ const Contacts = () => {
   const [selectedSegment, setSelectedSegment] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showSegments, setShowSegments] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(1000);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [currentPage, pageSize]);
 
   useEffect(() => {
     applyFiltersAndSearch();
@@ -94,10 +97,24 @@ const Contacts = () => {
 
   const loadContacts = async () => {
     try {
+      setLoading(true);
+      
+      // Get total count
+      const { count } = await supabase
+        .from("contacts")
+        .select("*", { count: 'exact', head: true });
+      
+      setTotalCount(count || 0);
+      
+      // Get paginated data
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
       const { data, error } = await supabase
         .from("contacts")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       setContacts(data || []);
@@ -232,7 +249,7 @@ const Contacts = () => {
 
   const handleDeleteAll = async () => {
     const confirmed = confirm(
-      `⚠️ WARNING: This will permanently delete ALL contacts and their related data from your database. This action cannot be undone. Type "DELETE ALL" to confirm.`
+      `⚠️ WARNING: This will permanently delete ALL ${totalCount.toLocaleString()} contacts and their related data from your database. This action cannot be undone. Type "DELETE ALL" to confirm.`
     );
     
     if (!confirmed) return;
@@ -265,6 +282,7 @@ const Contacts = () => {
       
       toast.success("All contacts deleted successfully");
       setSelectedContacts(new Set());
+      setCurrentPage(1);
       await loadContacts();
     } catch (error) {
       console.error("Error deleting all contacts:", error);
@@ -458,7 +476,8 @@ const Contacts = () => {
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">Contacts</h1>
                 <p className="text-xs md:text-sm text-muted-foreground truncate">
-                  {selectedSegment ? selectedSegment.name : 'All contacts'} • {filteredContacts.length} total
+                  {selectedSegment ? selectedSegment.name : 'All contacts'} • {totalCount.toLocaleString()} total
+                  {totalCount > pageSize && ` • Showing ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, totalCount)}`}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -543,7 +562,7 @@ const Contacts = () => {
         />
 
         {/* Delete All Button - shown when no selection */}
-        {selectedContacts.size === 0 && filteredContacts.length > 0 && (
+        {selectedContacts.size === 0 && totalCount > 0 && (
           <div className="px-4 py-2 border-b bg-destructive/5">
             <Button 
               variant="destructive" 
@@ -551,7 +570,7 @@ const Contacts = () => {
               onClick={handleDeleteAll}
               className="gap-2"
             >
-              Delete All {filteredContacts.length} Contacts
+              Delete All {totalCount.toLocaleString()} Contacts
             </Button>
           </div>
         )}
@@ -606,6 +625,74 @@ const Contacts = () => {
             </TableBody>
           </Table>
         </div>
+
+        {/* Pagination Controls */}
+        {totalCount > pageSize && (
+          <div className="border-t bg-card p-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Rows per page:
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                >
+                  <option value={100}>100</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1,000</option>
+                  <option value={2500}>2,500</option>
+                  <option value={5000}>5,000</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {Math.ceil(totalCount / pageSize)} ({totalCount.toLocaleString()} total)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  First
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                >
+                  Next
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(Math.ceil(totalCount / pageSize))}
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                >
+                  Last
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
