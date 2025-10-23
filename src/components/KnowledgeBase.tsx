@@ -28,40 +28,60 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Trash2, Upload, FileText } from "lucide-react";
+import { Trash2, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
+import { AgentTypeIcon } from "./agents/AgentTypeIcon";
+import { Progress } from "@/components/ui/progress";
 
-const CATEGORIES = [
-  "Product Info",
-  "Objection Handling",
-  "Compliance & Legal",
-  "Technical Support",
-  "Customer Stories",
-  "Company History",
-  "Style Guide",
+const AGENT_TYPES = [
+  { id: 'sales_agent', name: 'Sam - Sales Agent', description: 'Proactive outreach to qualify and convert leads' },
+  { id: 'customer_service', name: 'Casey - Customer Service', description: 'Handles inbound support questions and issues' },
+  { id: 'webinar', name: 'Wendi - Webinar Agent', description: 'Guides contacts through webinar signup process' },
+  { id: 'textbook', name: 'Thomas - Textbook Agent', description: 'Helps with textbook purchase decisions' },
+  { id: 'flashcards', name: 'Frank - Flashcards Agent', description: 'Promotes flashcard usage and learning' },
+  { id: 'algo_monthly', name: 'Adam - Algo Monthly Agent', description: 'Nurtures algorithmic trading subscription leads' },
+  { id: 'ccta', name: 'Chris - CCTA Agent', description: 'Guides through CCTA certification process' },
+  { id: 'lead_nurture', name: 'Jamie - Lead Nurture Agent', description: 'General lead nurturing for undecided prospects' },
 ];
 
 export const KnowledgeBase = () => {
   const queryClient = useQueryClient();
+  const [selectedAgent, setSelectedAgent] = useState("");
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [pdfUploaded, setPdfUploaded] = useState(false);
-  const [processingStage, setProcessingStage] = useState<string | null>(null);
-  const [totalChunks, setTotalChunks] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState<{
+    isUploading: boolean;
+    stage: 'idle' | 'uploading' | 'processing' | 'chunking' | 'embedding' | 'complete' | 'error';
+    progress: number;
+    chunks?: number;
+    fileName?: string;
+    error?: string;
+  }>({
+    isUploading: false,
+    stage: 'idle',
+    progress: 0
+  });
 
   const { data: documents, isLoading } = useQuery({
-    queryKey: ["knowledge-base"],
+    queryKey: ["knowledge-base", selectedAgent],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("knowledge_base")
         .select(`
           *,
           chunks:knowledge_base!parent_document_id(count)
         `)
-        .is("parent_document_id", null)
-        .order("created_at", { ascending: false });
+        .is("parent_document_id", null);
+
+      // Filter by selected agent if one is selected
+      if (selectedAgent) {
+        query = query.eq("category", `agent_${selectedAgent}`);
+      } else {
+        // Show all agent categories if no agent selected
+        query = query.like("category", "agent_%");
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
@@ -70,7 +90,7 @@ export const KnowledgeBase = () => {
 
   const addDocument = useMutation({
     mutationFn: async (doc: { title: string; category: string; content: string; file_path?: string; file_type?: string }) => {
-      setProcessingStage("📄 Adding document to knowledge base...");
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 25, fileName: doc.title });
       
       const { data, error } = await supabase
         .from("knowledge_base")
@@ -79,20 +99,10 @@ export const KnowledgeBase = () => {
         .single();
 
       if (error) {
-        setProcessingStage(null);
         throw error;
       }
 
-      // Estimate chunks (1000 tokens ≈ 750 characters)
-      const estimatedChunks = Math.ceil(doc.content.length / 750);
-      setTotalChunks(estimatedChunks);
-      
-      setProcessingStage("✂️ Chunking content into segments...");
-      
-      // Small delay for visual feedback
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setProcessingStage(`🧠 Generating embeddings for ${estimatedChunks} chunks...`);
+      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 50, fileName: doc.title });
       
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         "chunk-and-embed-pdf",
@@ -107,25 +117,38 @@ export const KnowledgeBase = () => {
       );
 
       if (chunkError) {
-        setProcessingStage(null);
-        toast.error("Document added but chunking failed: " + chunkError.message);
-      } else {
-        const chunksCreated = chunkData?.chunks_created || 0;
-        setProcessingStage(`✅ Successfully created ${chunksCreated} searchable chunks!`);
-        setTimeout(() => setProcessingStage(null), 3000);
-        toast.success(`Document embedded into ${chunksCreated} searchable chunks`);
+        throw chunkError;
       }
+
+      const chunksCreated = chunkData?.chunks_created || 0;
+      setUploadProgress({ 
+        isUploading: true, 
+        stage: 'complete', 
+        progress: 100, 
+        chunks: chunksCreated,
+        fileName: doc.title
+      });
+      
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+      }, 5000);
+      
+      toast.success(`Document embedded into ${chunksCreated} searchable chunks`);
 
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
       setTitle("");
-      setCategory("");
       setContent("");
-      setPdfUploaded(false);
     },
     onError: (error) => {
+      setUploadProgress({ 
+        isUploading: true, 
+        stage: 'error', 
+        progress: 0,
+        error: error.message
+      });
       toast.error("Failed to add document: " + error.message);
     },
   });
@@ -140,7 +163,7 @@ export const KnowledgeBase = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["knowledge-base"] });
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
       toast.success("Document deleted");
     },
     onError: (error) => {
@@ -152,85 +175,129 @@ export const KnowledgeBase = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setUploading(true);
-    setPdfUploaded(false);
-    
+    if (!selectedAgent) {
+      toast.error("Please select an agent first");
+      return;
+    }
+
     try {
-      // Handle text-based files
-      if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
-        const text = await file.text();
-        setContent(text);
-        setTitle(file.name);
-        toast.success("File content loaded");
-      } 
-      // Handle PDF files
-      else if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-        toast.info("Processing PDF... This may take a moment.");
-        
-        // Upload PDF to storage first
-        const filePath = `knowledge-base/${Date.now()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("knowledge-base")
-          .upload(filePath, file);
-        
-        if (uploadError) throw uploadError;
+      setUploadProgress({ isUploading: true, stage: 'uploading', progress: 10, fileName: file.name });
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${selectedAgent}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
 
-        // Parse PDF content using Supabase edge function
-        const { data: parseData, error: parseError } = await supabase.functions.invoke("parse-pdf", {
-          body: { filePath }
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('knowledge-base')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('knowledge-base')
+        .getPublicUrl(filePath);
+
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 40, fileName: file.name });
+
+      let content = '';
+      
+      if (fileExt?.toLowerCase() === 'pdf') {
+        const { data: pdfData, error: parseError } = await supabase.functions.invoke('parse-pdf', {
+          body: { file_path: filePath }
         });
-
-        if (parseError) throw parseError;
-
-        setContent(parseData.content || "PDF content will be extracted automatically");
-        setTitle(file.name.replace(".pdf", ""));
-        setPdfUploaded(true);
-        toast.success("PDF parsed successfully!");
-      } 
-      else {
-        toast.error("Only text files (.txt, .md) and PDFs are supported");
+        
+        if (!parseError && pdfData?.text) {
+          content = pdfData.text;
+        }
+      } else if (['txt', 'md', 'text'].includes(fileExt?.toLowerCase() || '')) {
+        content = await file.text();
       }
+
+      setUploadProgress({ isUploading: true, stage: 'processing', progress: 50, fileName: file.name });
+
+      const { data: kbEntry, error: dbError } = await supabase
+        .from('knowledge_base')
+        .insert({
+          title: file.name,
+          category: `agent_${selectedAgent}`,
+          file_path: publicUrl,
+          file_type: fileExt,
+          content: content,
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      setUploadProgress({ isUploading: true, stage: 'chunking', progress: 65, fileName: file.name });
+      setUploadProgress({ isUploading: true, stage: 'embedding', progress: 80, fileName: file.name });
+
+      const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
+        'chunk-and-embed-pdf',
+        {
+          body: {
+            document_id: kbEntry.id,
+            content: content,
+            title: file.name,
+            category: `agent_${selectedAgent}`,
+          },
+        }
+      );
+
+      if (chunkError) {
+        throw new Error(chunkError.message || 'Failed to chunk and embed document');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+      
+      setUploadProgress({ 
+        isUploading: true, 
+        stage: 'complete', 
+        progress: 100, 
+        chunks: chunkData?.chunks_created || 0,
+        fileName: file.name
+      });
+      
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+      }, 5000);
+      
+      toast.success(`File processed into ${chunkData?.chunks_created || 0} searchable chunks`);
+      
+      // Reset file input
+      e.target.value = '';
     } catch (error: any) {
+      setUploadProgress({ 
+        isUploading: true, 
+        stage: 'error', 
+        progress: 0, 
+        fileName: file?.name,
+        error: error.message
+      });
       toast.error("Failed to process file: " + error.message);
-      setPdfUploaded(false);
-    } finally {
-      setUploading(false);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !category) {
-      toast.error("Please fill in title and category");
+    
+    if (!selectedAgent) {
+      toast.error("Please select an agent");
       return;
     }
-
-    // Content is optional for PDF uploads as it's auto-extracted
-    if (!content && !pdfUploaded) {
-      toast.error("Please enter content or upload a file");
+    
+    if (!title || !content) {
+      toast.error("Please fill in title and content");
       return;
     }
 
     addDocument.mutate({
       title,
-      category,
-      content: content || "Content extracted from uploaded file",
+      category: `agent_${selectedAgent}`,
+      content,
     });
   };
-
-  const ProcessingIndicator = () => (
-    <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-in fade-in-50">
-      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-      <div className="flex-1">
-        <p className="font-medium text-sm">{processingStage}</p>
-        {totalChunks > 0 && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Estimated chunks: {totalChunks}
-          </p>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -238,27 +305,122 @@ export const KnowledgeBase = () => {
       
       <Card>
         <CardHeader>
-          <CardTitle>Knowledge Base</CardTitle>
+          <CardTitle>Agent Knowledge Base</CardTitle>
           <CardDescription>
-            Upload documents for AI agents to reference (products, services, company history, objections, etc.)
+            Upload documents specific to each agent type. Select an agent below to manage their knowledge base.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {processingStage && <ProcessingIndicator />}
-          
-          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <CardContent className="space-y-6">
+          {/* Agent Selector */}
+          <div>
+            <Label htmlFor="agent-select">Select Agent</Label>
+            <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+              <SelectTrigger id="agent-select" className="w-full">
+                <SelectValue placeholder="Choose an agent to upload knowledge for..." />
+              </SelectTrigger>
+              <SelectContent>
+                {AGENT_TYPES.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    <div className="flex items-center gap-2">
+                      <AgentTypeIcon type={agent.id} className="w-4 h-4" />
+                      <span>{agent.name}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedAgent && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {AGENT_TYPES.find(a => a.id === selectedAgent)?.description}
+              </p>
+            )}
+          </div>
+
+          {/* Upload Progress Indicator */}
+          {uploadProgress.isUploading && (
+            <Card className="border-2 border-primary shadow-2xl bg-primary/5 animate-in fade-in-50 duration-500">
+              <CardContent className="pt-6 pb-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    {uploadProgress.stage === 'complete' ? (
+                      <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    ) : uploadProgress.stage === 'error' ? (
+                      <AlertCircle className="w-6 h-6 text-destructive flex-shrink-0" />
+                    ) : (
+                      <Loader2 className="w-6 h-6 text-primary animate-spin flex-shrink-0" />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">
+                        {uploadProgress.stage === 'uploading' && '📤 Uploading File...'}
+                        {uploadProgress.stage === 'processing' && '📄 Extracting Content...'}
+                        {uploadProgress.stage === 'chunking' && '✂️ Breaking into Segments...'}
+                        {uploadProgress.stage === 'embedding' && '🧠 Generating AI Embeddings...'}
+                        {uploadProgress.stage === 'complete' && '✅ Upload Complete!'}
+                        {uploadProgress.stage === 'error' && '❌ Upload Failed'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {uploadProgress.fileName}
+                      </p>
+                    </div>
+                    <span className="text-2xl font-bold text-primary flex-shrink-0">
+                      {uploadProgress.progress}%
+                    </span>
+                  </div>
+
+                  <Progress 
+                    value={uploadProgress.progress} 
+                    className="h-3"
+                    indicatorClassName="bg-gradient-to-r from-primary to-primary/60 transition-all duration-500"
+                  />
+
+                  <div className="text-sm">
+                    {uploadProgress.stage === 'uploading' && (
+                      <p className="text-muted-foreground">Saving file to secure storage...</p>
+                    )}
+                    {uploadProgress.stage === 'processing' && (
+                      <p className="text-muted-foreground">Reading and parsing document content...</p>
+                    )}
+                    {uploadProgress.stage === 'chunking' && (
+                      <p className="text-muted-foreground">Splitting into searchable segments...</p>
+                    )}
+                    {uploadProgress.stage === 'embedding' && (
+                      <p className="text-muted-foreground">Creating vector embeddings for AI search...</p>
+                    )}
+                    {uploadProgress.stage === 'complete' && uploadProgress.chunks && (
+                      <p className="text-green-600 font-semibold">
+                        Successfully created {uploadProgress.chunks} searchable chunks!
+                      </p>
+                    )}
+                    {uploadProgress.stage === 'error' && (
+                      <p className="text-destructive font-semibold">
+                        {uploadProgress.error || 'An error occurred during upload'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick File Upload */}
+          {selectedAgent && (
             <div>
-              <Label htmlFor="file-upload">Upload Document (Optional)</Label>
+              <Label htmlFor="file-upload">Upload Document</Label>
               <div className="flex gap-2 mt-2">
                 <Input
                   id="file-upload"
                   type="file"
                   onChange={handleFileUpload}
-                  disabled={uploading}
+                  disabled={uploadProgress.isUploading}
                   accept=".txt,.md,.pdf"
                   className="cursor-pointer"
                 />
-                <Button type="button" size="icon" disabled={uploading}>
+                <Button 
+                  type="button" 
+                  size="icon" 
+                  disabled={uploadProgress.isUploading || !selectedAgent}
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                >
                   <Upload className="h-4 w-4" />
                 </Button>
               </div>
@@ -266,129 +428,114 @@ export const KnowledgeBase = () => {
                 Supported: .txt, .md, .pdf files
               </p>
             </div>
+          )}
 
-            <div>
-              <Label htmlFor="title">Document Title</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Algo V5 Product Guide"
-              />
+          {/* Manual Content Entry */}
+          {selectedAgent && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="title">Document Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Product FAQ, Objection Handling Guide"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="content">Content</Label>
+                <Textarea
+                  id="content"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder="Paste or type document content here..."
+                  rows={8}
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                disabled={addDocument.isPending || uploadProgress.isUploading}
+              >
+                {uploadProgress.isUploading ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                    Processing...
+                  </>
+                ) : (
+                  "Add to Knowledge Base"
+                )}
+              </Button>
+            </form>
+          )}
+
+          {!selectedAgent && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Select an agent above to start uploading knowledge base documents</p>
             </div>
-
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="content">Content {pdfUploaded && "(Auto-extracted from PDF)"}</Label>
-              <Textarea
-                id="content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={pdfUploaded ? "PDF content extracted..." : "Paste or type document content here..."}
-                rows={8}
-                disabled={pdfUploaded}
-                className={pdfUploaded ? "opacity-60" : ""}
-              />
-              {pdfUploaded && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Content was automatically extracted from the uploaded PDF
-                </p>
-              )}
-            </div>
-
-            <Button type="submit" disabled={addDocument.isPending || processingStage !== null}>
-              {processingStage ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                  Processing...
-                </>
-              ) : (
-                "Add to Knowledge Base"
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Documents</CardTitle>
-          <CardDescription>
-            {documents?.length || 0} documents in knowledge base
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p>Loading...</p>
-          ) : documents && documents.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Added</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {documents.map((doc) => {
-                  const chunkCount = doc.chunks?.[0]?.count || 0;
-                  return (
-                    <TableRow key={doc.id}>
-                      <TableCell className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        {doc.title}
-                      </TableCell>
-                      <TableCell>{doc.category}</TableCell>
-                      <TableCell>
-                        {chunkCount > 0 ? (
-                          <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
-                            ✓ Embedded ({chunkCount} chunks)
-                          </span>
-                        ) : (
-                          <span className="text-xs px-2 py-1 bg-muted text-muted-foreground rounded-full">
-                            Not Embedded
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(doc.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteDocument.mutate(doc.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-muted-foreground">No documents yet. Add your first document above.</p>
           )}
         </CardContent>
       </Card>
+
+      {selectedAgent && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Knowledge Base Files for {AGENT_TYPES.find(a => a.id === selectedAgent)?.name.split(' - ')[0]}
+            </CardTitle>
+            <CardDescription>
+              {documents?.length || 0} documents uploaded for this agent
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <p>Loading...</p>
+            ) : documents && documents.length > 0 ? (
+              <div className="space-y-2">
+                {documents.map((doc) => {
+                  const chunkCount = doc.chunks?.[0]?.count || 0;
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3 flex-1">
+                        <FileText className="w-5 h-5 text-muted-foreground" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium">{doc.title}</div>
+                            {chunkCount > 0 ? (
+                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                ✓ {chunkCount} chunks
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                                Not embedded
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            Added {new Date(doc.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteDocument.mutate(doc.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                No knowledge base files yet. Upload documents above to enhance this agent's responses.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
