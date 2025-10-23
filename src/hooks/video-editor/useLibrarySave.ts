@@ -3,13 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Overlay } from "@/lib/video-editor/types";
 import { toast } from "sonner";
-import { renderToBlob } from "@/lib/video-editor/browser-render";
+import { renderVideoToMP4 } from "@/lib/video-editor/client-render";
+import { PlayerRef } from "@remotion/player";
 
 export const useLibrarySave = (
   overlays: Overlay[],
   durationInFrames: number,
   fps: number,
-  getAspectRatioDimensions: () => { width: number; height: number }
+  getAspectRatioDimensions: () => { width: number; height: number },
+  playerRef: React.RefObject<PlayerRef>
 ) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,10 +32,11 @@ export const useLibrarySave = (
 
     try {
       const dimensions = getAspectRatioDimensions();
-      console.log('[Save] Starting browser render, dimensions:', dimensions);
+      console.log('[Save] Starting client-side render, dimensions:', dimensions);
 
-      // Render video in browser using MediaRecorder
-      const videoBlob = await renderToBlob({
+      // Render video using Remotion Player + FFmpeg
+      const videoBlob = await renderVideoToMP4({
+        playerRef,
         overlays,
         durationInFrames,
         fps,
@@ -60,13 +63,13 @@ export const useLibrarySave = (
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const fileName = `editor-${Date.now()}.webm`;
+      const fileName = `editor-${Date.now()}.mp4`;
       const filePath = `${user.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('content-videos')
         .upload(filePath, videoBlob, {
-          contentType: 'video/webm',
+          contentType: 'video/mp4',
           upsert: false,
         });
 
