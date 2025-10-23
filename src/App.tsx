@@ -21,6 +21,7 @@ import ContentStudio from "./pages/ContentStudio";
 import AIAgents from "./pages/AIAgents";
 import AIAgentAnalytics from "./pages/AIAgentAnalytics";
 import AIAgentSettings from "./pages/AIAgentSettings";
+import AIAgentTypes from "./pages/AIAgentTypes";
 import NewsDiscovery from "./pages/content-studio/NewsDiscovery";
 import ScriptGenerator from "./pages/content-studio/ScriptGenerator";
 import VideoRecorder from "./pages/content-studio/VideoRecorder";
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="automation" element={<AutomationTriggers />} />
             <Route path="agents" element={<AIAgents />} />
             <Route path="agents/analytics" element={<AIAgentAnalytics />} />
+            <Route path="agents/types" element={<AIAgentTypes />} />
             <Route path="agents/settings" element={<AIAgentSettings />} />
             <Route path="content-studio" element={<ContentStudio />}>
               <Route index element={<Navigate to="news" replace />} />

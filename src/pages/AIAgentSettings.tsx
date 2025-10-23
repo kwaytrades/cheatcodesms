@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bot, BarChart3, Settings } from "lucide-react";
+import { Bot, BarChart3, Settings, Layers } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,6 +43,10 @@ export default function AIAgentSettings() {
           <TabsTrigger value="analytics" onClick={() => navigate("/agents/analytics")}>
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="types" onClick={() => navigate("/agents/types")}>
+            <Layers className="w-4 h-4 mr-2" />
+            Agent Types
           </TabsTrigger>
           <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
             <Settings className="w-4 h-4 mr-2" />

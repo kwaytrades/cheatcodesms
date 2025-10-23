@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Bot, Plus, Filter, Download, BarChart3, Settings } from "lucide-react";
+import { Bot, Plus, Filter, Download, BarChart3, Settings, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -131,6 +131,10 @@ export default function AIAgents() {
           <TabsTrigger value="analytics" onClick={() => navigate("/agents/analytics")}>
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
+          </TabsTrigger>
+          <TabsTrigger value="types" onClick={() => navigate("/agents/types")}>
+            <Layers className="w-4 h-4 mr-2" />
+            Agent Types
           </TabsTrigger>
           <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
             <Settings className="w-4 h-4 mr-2" />
