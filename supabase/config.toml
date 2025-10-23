@@ -71,3 +71,36 @@ verify_jwt = false
 
 [functions.map-csv-columns]
 verify_jwt = false
+
+[functions.ai-agent]
+verify_jwt = false
+
+[functions.send-sms]
+verify_jwt = false
+
+[functions.calculate-customer-tier]
+verify_jwt = false
+
+[functions.calculate-likelihood-score]
+verify_jwt = false
+
+[functions.calculate-scores-batch]
+verify_jwt = false
+
+[functions.enrich-contact-data]
+verify_jwt = false
+
+[functions.monday-integration]
+verify_jwt = false
+
+[functions.render-video]
+verify_jwt = false
+
+[functions.render-video-mp4]
+verify_jwt = false
+
+[functions.render-video-progress]
+verify_jwt = false
+
+[functions.sync-contacts]
+verify_jwt = false

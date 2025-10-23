@@ -50,8 +50,16 @@ export const AIAssistant = () => {
         
         recentMessages = data || [];
       }
+
+      // Get AI messages (emails/SMS)
+      const { data: aiMessages } = await supabase
+        .from("ai_messages")
+        .select("*")
+        .eq("contact_id", id)
+        .order("sent_at", { ascending: false })
+        .limit(10);
       
-      // Call AI function to generate suggestion
+      // Call AI function to generate suggestion with full context
       const { data, error } = await supabase.functions.invoke("ai-agent", {
         body: {
           contactId: id,
@@ -59,7 +67,7 @@ export const AIAssistant = () => {
           context: {
             contact,
             purchases,
-            recentMessages
+            recentMessages: [...recentMessages, ...(aiMessages || [])]
           }
         }
       });

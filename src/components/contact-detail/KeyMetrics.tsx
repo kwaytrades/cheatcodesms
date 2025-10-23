@@ -77,11 +77,10 @@ export const KeyMetrics = ({
 
         {likelihoodScore !== null && likelihoodScore !== undefined && (
           <div>
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center mb-1">
               <span className="text-muted-foreground">Likelihood</span>
-              <LikelihoodScore score={likelihoodScore} showLabel={false} />
+              <LikelihoodScore score={likelihoodScore} showLabel={true} />
             </div>
-            <Progress value={likelihoodScore} className="h-2" useGradient />
           </div>
         )}
         

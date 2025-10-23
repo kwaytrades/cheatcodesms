@@ -24,15 +24,18 @@ const FILTER_FIELDS = [
   { value: 'full_name', label: 'Name', type: 'text' },
   { value: 'email', label: 'Email', type: 'text' },
   { value: 'phone_number', label: 'Phone', type: 'text' },
-  { value: 'customer_tier', label: 'Tier', type: 'select', options: ['LEAD', 'Level 1', 'Level 2', 'Level 3', 'VIP', 'SHITLIST'] },
-  { value: 'lead_status', label: 'Lead Status', type: 'select', options: ['cold', 'warm', 'hot', 'customer'] },
-  { value: 'lead_score', label: 'Lead Score', type: 'number' },
+  { value: 'customer_tier', label: 'Customer Tier', type: 'select', options: ['LEAD', 'Level 1', 'Level 2', 'Level 3', 'VIP', 'SHITLIST'] },
+  { value: 'likelihood_category', label: 'Lead Status', type: 'select', options: ['hot', 'warm', 'neutral', 'cold', 'frozen'] },
+  { value: 'likelihood_to_buy_score', label: 'Likelihood Score', type: 'number' },
+  { value: 'lead_score', label: 'Engagement Score', type: 'number' },
+  { value: 'engagement_score', label: 'Engagement Level', type: 'number' },
   { value: 'products_owned', label: 'Products Owned', type: 'array' },
   { value: 'tags', label: 'Tags', type: 'array' },
   { value: 'trading_experience', label: 'Trading Experience', type: 'select', options: ['beginner', 'intermediate', 'advanced'] },
   { value: 'trading_style', label: 'Trading Style', type: 'select', options: ['day-trading', 'swing', 'position', 'long-term'] },
   { value: 'account_size', label: 'Account Size', type: 'select', options: ['<5k', '5k-25k', '25k-100k', '100k+'] },
   { value: 'total_spent', label: 'Total Spent', type: 'number' },
+  { value: 'has_disputed', label: 'Has Disputes', type: 'select', options: ['true', 'false'] },
   { value: 'last_contact_date', label: 'Last Activity', type: 'date' },
 ];
 
@@ -117,6 +120,70 @@ export function FilterBuilder({ filters, onFiltersChange, onSave }: FilterBuilde
         <Button onClick={addFilter} variant="ghost" size="sm" className="gap-2">
           <Plus className="h-3 w-3" />
           Add Filter
+        </Button>
+      </div>
+
+      {/* Quick Filters */}
+      <div className="flex flex-wrap gap-2 pb-2 border-b">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFiltersChange([
+              { id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'hot' }
+            ]);
+          }}
+          className="text-xs"
+        >
+          🔥 Hot Leads
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFiltersChange([
+              { id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'VIP' }
+            ]);
+          }}
+          className="text-xs"
+        >
+          👑 VIP Only
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFiltersChange([
+              { id: crypto.randomUUID(), field: 'total_spent', operator: 'greater', value: '1000' }
+            ]);
+          }}
+          className="text-xs"
+        >
+          💰 High Spenders
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFiltersChange([
+              { id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'SHITLIST' }
+            ]);
+          }}
+          className="text-xs"
+        >
+          ⚠️ SHITLIST
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFiltersChange([
+              { id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater', value: '75' }
+            ]);
+          }}
+          className="text-xs"
+        >
+          📈 High Likelihood
         </Button>
       </div>
 

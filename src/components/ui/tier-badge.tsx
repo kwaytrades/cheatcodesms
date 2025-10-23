@@ -57,7 +57,7 @@ export const TierBadge = ({
       case 'VIP':
         return {
           label: 'VIP',
-          color: 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30',
+          color: 'bg-amber-400/20 text-amber-600 dark:text-amber-400 border-amber-500/40 font-bold',
           icon: Crown
         };
       default:

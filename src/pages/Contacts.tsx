@@ -652,14 +652,7 @@ const Contacts = () => {
                   <TableHead 
                     key={col.key}
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => {
-                      if (sortColumn === col.key) {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn(col.key);
-                        setSortDirection('asc');
-                      }
-                    }}
+                    onClick={() => handleColumnSort(col.key)}
                   >
                     <div className="flex items-center gap-1">
                       {col.label}

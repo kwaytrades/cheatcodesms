@@ -15,18 +15,25 @@ async function handleNextBestAction(supabase: any, contactId: string, context: a
   // Build context for AI
   let contextText = `CONTACT INFORMATION:
 - Name: ${contact?.full_name || 'Unknown'}
-- Lead Score: ${contact?.lead_score || 0}/100
+- Customer Tier: ${contact?.customer_tier || 'LEAD'}
+- Likelihood Score: ${contact?.likelihood_to_buy_score || 0}/100 (${contact?.likelihood_category || 'unknown'})
 - Engagement Score: ${contact?.engagement_score || 0}/100
 - Total Spent: $${contact?.total_spent || 0}
-- Lead Status: ${contact?.lead_status || 'new'}
-- Products Interested: ${contact?.products_interested?.join(', ') || 'None identified'}
 - Products Owned: ${contact?.products_owned?.join(', ') || 'None'}
+- Products Interested: ${contact?.products_interested?.join(', ') || 'None identified'}
+- Notes: ${contact?.notes || 'No notes'}
+- Tags: ${contact?.tags?.join(', ') || 'No tags'}
+- Has Disputes: ${contact?.has_disputed ? `YES - $${contact?.disputed_amount || 0} disputed` : 'No'}
 
 RECENT PURCHASES (${purchases.length}):
 ${purchases.map((p: any) => `- ${p.products?.name}: $${p.amount} on ${new Date(p.purchase_date).toLocaleDateString()}`).join('\n') || 'No purchases yet'}
 
 RECENT CONVERSATION CONTEXT (${recentMessages.length} messages):
-${recentMessages.slice(0, 10).map((m: any) => `${m.sender === 'customer' ? 'Customer' : 'Agent'}: ${m.body}`).join('\n') || 'No recent messages'}`;
+${recentMessages.slice(0, 10).map((m: any) => {
+  const sender = m.sender === 'customer' ? 'Customer' : m.channel ? `AI (${m.channel})` : 'Agent';
+  const body = m.body || m.message_body || '';
+  return `${sender}: ${body}`;
+}).join('\n') || 'No recent messages'}`;
 
   // Extract product interests from messages
   const messageText = recentMessages.map((m: any) => m.body).join(' ');

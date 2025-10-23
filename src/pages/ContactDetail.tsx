@@ -258,7 +258,12 @@ const ContactDetail = () => {
           <div className="border-l bg-muted/30 overflow-y-auto p-4 space-y-4">
             <QuickActions />
             <AIAssistant />
-            <InsightsPanel />
+            <InsightsPanel 
+              contact={contact}
+              purchases={purchases}
+              messages={messages}
+              aiMessages={emails}
+            />
             <TagsManager tags={contact.tags} />
             <QuickNotes notes={contact.notes} onSave={handleSaveNotes} />
           </div>
