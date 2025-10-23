@@ -16,15 +16,114 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { query, category } = await req.json();
+    const { query, category, useVectorSearch = true } = await req.json();
 
-    console.log('Searching knowledge base with full-text search:', { query, category });
+    console.log('Searching knowledge base:', { query, category, useVectorSearch });
 
     let results;
 
-    // Use enhanced search with metadata support
-    if (query) {
-      console.log('Using enhanced metadata search');
+    // Check if this is a textbook category
+    const isTextbookCategory = category && category.includes('textbook');
+
+    // Try vector search first if available
+    if (useVectorSearch && query) {
+      try {
+        console.log('Attempting vector search with embeddings');
+        
+        const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+        
+        if (lovableApiKey) {
+          // Generate query embedding
+          const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${lovableApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'text-embedding-3-small',
+              input: query,
+            }),
+          });
+
+          if (embeddingResponse.ok) {
+            const embeddingData = await embeddingResponse.json();
+            const queryEmbedding = embeddingData.data[0].embedding;
+
+            console.log('Query embedding generated, performing vector similarity search');
+
+            // Vector similarity search
+            const { data: vectorResults, error: vectorError } = await supabase.rpc('match_documents', {
+              query_embedding: queryEmbedding,
+              match_threshold: 0.6,  // Lower threshold for more results
+              match_count: 20
+            });
+
+            if (!vectorError && vectorResults && vectorResults.length > 0) {
+              console.log(`Vector search found ${vectorResults.length} results`);
+
+              // For textbooks, enhance with metadata scoring
+              if (isTextbookCategory) {
+                console.log('Applying textbook-specific hybrid scoring');
+                
+                const enhancedResults = vectorResults.map((doc: any) => {
+                  let metadataBonus = 0;
+                  const lowerQuery = query.toLowerCase();
+                  const metadata = doc.chunk_metadata || {};
+
+                  // Chapter number match = huge boost
+                  const chapterMatch = query.match(/chapter\s+(\d+)/i);
+                  if (chapterMatch && metadata.chapter_number === parseInt(chapterMatch[1])) {
+                    metadataBonus += 0.3;
+                  }
+
+                  // Topic match = medium boost
+                  if (metadata.topics && Array.isArray(metadata.topics)) {
+                    const topicMatches = metadata.topics.filter((t: string) => 
+                      lowerQuery.includes(t.toLowerCase()) || t.toLowerCase().includes(lowerQuery)
+                    );
+                    metadataBonus += topicMatches.length * 0.1;
+                  }
+
+                  // Quiz context boost
+                  if (lowerQuery.includes('quiz') && metadata.is_quiz_question) {
+                    metadataBonus += 0.2;
+                  }
+
+                  // Content type match
+                  if (metadata.content_type === 'example' && lowerQuery.includes('example')) {
+                    metadataBonus += 0.15;
+                  }
+
+                  return {
+                    ...doc,
+                    combined_score: Math.min(1.0, doc.similarity + metadataBonus),
+                    metadata_bonus: metadataBonus,
+                    search_type: 'hybrid_vector_metadata'
+                  };
+                });
+
+                // Re-sort by combined score
+                enhancedResults.sort((a: any, b: any) => b.combined_score - a.combined_score);
+                results = enhancedResults.slice(0, 15);
+              } else {
+                results = vectorResults.slice(0, 15);
+              }
+
+              console.log('Vector search successful, returning results');
+            } else {
+              console.log('Vector search returned no results, falling back to full-text');
+            }
+          }
+        }
+      } catch (vectorError) {
+        console.error('Vector search failed, falling back to full-text:', vectorError);
+      }
+    }
+
+    // Fallback to full-text search if vector search didn't work
+    if (!results && query) {
+      console.log('Using full-text search fallback');
       
       let searchQuery = supabase
         .from('knowledge_base')

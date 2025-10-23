@@ -17,9 +17,14 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { documentId, content } = await req.json();
+    const { documentId, content, enhancedInput, documentType } = await req.json();
 
-    console.log('Generating embedding for document:', documentId);
+    console.log('Generating embedding for document:', documentId, 'Type:', documentType);
+
+    // Use enhanced input if provided (for textbooks), otherwise use raw content
+    const inputText = enhancedInput || content;
+
+    console.log('Input text length:', inputText.length, 'chars');
 
     // Generate embedding using Lovable AI
     const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
@@ -30,7 +35,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'text-embedding-3-small',
-        input: content,
+        input: inputText.substring(0, 8000), // Limit to 8k chars for embedding model
       }),
     });
 
@@ -45,10 +50,26 @@ serve(async (req) => {
 
     console.log('Embedding generated, updating database');
 
+    // Get existing metadata
+    const { data: existingDoc } = await supabase
+      .from('knowledge_base')
+      .select('chunk_metadata')
+      .eq('id', documentId)
+      .single();
+
+    const existingMetadata = existingDoc?.chunk_metadata || {};
+
     // Update the knowledge_base record with the embedding
     const { error: updateError } = await supabase
       .from('knowledge_base')
-      .update({ embedding })
+      .update({ 
+        embedding,
+        chunk_metadata: {
+          ...existingMetadata,
+          embedding_input_preview: inputText.substring(0, 500),
+          embedding_enhanced: !!enhancedInput
+        }
+      })
       .eq('id', documentId);
 
     if (updateError) {

@@ -101,6 +101,89 @@ export const KnowledgeBase = () => {
   // Cache for chapter context to avoid redundant LLM calls
   const chapterContextCache = new Map<number, { chapter_number: number; chapter_title: string }>();
   
+  // Build enhanced embedding input with rich context for textbooks
+  const buildEnhancedEmbeddingInput = (
+    chunkContent: string,
+    metadata: any,
+    documentType: string
+  ): string => {
+    // For textbooks, build rich contextual input
+    if (documentType === 'textbook') {
+      const parts: string[] = [];
+      
+      // Add chapter and section context at the top
+      if (metadata.chapter_number && metadata.chapter_title) {
+        parts.push(`Chapter ${metadata.chapter_number}: ${metadata.chapter_title}`);
+      }
+      
+      if (metadata.section_title) {
+        parts.push(`Section: ${metadata.section_title}`);
+      }
+      
+      // Add content type and complexity
+      if (metadata.content_type) {
+        parts.push(`Content Type: ${metadata.content_type}`);
+      }
+      
+      if (metadata.complexity) {
+        parts.push(`Complexity Level: ${metadata.complexity}`);
+      }
+      
+      // Add topics for semantic context
+      if (metadata.topics && metadata.topics.length > 0) {
+        parts.push(`Topics: ${metadata.topics.join(', ')}`);
+      }
+      
+      // Add keywords for search optimization
+      if (metadata.keywords && metadata.keywords.length > 0) {
+        parts.push(`Key Terms: ${metadata.keywords.join(', ')}`);
+      }
+      
+      // Add summary if available
+      if (metadata.summary) {
+        parts.push(`Summary: ${metadata.summary}`);
+      }
+      
+      // Add quiz context if this is a quiz section
+      if (metadata.is_quiz_question && metadata.quiz_questions) {
+        parts.push(`Quiz Questions: ${metadata.quiz_questions.length} questions`);
+      }
+      
+      // Add special section markers
+      if (metadata.special_section_type) {
+        parts.push(`Special Section: ${metadata.special_section_type}`);
+      }
+      
+      // Add the actual content
+      parts.push('\n--- Content ---\n');
+      parts.push(chunkContent);
+      
+      // Add questions this content can answer
+      if (metadata.answers_questions && metadata.answers_questions.length > 0) {
+        parts.push('\n--- Can Answer ---');
+        parts.push(metadata.answers_questions.join('\n'));
+      }
+      
+      return parts.join('\n');
+    }
+    
+    // For non-textbook documents, use simpler context
+    const parts: string[] = [];
+    
+    if (metadata.content_type) {
+      parts.push(`Document Type: ${metadata.content_type}`);
+    }
+    
+    if (metadata.topics && metadata.topics.length > 0) {
+      parts.push(`Topics: ${metadata.topics.join(', ')}`);
+    }
+    
+    parts.push('\n--- Content ---\n');
+    parts.push(chunkContent);
+    
+    return parts.join('\n');
+  };
+  
   // Extract metadata using LLM
   const extractMetadataWithLLM = async (
     text: string, 
@@ -1339,12 +1422,16 @@ export const KnowledgeBase = () => {
               <p>Loading...</p>
             ) : documents && documents.length > 0 ? (
               <div className="space-y-2">
-                {documents.map((doc) => {
-                  const chunkCount = doc.chunks?.[0]?.count || 0;
-                  const metadata = doc.chunk_metadata as { document_type?: string } | null;
-                  const docType = DOCUMENT_TYPES.find(dt => 
-                    metadata?.document_type === dt.id
-                  );
+          {documents.map((doc) => {
+            const chunkCount = doc.chunks?.[0]?.count || 0;
+            const metadata = doc.chunk_metadata as { document_type?: string; embedding_enhanced?: boolean } | null;
+            const docType = DOCUMENT_TYPES.find(dt => 
+              metadata?.document_type === dt.id
+            );
+            
+            // Check if this document has embeddings
+            const hasEmbeddings = doc.embedding !== null;
+            const isEnhanced = metadata?.embedding_enhanced === true;
                   
                   return (
                     <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -1362,15 +1449,33 @@ export const KnowledgeBase = () => {
                                 {docType.name}
                               </span>
                             )}
-                            {chunkCount > 0 ? (
-                              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                                ✓ {chunkCount} chunks
-                              </span>
-                            ) : (
-                              <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
-                                Not embedded
-                              </span>
-                            )}
+                  {chunkCount > 0 ? (
+                    <>
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        ✓ {chunkCount} chunks
+                      </span>
+                      {hasEmbeddings && isEnhanced && (
+                        <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          Enhanced Embeddings
+                        </span>
+                      )}
+                      {hasEmbeddings && !isEnhanced && (
+                        <span className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 px-2 py-0.5 rounded">
+                          ✓ Basic Embeddings
+                        </span>
+                      )}
+                      {!hasEmbeddings && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 px-2 py-0.5 rounded">
+                          ⚠ No Embeddings
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">
+                      Not processed
+                    </span>
+                  )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             Added {new Date(doc.created_at).toLocaleDateString()}
