@@ -22,9 +22,9 @@ serve(async (req) => {
 
     let results;
 
-    // Use full-text search with keyword matching
+    // Use enhanced search with metadata support
     if (query) {
-      console.log('Using full-text search');
+      console.log('Using enhanced metadata search');
       
       let searchQuery = supabase
         .from('knowledge_base')
@@ -36,7 +36,7 @@ serve(async (req) => {
         searchQuery = searchQuery.eq('category', category);
       }
 
-      // Full-text search with keyword matching
+      // Extract keywords from query
       const keywords = query
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, ' ')
@@ -45,23 +45,88 @@ serve(async (req) => {
       
       console.log('Search keywords:', keywords);
       
-      if (keywords.length > 0) {
-        const conditions = keywords
+      // Detect chapter number in query
+      const chapterMatch = query.match(/chapter\s+(\d+)/i);
+      const chapterNumber = chapterMatch ? chapterMatch[1] : null;
+      
+      if (chapterNumber) {
+        console.log(`Detected chapter number: ${chapterNumber}`);
+        // Search for chapter number in metadata
+        searchQuery = searchQuery.eq('chunk_metadata->>chapter_number', chapterNumber);
+      } else if (keywords.length > 0) {
+        // Build search conditions across multiple fields
+        const contentConditions = keywords
           .map((keyword: string) => `title.ilike.%${keyword}%,content.ilike.%${keyword}%`)
           .join(',');
-        searchQuery = searchQuery.or(conditions);
+        
+        searchQuery = searchQuery.or(contentConditions);
       }
 
-      const { data: searchResults, error } = await searchQuery.limit(10);
+      const { data: searchResults, error } = await searchQuery.limit(15);
 
       if (error) {
         console.error('Knowledge base search error:', error);
         throw error;
       }
 
+      // Score and rank results based on relevance
+      const scoredResults = (searchResults || []).map((doc: any) => {
+        let score = 0;
+        const metadata = doc.chunk_metadata || {};
+        const lowerQuery = query.toLowerCase();
+        
+        // Exact chapter match = highest priority
+        if (chapterNumber && metadata.chapter_number === parseInt(chapterNumber)) {
+          score += 100;
+        }
+        
+        // Chapter title match = high priority
+        if (metadata.chapter_title && metadata.chapter_title.toLowerCase().includes(lowerQuery)) {
+          score += 80;
+        }
+        
+        // Section title match = high priority
+        if (metadata.section_title && metadata.section_title.toLowerCase().includes(lowerQuery)) {
+          score += 60;
+        }
+        
+        // Topic match = medium-high priority
+        if (metadata.topics && Array.isArray(metadata.topics)) {
+          const topicMatches = metadata.topics.filter((t: string) => 
+            lowerQuery.includes(t.toLowerCase()) || t.toLowerCase().includes(lowerQuery)
+          );
+          score += topicMatches.length * 40;
+        }
+        
+        // Keyword match = medium priority
+        if (metadata.keywords && Array.isArray(metadata.keywords)) {
+          const keywordMatches = metadata.keywords.filter((k: string) => 
+            lowerQuery.includes(k.toLowerCase())
+          );
+          score += keywordMatches.length * 20;
+        }
+        
+        // Content match = baseline priority
+        if (doc.content.toLowerCase().includes(lowerQuery)) {
+          score += 10;
+        }
+        
+        return { ...doc, relevance_score: score };
+      });
+      
+      // Sort by relevance score
+      scoredResults.sort((a, b) => b.relevance_score - a.relevance_score);
+      
+      console.log('Top results:', scoredResults.slice(0, 3).map(r => ({
+        title: r.title,
+        score: r.relevance_score,
+        chapter: r.chunk_metadata?.chapter_number,
+        topics: r.chunk_metadata?.topics?.slice(0, 3)
+      })));
+
       // Enrich with context chunks
       const enriched = [];
-      for (const result of searchResults || []) {
+      for (const result of scoredResults) {
         const chunk: any = { ...result };
         
         // Get adjacent chunks if this is part of a chunked document
@@ -86,14 +151,24 @@ serve(async (req) => {
       results = [];
     }
 
-    // Return FULL content with chunk metadata
+    // Return FULL content with enriched metadata
     const formattedResults = results?.map((doc: any) => ({
       title: doc.title,
       category: doc.category,
       content: doc.content,
       similarity: doc.similarity || undefined,
+      relevance_score: doc.relevance_score || 0,
       chunk_metadata: doc.chunk_metadata,
       context_chunks: doc.context_chunks,
+      // Extract key metadata for easy access
+      chapter_number: doc.chunk_metadata?.chapter_number,
+      chapter_title: doc.chunk_metadata?.chapter_title,
+      section_title: doc.chunk_metadata?.section_title,
+      topics: doc.chunk_metadata?.topics || [],
+      keywords: doc.chunk_metadata?.keywords || [],
+      content_type: doc.chunk_metadata?.content_type,
+      complexity: doc.chunk_metadata?.complexity,
+      summary: doc.chunk_metadata?.summary,
     })) || [];
 
     return new Response(

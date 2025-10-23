@@ -77,18 +77,309 @@ export const KnowledgeBase = () => {
     progress: 0
   });
 
-  // Client-side chunking function (moved from edge function to avoid resource limits)
-  const chunkTextClientSide = (text: string, chunkSize = 2000, overlap = 200): string[] => {
-    const chunks: string[] = [];
-    let start = 0;
+  // ============= METADATA EXTRACTION UTILITIES =============
+  
+  // Extract chapter information from content
+  const extractChapterInfo = (text: string, startPage?: number) => {
+    // Look for chapter patterns
+    const chapterPatterns = [
+      /chapter\s+(\d+)[:\s]+([^\n]+)/i,
+      /chapter\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[:\s]+([^\n]+)/i,
+      /(\d+)\.\s+([A-Z][^\n]{10,80})\n/,
+    ];
     
+    for (const pattern of chapterPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const chapterNum = match[1];
+        const chapterTitle = match[2]?.trim();
+        
+        // Convert word numbers to digits
+        const wordToNum: Record<string, number> = {
+          one: 1, two: 2, three: 3, four: 4, five: 5,
+          six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+          eleven: 11, twelve: 12
+        };
+        
+        const finalNum = isNaN(Number(chapterNum)) 
+          ? wordToNum[chapterNum.toLowerCase()] 
+          : Number(chapterNum);
+        
+        return { chapter_number: finalNum, chapter_title: chapterTitle };
+      }
+    }
+    
+    return null;
+  };
+
+  // Extract section titles from content
+  const extractSectionTitle = (text: string) => {
+    // Look for section patterns (all caps, bold indicators)
+    const sectionPatterns = [
+      /^([A-Z][A-Z\s]{5,50})\s*$/m,
+      /\n([A-Z][A-Z\s]{5,50})\n/,
+    ];
+    
+    for (const pattern of sectionPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        return match[1].trim();
+      }
+    }
+    
+    return null;
+  };
+
+  // Extract trading/finance topics from content
+  const extractTopics = (text: string): string[] => {
+    const lowerText = text.toLowerCase();
+    const topics = new Set<string>();
+    
+    // Trading-specific terms
+    const tradingTerms = [
+      'technical analysis', 'fundamental analysis', 'options trading', 'stock market',
+      'etf', 'trading strategy', 'risk management', 'market analysis', 'chart patterns',
+      'trendlines', 'support and resistance', 'candlestick patterns', 'moving averages',
+      'rsi', 'macd', 'bollinger bands', 'fibonacci', 'volume analysis', 'price action',
+      'day trading', 'swing trading', 'position trading', 'scalping', 'algorithmic trading',
+      'portfolio management', 'asset allocation', 'diversification', 'market psychology',
+      'order types', 'limit orders', 'stop loss', 'take profit', 'margin trading',
+      'short selling', 'derivatives', 'futures', 'forex', 'cryptocurrency'
+    ];
+    
+    tradingTerms.forEach(term => {
+      if (lowerText.includes(term)) {
+        topics.add(term);
+      }
+    });
+    
+    return Array.from(topics);
+  };
+
+  // Extract keywords from content
+  const extractKeywords = (text: string): string[] => {
+    const lowerText = text.toLowerCase();
+    const keywords = new Set<string>();
+    
+    const keywordList = [
+      'bullish', 'bearish', 'breakout', 'reversal', 'trend', 'momentum',
+      'volatility', 'liquidity', 'bid', 'ask', 'spread', 'volume', 'resistance',
+      'support', 'consolidation', 'pullback', 'rally', 'correction', 'crash',
+      'bull market', 'bear market', 'sideways', 'uptrend', 'downtrend'
+    ];
+    
+    keywordList.forEach(keyword => {
+      if (lowerText.includes(keyword)) {
+        keywords.add(keyword);
+      }
+    });
+    
+    return Array.from(keywords);
+  };
+
+  // Detect content type
+  const detectContentType = (text: string): string => {
+    const lowerText = text.toLowerCase();
+    
+    if (lowerText.includes('definition:') || lowerText.match(/is defined as/i)) {
+      return 'definition';
+    }
+    if (lowerText.includes('example:') || lowerText.includes('for instance') || lowerText.includes('for example')) {
+      return 'example';
+    }
+    if (lowerText.match(/step\s+\d+/i) || lowerText.includes('procedure') || lowerText.includes('how to')) {
+      return 'instructional';
+    }
+    if (lowerText.includes('case study') || lowerText.includes('real-world')) {
+      return 'case_study';
+    }
+    if (lowerText.match(/table of contents|index/i)) {
+      return 'reference';
+    }
+    
+    return 'explanatory';
+  };
+
+  // Detect complexity level
+  const detectComplexity = (text: string): string => {
+    const indicators = {
+      beginner: ['introduction', 'basics', 'getting started', 'fundamental', 'simple', 'easy'],
+      advanced: ['advanced', 'sophisticated', 'complex', 'professional', 'expert', 'institutional']
+    };
+    
+    const lowerText = text.toLowerCase();
+    
+    let beginnerScore = 0;
+    let advancedScore = 0;
+    
+    indicators.beginner.forEach(word => {
+      if (lowerText.includes(word)) beginnerScore++;
+    });
+    
+    indicators.advanced.forEach(word => {
+      if (lowerText.includes(word)) advancedScore++;
+    });
+    
+    if (advancedScore > beginnerScore) return 'advanced';
+    if (beginnerScore > advancedScore) return 'beginner';
+    return 'intermediate';
+  };
+
+  // Generate searchable questions from metadata
+  const generateSearchQuestions = (chapterTitle: string | null, topics: string[]): string[] => {
+    const questions: string[] = [];
+    
+    if (chapterTitle) {
+      questions.push(`what is ${chapterTitle.toLowerCase()}`);
+      questions.push(`explain ${chapterTitle.toLowerCase()}`);
+      questions.push(`how to ${chapterTitle.toLowerCase()}`);
+    }
+    
+    topics.forEach(topic => {
+      questions.push(`explain ${topic}`);
+      questions.push(`${topic} tutorial`);
+      questions.push(`how does ${topic} work`);
+    });
+    
+    return questions;
+  };
+
+  // Generate search terms
+  const generateSearchTerms = (metadata: any): string[] => {
+    const terms = [];
+    
+    if (metadata.chapter_number) {
+      terms.push(`chapter ${metadata.chapter_number}`);
+    }
+    if (metadata.chapter_title) {
+      terms.push(metadata.chapter_title.toLowerCase());
+    }
+    if (metadata.section_title) {
+      terms.push(metadata.section_title.toLowerCase());
+    }
+    if (metadata.topics) {
+      terms.push(...metadata.topics);
+    }
+    if (metadata.keywords) {
+      terms.push(...metadata.keywords);
+    }
+    
+    return terms.filter(Boolean);
+  };
+
+  // Build enriched metadata for a chunk
+  const buildEnrichedMetadata = (
+    content: string, 
+    chunkIndex: number, 
+    totalChunks: number,
+    startPage?: number,
+    endPage?: number,
+    batchTitle?: string
+  ) => {
+    const chapterInfo = extractChapterInfo(content, startPage);
+    const sectionTitle = extractSectionTitle(content);
+    const topics = extractTopics(content);
+    const keywords = extractKeywords(content);
+    const contentType = detectContentType(content);
+    const complexity = detectComplexity(content);
+    
+    const metadata: any = {
+      // Basic chunk info
+      chunk_size: content.length,
+      total_chunks: totalChunks,
+      chunk_index: chunkIndex,
+      estimated_tokens: Math.ceil(content.length / 4),
+      
+      // Content classification
+      content_type: contentType,
+      complexity,
+      
+      // Structure
+      topics,
+      keywords,
+    };
+    
+    // Add chapter info if detected
+    if (chapterInfo) {
+      metadata.chapter_number = chapterInfo.chapter_number;
+      metadata.chapter_title = chapterInfo.chapter_title;
+    }
+    
+    // Add section title if detected
+    if (sectionTitle) {
+      metadata.section_title = sectionTitle;
+    }
+    
+    // Add page range
+    if (startPage && endPage) {
+      metadata.start_page = startPage;
+      metadata.end_page = endPage;
+      metadata.page_range = `${startPage}-${endPage}`;
+    }
+    
+    // Add batch info
+    if (batchTitle) {
+      metadata.parent_batch = batchTitle;
+    }
+    
+    // Generate searchability hints
+    metadata.search_terms = generateSearchTerms(metadata);
+    metadata.answers_questions = generateSearchQuestions(
+      chapterInfo?.chapter_title || null,
+      topics
+    );
+    
+    // Generate summary hint
+    if (chapterInfo && topics.length > 0) {
+      metadata.summary = `Chapter ${chapterInfo.chapter_number}: ${chapterInfo.chapter_title} - covers ${topics.slice(0, 3).join(', ')}`;
+    } else if (topics.length > 0) {
+      metadata.summary = `Covers: ${topics.slice(0, 3).join(', ')}`;
+    }
+    
+    // Detect visual elements
+    metadata.has_formula = /[=+\-*/()]/g.test(content) && content.length < 500;
+    metadata.has_list = /^[\s]*[-•*]\s/m.test(content);
+    metadata.has_numbered_list = /^\s*\d+\.\s/m.test(content);
+    
+    return metadata;
+  };
+
+  // Client-side chunking function with metadata enrichment
+  const chunkTextClientSide = (
+    text: string, 
+    chunkSize = 2000, 
+    overlap = 200,
+    startPage?: number,
+    endPage?: number,
+    batchTitle?: string
+  ): Array<{ content: string; metadata: any }> => {
+    const chunks: Array<{ content: string; metadata: any }> = [];
+    let start = 0;
+    let chunkIndex = 0;
+    
+    // First pass: create chunks
+    const rawChunks: string[] = [];
     while (start < text.length) {
       const end = Math.min(start + chunkSize, text.length);
-      chunks.push(text.slice(start, end));
-      start = end - overlap; // Create overlap between chunks
+      rawChunks.push(text.slice(start, end));
+      start = end - overlap;
       
       if (start >= text.length - overlap) break;
     }
+    
+    // Second pass: enrich with metadata
+    rawChunks.forEach((chunkContent, idx) => {
+      const metadata = buildEnrichedMetadata(
+        chunkContent,
+        idx + 1,
+        rawChunks.length,
+        startPage,
+        endPage,
+        batchTitle
+      );
+      
+      chunks.push({ content: chunkContent, metadata });
+    });
     
     return chunks;
   };
@@ -135,24 +426,21 @@ export const KnowledgeBase = () => {
 
       setUploadProgress({ isUploading: true, stage: 'chunking', progress: 50, fileName: doc.title });
       
-      // Chunk content client-side
+      // Chunk content client-side with metadata enrichment
       const chunks = chunkTextClientSide(doc.content);
-      console.log(`📦 Created ${chunks.length} chunks for manual document`);
+      console.log(`📦 Created ${chunks.length} enriched chunks for manual document`);
 
-      // Store each chunk directly to database
+      // Store each chunk with metadata
       for (let i = 0; i < chunks.length; i++) {
         await supabase
           .from('knowledge_base')
           .insert({
             title: `${doc.title} - Chunk ${i + 1}`,
-            content: chunks[i],
+            content: chunks[i].content,
             category: doc.category,
             parent_document_id: data.id,
             chunk_index: i + 1,
-            chunk_metadata: {
-              chunk_size: chunks[i].length,
-              total_chunks: chunks.length
-            }
+            chunk_metadata: chunks[i].metadata
           });
       }
 
@@ -312,24 +600,21 @@ export const KnowledgeBase = () => {
 
         setUploadProgress({ isUploading: true, stage: 'chunking', progress: 75, fileName: selectedFile.name });
 
-        // Chunk content client-side
+        // Chunk content client-side with metadata enrichment
         const chunks = chunkTextClientSide(content);
-        console.log(`📦 Created ${chunks.length} chunks for text file`);
+        console.log(`📦 Created ${chunks.length} enriched chunks for text file`);
 
-        // Store each chunk directly to database
+        // Store each chunk with metadata
         for (let i = 0; i < chunks.length; i++) {
           await supabase
             .from('knowledge_base')
             .insert({
               title: `${selectedFile.name} - Chunk ${i + 1}`,
-              content: chunks[i],
+              content: chunks[i].content,
               category: `agent_${selectedAgent}`,
               parent_document_id: kbEntry.id,
               chunk_index: i + 1,
-              chunk_metadata: {
-                chunk_size: chunks[i].length,
-                total_chunks: chunks.length
-              }
+              chunk_metadata: chunks[i].metadata
             });
         }
 
@@ -462,11 +747,18 @@ export const KnowledgeBase = () => {
 
           if (batchError) throw batchError;
 
-          // Chunk the content client-side (no edge function call - faster and more reliable)
-          const chunks = chunkTextClientSide(batchContent);
-          console.log(`📦 Created ${chunks.length} chunks for batch ${batchNum + 1}`);
+          // Chunk the content client-side with metadata enrichment
+          const chunks = chunkTextClientSide(
+            batchContent,
+            2000,
+            200,
+            startPage,
+            endPage,
+            batchTitle
+          );
+          console.log(`📦 Created ${chunks.length} enriched chunks for batch ${batchNum + 1}`);
 
-          // Store each chunk directly to database
+          // Store each chunk with enriched metadata
           for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
             const chunkProgress = ((chunkIndex / chunks.length) * (70 / totalBatches));
             
@@ -485,16 +777,11 @@ export const KnowledgeBase = () => {
               .from('knowledge_base')
               .insert({
                 title: `${batchTitle} - Chunk ${chunkIndex + 1}`,
-                content: chunks[chunkIndex],
+                content: chunks[chunkIndex].content,
                 category: `agent_${selectedAgent}`,
                 parent_document_id: batchDoc.id,
                 chunk_index: chunkIndex + 1,
-                chunk_metadata: {
-                  chunk_size: chunks[chunkIndex].length,
-                  total_chunks: chunks.length,
-                  start_page: startPage,
-                  end_page: endPage
-                }
+                chunk_metadata: chunks[chunkIndex].metadata
               });
 
             if (chunkError) {

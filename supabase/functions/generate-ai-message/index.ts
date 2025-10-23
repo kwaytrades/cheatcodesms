@@ -226,18 +226,45 @@ Deno.serve(async (req) => {
       recentMessages = messageData || [];
     }
 
-    // Search knowledge base for relevant context
+    // Search knowledge base for relevant context with enhanced metadata
     let knowledgeContext = '';
     try {
       const { data: kbData } = await supabase.functions.invoke('search-knowledge-base', {
         body: {
           query: `${agent?.product_type} product information customer support`,
           category: `agent_${agent.product_type}`,
-          match_count: 3
+          match_count: 5
         }
       });
-      if (kbData?.results) {
-        knowledgeContext = kbData.results.map((r: any) => r.content).join('\n\n');
+      if (kbData?.results && kbData.results.length > 0) {
+        knowledgeContext = kbData.results.map((r: any) => {
+          let contextStr = '';
+          
+          // Add chapter/section context if available
+          if (r.chapter_number && r.chapter_title) {
+            contextStr += `\n[Chapter ${r.chapter_number}: ${r.chapter_title}]`;
+          }
+          if (r.section_title) {
+            contextStr += `\nSection: ${r.section_title}`;
+          }
+          
+          // Add topic context
+          if (r.topics && r.topics.length > 0) {
+            contextStr += `\nTopics: ${r.topics.join(', ')}`;
+          }
+          
+          // Add summary if available
+          if (r.summary) {
+            contextStr += `\nSummary: ${r.summary}`;
+          }
+          
+          // Add content
+          contextStr += `\n\nContent:\n${r.content}`;
+          
+          return contextStr;
+        }).join('\n\n---\n\n');
+        
+        console.log(`Knowledge base context: ${kbData.results.length} chunks found with metadata`);
       }
     } catch (kbError) {
       console.error('Knowledge base search failed:', kbError);
