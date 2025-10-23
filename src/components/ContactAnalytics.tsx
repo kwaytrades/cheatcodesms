@@ -126,8 +126,33 @@ export const ContactAnalytics = () => {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      // Fetch contacts
-      const { data: contacts } = await supabase.from("contacts").select("*").limit(100000);
+      // Fetch ALL contacts using pagination to avoid Supabase 1000 row limit
+      let allContactsData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: contactsBatch, error } = await supabase
+          .from("contacts")
+          .select("*")
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) {
+          console.error("Error fetching contacts:", error);
+          break;
+        }
+        
+        if (contactsBatch && contactsBatch.length > 0) {
+          allContactsData = [...allContactsData, ...contactsBatch];
+          page++;
+          hasMore = contactsBatch.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const contacts = allContactsData;
       setAllContacts(contacts || []);
       
       // Fetch recent messages for activity
