@@ -120,54 +120,56 @@ const Contacts = () => {
     try {
       setLoading(true);
       
-      // Build base query with filters
-      let countQuery = supabase.from("contacts").select("*", { count: 'exact', head: true });
-      let dataQuery = supabase.from("contacts").select("*");
-      
-      // Apply filters to both queries
-      filters.forEach(filter => {
+      // Helper function to apply a single filter to a query
+      const applyFilter = (query: any, filter: FilterCondition) => {
         const { field, operator, value } = filter;
         
         switch (operator) {
           case 'equals':
-            countQuery = countQuery.eq(field, value);
-            dataQuery = dataQuery.eq(field, value);
-            break;
+            return query.eq(field, value);
           case 'contains':
-            countQuery = countQuery.ilike(field, `%${value}%`);
-            dataQuery = dataQuery.ilike(field, `%${value}%`);
-            break;
+            return query.ilike(field, `%${value}%`);
           case 'greater':
           case 'greater_than':
-            countQuery = countQuery.gt(field, value);
-            dataQuery = dataQuery.gt(field, value);
-            break;
+            return query.gt(field, value);
           case 'less':
           case 'less_than':
-            countQuery = countQuery.lt(field, value);
-            dataQuery = dataQuery.lt(field, value);
-            break;
+            return query.lt(field, value);
           case 'in':
             const values = typeof value === 'string' ? value.split(',').map((v: string) => v.trim()) : value;
-            countQuery = countQuery.in(field, values);
-            dataQuery = dataQuery.in(field, values);
-            break;
+            return query.in(field, values);
+          default:
+            return query;
         }
-      });
+      };
       
-      // Get total count with filters
+      // Build count query with filters
+      let countQuery: any = supabase.from("contacts").select("*", { count: 'exact', head: true });
+      for (const filter of filters) {
+        countQuery = applyFilter(countQuery, filter);
+      }
+      
+      // Get total count
       const { count } = await countQuery;
       setTotalCount(count || 0);
       
-      // Apply pagination and sorting to data query
+      // Build data query with filters
+      let dataQuery: any = supabase.from("contacts").select("*");
+      for (const filter of filters) {
+        dataQuery = applyFilter(dataQuery, filter);
+      }
+      
+      // Apply pagination
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
       dataQuery = dataQuery.range(from, to);
       
+      // Apply sorting
       const orderColumn = sortColumn || 'likelihood_to_buy_score';
       const orderDirection = sortColumn ? sortDirection === 'asc' : false;
       dataQuery = dataQuery.order(orderColumn, { ascending: orderDirection, nullsFirst: false });
       
+      // Execute query
       const { data, error } = await dataQuery;
       
       if (error) throw error;
