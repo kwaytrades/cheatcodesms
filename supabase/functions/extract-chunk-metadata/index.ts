@@ -138,17 +138,19 @@ ${text.substring(0, 2000)}`;
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Lovable AI error:', response.status, errorText);
-      throw new Error(`AI request failed: ${response.status}`);
+      throw new Error(`AI request failed: ${response.status} - ${errorText}`);
     }
 
     const aiResponse = await response.json();
-    console.log('AI response received:', JSON.stringify(aiResponse).substring(0, 200));
+    console.log('AI response received:', JSON.stringify(aiResponse, null, 2));
 
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
+      console.error('No tool call in AI response. Full response:', JSON.stringify(aiResponse, null, 2));
       throw new Error('No tool call in AI response');
     }
 
+    console.log('Tool call arguments:', toolCall.function.arguments);
     const metadata = JSON.parse(toolCall.function.arguments);
 
     // Apply previous chapter context if no chapter info found

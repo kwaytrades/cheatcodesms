@@ -426,7 +426,7 @@ export const KnowledgeBase = () => {
     endPage?: number,
     batchTitle?: string,
     category?: string,
-    documentType?: string
+    documentType: string = 'general'
   ): Promise<Array<{ content: string; metadata: any }>> => {
     console.log(`Starting LLM-enhanced chunking for ${text.length} chars`);
     
@@ -468,6 +468,7 @@ export const KnowledgeBase = () => {
             batchTitle,
             previousMetadata
           );
+          metadata.document_type = documentType;
           previousMetadata = metadata;
         } else {
           // Use previous metadata for intermediate chunks (cheaper)
@@ -478,6 +479,7 @@ export const KnowledgeBase = () => {
             start_page: startPage,
             end_page: endPage,
             batch_title: batchTitle,
+            document_type: documentType,
             extraction_method: 'cached'
           };
         }
@@ -601,9 +603,9 @@ export const KnowledgeBase = () => {
       );
       console.log(`📦 Created ${chunks.length} LLM-enriched chunks for manual document`);
 
-      // Store each chunk with metadata
+      // Store each chunk with metadata and generate embeddings
       for (let i = 0; i < chunks.length; i++) {
-        await supabase
+        const { data: insertedChunk, error: insertError } = await supabase
           .from('knowledge_base')
           .insert({
             title: `${doc.title} - Chunk ${i + 1}`,
@@ -612,7 +614,40 @@ export const KnowledgeBase = () => {
             parent_document_id: data.id,
             chunk_index: i + 1,
             chunk_metadata: chunks[i].metadata
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        // Generate embedding with enhanced input for textbooks
+        const enhancedInput = buildEnhancedEmbeddingInput(
+          chunks[i].content,
+          chunks[i].metadata,
+          manualContent.documentType
+        );
+
+        try {
+          await supabase.functions.invoke('generate-embeddings', {
+            body: {
+              documentId: insertedChunk.id,
+              content: chunks[i].content,
+              enhancedInput: manualContent.documentType === 'textbook' ? enhancedInput : null,
+              documentType: manualContent.documentType
+            }
           });
+          console.log(`✅ Generated embedding for chunk ${i + 1}/${chunks.length}`);
+        } catch (embeddingError) {
+          console.error(`❌ Embedding failed for chunk ${i + 1}:`, embeddingError);
+        }
+
+        setUploadProgress({ 
+          isUploading: true, 
+          stage: 'embedding',
+          progress: 50 + Math.floor((i / chunks.length) * 45),
+          fileName: doc.title,
+          chunks: i + 1
+        });
       }
 
       const chunksCreated = chunks.length;
@@ -948,22 +983,23 @@ export const KnowledgeBase = () => {
           );
           console.log(`📦 Created ${chunks.length} LLM-enriched chunks for batch ${batchNum + 1}`);
 
-          // Store each chunk with enriched metadata
+          // Store each chunk with enriched metadata and generate embeddings
           for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
             const chunkProgress = ((chunkIndex / chunks.length) * (70 / totalBatches));
             
             setUploadProgress({
               isUploading: true,
-              stage: 'processing',
+              stage: 'embedding',
               progress: 10 + Math.floor((batchNum / totalBatches) * 70) + Math.floor(chunkProgress),
               fileName: file.name,
               totalPages,
               totalBatches,
               currentBatch: batchNum + 1,
               batchDetails: updatedDetails,
+              chunks: chunkIndex + 1
             });
 
-            const { error: chunkError } = await supabase
+            const { data: insertedChunk, error: chunkError } = await supabase
               .from('knowledge_base')
               .insert({
                 title: `${batchTitle} - Chunk ${chunkIndex + 1}`,
@@ -972,11 +1008,34 @@ export const KnowledgeBase = () => {
                 parent_document_id: batchDoc.id,
                 chunk_index: chunkIndex + 1,
                 chunk_metadata: chunks[chunkIndex].metadata
-              });
+              })
+              .select()
+              .single();
 
             if (chunkError) {
               console.error(`Error creating chunk ${chunkIndex + 1}:`, chunkError);
               throw chunkError;
+            }
+
+            // Generate embedding with enhanced input for textbooks
+            const enhancedInput = buildEnhancedEmbeddingInput(
+              chunks[chunkIndex].content,
+              chunks[chunkIndex].metadata,
+              selectedDocumentType
+            );
+
+            try {
+              await supabase.functions.invoke('generate-embeddings', {
+                body: {
+                  documentId: insertedChunk.id,
+                  content: chunks[chunkIndex].content,
+                  enhancedInput: selectedDocumentType === 'textbook' ? enhancedInput : null,
+                  documentType: selectedDocumentType
+                }
+              });
+              console.log(`✅ Generated embedding for batch ${batchNum + 1} chunk ${chunkIndex + 1}`);
+            } catch (embeddingError) {
+              console.error(`❌ Embedding failed for chunk ${chunkIndex + 1}:`, embeddingError);
             }
           }
 
@@ -1261,7 +1320,10 @@ export const KnowledgeBase = () => {
                       <p className="text-muted-foreground">Splitting into searchable segments...</p>
                     )}
                     {uploadProgress.stage === 'embedding' && (
-                      <p className="text-muted-foreground">Creating vector embeddings for AI search...</p>
+                      <p className="text-muted-foreground">
+                        Creating vector embeddings for AI search...
+                        {uploadProgress.chunks !== undefined && ` (Chunk ${uploadProgress.chunks})`}
+                      </p>
                     )}
                     {uploadProgress.stage === 'complete' && uploadProgress.chunks && (
                       <div className="space-y-1">
