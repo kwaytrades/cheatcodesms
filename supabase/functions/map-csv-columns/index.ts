@@ -18,6 +18,29 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Pre-defined mappings for common columns (case-insensitive)
+    // These override AI mapping to ensure accuracy for known fields
+    const preMappings: Record<string, string> = {
+      'status': 'customer_tier',
+      'total spent': 'total_spent',
+      'products': 'products_owned',
+      'tags': 'tags',
+      'address 1': 'address_line1',
+      'address 2': 'address_line2',
+      'ai notes': 'notes',
+      'notes': 'notes',
+      'email': 'email',
+      'first name': 'first_name',
+      'last name': 'last_name',
+      'phone': 'phone_number',
+      'phone number': 'phone_number',
+      'city': 'city',
+      'state': 'state',
+      'zip': 'postal_code',
+      'postal code': 'postal_code',
+      'country': 'country',
+    };
+
     // Define valid contact fields
     const validFields = [
       // Core contact fields
@@ -48,10 +71,38 @@ serve(async (req) => {
       'subscription_status', 'sentiment', 'objections'
     ];
 
+    // Apply pre-mappings first
+    const mapping: Record<string, string> = {};
+    const unmappedHeaders: string[] = [];
+    
+    headers.forEach((header: string) => {
+      const normalized = header.toLowerCase().trim();
+      if (preMappings[normalized]) {
+        mapping[header] = preMappings[normalized];
+        console.log(`Pre-mapped: "${header}" → ${preMappings[normalized]}`);
+      } else {
+        unmappedHeaders.push(header);
+      }
+    });
+
+    // If all headers are pre-mapped, return early
+    if (unmappedHeaders.length === 0) {
+      console.log("All headers pre-mapped:", mapping);
+      return new Response(
+        JSON.stringify({ mapping }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log("Unmapped headers to send to AI:", unmappedHeaders);
+
     const prompt = `You are a CSV column mapping expert. Analyze these CSV headers and map them to database fields.
 
-CSV Headers: ${headers.join(', ')}
-Sample Row: ${sampleRow.join(' | ')}
+CSV Headers: ${unmappedHeaders.join(', ')}
+Sample Row Values: ${unmappedHeaders.map(h => {
+      const idx = headers.indexOf(h);
+      return sampleRow[idx] || 'N/A';
+    }).join(' | ')}
 
 Valid Database Fields: ${validFields.join(', ')}
 
@@ -128,10 +179,15 @@ Example: {"email": "email", "first name": "first_name", "products": "products_ow
       jsonStr = jsonMatch[1];
     }
     
-    const mapping = JSON.parse(jsonStr);
+    const aiMapping = JSON.parse(jsonStr);
+    
+    // Merge pre-mappings with AI mappings
+    const finalMapping = { ...mapping, ...aiMapping };
+    
+    console.log("Final mapping:", finalMapping);
 
     return new Response(
-      JSON.stringify({ mapping }),
+      JSON.stringify({ mapping: finalMapping }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

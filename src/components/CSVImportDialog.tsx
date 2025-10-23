@@ -85,6 +85,7 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
       const batchSize = 50;
       let imported = 0;
       let failed = 0;
+      const importedContactIds: string[] = [];
 
       for (let i = 0; i < dataRows.length; i += batchSize) {
         const batch = dataRows.slice(i, i + batchSize);
@@ -175,6 +176,10 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
           failed += batch.length;
         } else {
           imported += data?.length || 0;
+          // Track imported contact IDs for score calculation
+          if (data) {
+            importedContactIds.push(...data.map(c => c.id));
+          }
         }
         
         // Small delay to avoid rate limiting
@@ -188,37 +193,46 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
       const totalProcessed = imported + failed;
       console.log(`Import complete: ${imported} imported, ${failed} failed out of ${dataRows.length} rows`);
       
-      // Calculate scores for imported contacts
+      // Show immediate success message
       if (imported > 0) {
-        toast.info("Calculating likelihood scores...", { duration: 3000 });
-        
-        try {
-          const { error: scoreError } = await supabase.functions.invoke('sync-lead-scores');
-          if (scoreError) {
-            console.error("Score calculation error:", scoreError);
-            toast.warning("Contacts imported but score calculation failed");
-          } else {
-            toast.success(`Successfully imported ${imported} contacts with scores calculated!`);
-          }
-        } catch (scoreErr) {
-          console.error("Score sync error:", scoreErr);
-        }
+        toast.success(`Successfully imported ${imported} contacts!`);
       }
       
       if (failed > 0) {
-        toast.warning(`Import complete! Imported: ${imported}, Failed: ${failed}`, {
+        toast.warning(`${failed} contacts failed to import`, {
           description: "Check console for error details"
         });
-      } else if (imported > 0) {
-        // Already showed success message above with scores
       }
       
+      // Close dialog immediately so user can continue working
       setOpen(false);
       setFile(null);
       setProgress(0);
       
       if (onImportComplete) {
         onImportComplete();
+      }
+      
+      // Calculate scores for imported contacts in background (don't await)
+      if (importedContactIds.length > 0) {
+        toast.info(`Calculating scores for ${importedContactIds.length} contacts...`, { duration: 3000 });
+        
+        // Fire and forget - don't block UI
+        supabase.functions.invoke('calculate-scores-batch', {
+          body: { contactIds: importedContactIds }
+        }).then(({ data, error }) => {
+          if (error) {
+            console.error("Score calculation error:", error);
+            toast.warning("Score calculation failed. You can manually recalculate later.");
+          } else {
+            console.log("Score calculation result:", data);
+            toast.success(`Scores calculated for ${data.updated || 0} contacts!`, {
+              duration: 5000
+            });
+          }
+        }).catch(err => {
+          console.error("Score sync error:", err);
+        });
       }
     } catch (error: any) {
       console.error("Error importing CSV:", error);
