@@ -200,13 +200,11 @@ const Contacts = () => {
     
     try {
       const contactIds = Array.from(selectedContacts);
-      const BATCH_SIZE = 50; // Process in smaller batches to avoid URL length limits
+      const BATCH_SIZE = 50;
       
-      // Process deletions in batches
       for (let i = 0; i < contactIds.length; i += BATCH_SIZE) {
         const batch = contactIds.slice(i, i + BATCH_SIZE);
         
-        // Delete related records first
         await Promise.all([
           supabase.from('contact_activities').delete().in('contact_id', batch),
           supabase.from('contact_assignments').delete().in('contact_id', batch),
@@ -215,7 +213,6 @@ const Contacts = () => {
           supabase.from('notifications').delete().in('contact_id', batch),
         ]);
         
-        // Now delete the contacts
         const { error } = await supabase
           .from('contacts')
           .delete()
@@ -230,6 +227,48 @@ const Contacts = () => {
     } catch (error) {
       console.error("Error deleting contacts:", error);
       toast.error("Failed to delete contacts. Please try again.");
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    const confirmed = confirm(
+      `⚠️ WARNING: This will permanently delete ALL contacts and their related data from your database. This action cannot be undone. Type "DELETE ALL" to confirm.`
+    );
+    
+    if (!confirmed) return;
+    
+    const doubleConfirm = prompt('Type "DELETE ALL" to confirm:');
+    if (doubleConfirm !== "DELETE ALL") {
+      toast.info("Deletion cancelled");
+      return;
+    }
+    
+    try {
+      toast.info("Deleting all contacts... This may take a moment.");
+      
+      // Delete all related records first
+      await Promise.all([
+        supabase.from('contact_activities').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        supabase.from('contact_assignments').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        supabase.from('ai_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        supabase.from('purchases').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+        supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
+      ]);
+      
+      // Now delete all contacts
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000');
+
+      if (error) throw error;
+      
+      toast.success("All contacts deleted successfully");
+      setSelectedContacts(new Set());
+      await loadContacts();
+    } catch (error) {
+      console.error("Error deleting all contacts:", error);
+      toast.error("Failed to delete all contacts. Please try again.");
     }
   };
 
@@ -502,6 +541,20 @@ const Contacts = () => {
           onExport={handleExportCSV}
           onDelete={handleDeleteSelected}
         />
+
+        {/* Delete All Button - shown when no selection */}
+        {selectedContacts.size === 0 && filteredContacts.length > 0 && (
+          <div className="px-4 py-2 border-b bg-destructive/5">
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={handleDeleteAll}
+              className="gap-2"
+            >
+              Delete All {filteredContacts.length} Contacts
+            </Button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="flex-1 overflow-auto">
