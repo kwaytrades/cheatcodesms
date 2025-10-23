@@ -194,11 +194,30 @@ const Contacts = () => {
   const handleDeleteSelected = async () => {
     if (selectedContacts.size === 0) return;
     
+    if (!confirm(`Are you sure you want to delete ${selectedContacts.size} contact(s)? This action cannot be undone.`)) {
+      return;
+    }
+    
     try {
+      const contactIds = Array.from(selectedContacts);
+      
+      // Delete related records first to avoid foreign key constraint errors
+      const deleteTasks = [
+        supabase.from('contact_activities').delete().in('contact_id', contactIds),
+        supabase.from('contact_assignments').delete().in('contact_id', contactIds),
+        supabase.from('ai_messages').delete().in('contact_id', contactIds),
+        supabase.from('purchases').delete().in('contact_id', contactIds),
+        supabase.from('notifications').delete().in('contact_id', contactIds),
+      ];
+      
+      // Execute all deletions
+      await Promise.all(deleteTasks);
+      
+      // Now delete the contacts
       const { error } = await supabase
         .from('contacts')
         .delete()
-        .in('id', Array.from(selectedContacts));
+        .in('id', contactIds);
 
       if (error) throw error;
       
@@ -207,7 +226,7 @@ const Contacts = () => {
       await loadContacts();
     } catch (error) {
       console.error("Error deleting contacts:", error);
-      toast.error("Failed to delete contacts");
+      toast.error("Failed to delete contacts. Please try again.");
     }
   };
 
