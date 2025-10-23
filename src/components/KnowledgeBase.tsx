@@ -33,6 +33,7 @@ import {
   Book, BookOpen, Palette, Building2, HelpCircle, MessageSquare,
   GraduationCap, FileCheck, File, Sparkles, RefreshCw
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { KnowledgeBaseEmbeddings } from "./KnowledgeBaseEmbeddings";
 import { AgentTypeIcon } from "./agents/AgentTypeIcon";
 import { Progress } from "@/components/ui/progress";
@@ -812,6 +813,113 @@ export const KnowledgeBase = () => {
     }
   });
 
+  const reprocessFromSource = useMutation({
+    mutationFn: async (documentId: string) => {
+      if (!selectedAgent) throw new Error("No agent selected");
+      
+      setUploadProgress({
+        isUploading: true,
+        stage: 'processing',
+        progress: 0,
+        fileName: 'Re-processing from original PDF...'
+      });
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reprocess-from-source`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            document_id: documentId,
+            category: `agent_${selectedAgent}`
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to start re-processing: ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response stream');
+      }
+
+      let result = { chunks: 0, chapters: 0 };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'start') {
+                setUploadProgress({
+                  isUploading: true,
+                  stage: 'processing',
+                  progress: 5,
+                  fileName: data.message
+                });
+              } else if (data.type === 'progress') {
+                setUploadProgress({
+                  isUploading: true,
+                  stage: 'processing',
+                  progress: Math.min(90, 10 + (data.chunks || 0) * 2),
+                  fileName: data.message
+                });
+              } else if (data.type === 'complete') {
+                setUploadProgress({
+                  isUploading: false,
+                  stage: 'complete',
+                  progress: 100,
+                  chunks: data.chunks
+                });
+                result = data;
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error('Failed to parse SSE data:', parseError);
+            }
+          }
+        }
+      }
+
+      return result;
+    },
+    onSuccess: (data) => {
+      toast.success(`✅ Successfully re-processed ${data.chunks} chunks across ${data.chapters} chapters with verified metadata!`);
+      queryClient.invalidateQueries({ queryKey: ["knowledge-base", selectedAgent] });
+      setTimeout(() => {
+        setUploadProgress({ isUploading: false, stage: 'idle', progress: 0 });
+      }, 5000);
+    },
+    onError: (error: Error) => {
+      setUploadProgress({
+        isUploading: false,
+        stage: 'error',
+        progress: 0,
+        error: error.message
+      });
+      toast.error("Failed to re-process from source", { description: error.message });
+    },
+  });
+
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1336,13 +1444,13 @@ export const KnowledgeBase = () => {
           {/* Re-Process Metadata Button */}
           {selectedAgent && documents && documents.length > 0 && (
             <Card className="bg-muted/50">
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 space-y-4">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 mt-1">
                     <RefreshCw className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1 space-y-2">
-                    <h3 className="font-medium text-sm">Update Existing Documents</h3>
+                    <h3 className="font-medium text-sm">Quick Metadata Update</h3>
                     <p className="text-xs text-muted-foreground">
                       Re-process {documents.length} existing documents to extract enhanced metadata including:
                     </p>
@@ -1367,10 +1475,58 @@ export const KnowledgeBase = () => {
                       ) : (
                         <>
                           <RefreshCw className="w-4 h-4 mr-2" />
-                          Re-Process All Documents
+                          Quick Re-Process
                         </>
                       )}
                     </Button>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 mt-1">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <h3 className="font-medium text-sm">Full PDF Re-Analysis (Recommended)</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Re-analyze from original PDF for maximum accuracy. This detects chapter boundaries first, then extracts rich metadata.
+                    </p>
+                    <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                      <li>✓ Verified chapter numbers from source PDF</li>
+                      <li>✓ Smart chunking at natural boundaries</li>
+                      <li>✓ Full page context for better AI extraction</li>
+                      <li>✓ Fixes chapter mismatch issues</li>
+                    </ul>
+                    {documents.find(d => d.file_path && d.file_path.endsWith('.pdf')) ? (
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => {
+                          const pdfDoc = documents.find(d => d.file_path && d.file_path.endsWith('.pdf'));
+                          if (pdfDoc) reprocessFromSource.mutate(pdfDoc.id);
+                        }}
+                        disabled={reprocessFromSource.isPending}
+                        className="w-full mt-2"
+                      >
+                        {reprocessFromSource.isPending ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Re-analyzing PDF...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-4 h-4 mr-2" />
+                            Re-Process from Source PDF
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic mt-2">
+                        No PDF documents found for this agent
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

@@ -45,30 +45,42 @@ serve(async (req) => {
 
     console.log(`Extracting metadata for page ${pageNumber || 'unknown'}`);
 
-    const systemPrompt = `You are a metadata extraction expert for educational textbooks. Extract structured metadata from the provided text chunk.
+    const systemPrompt = `You are a textbook content analyzer. Extract structured metadata from the given text chunk.
 
-CRITICAL RULES:
-1. Chapter titles should be descriptive (3-8 words typical)
-2. Chapter numbers should be sequential (1-20 typical range)
-3. REJECT quiz answers like "1. B 2. False" - these are NOT chapter titles
-4. REJECT headers/footers (like "Page 42" or "Chapter 3 Summary")
-5. REJECT table of contents entries
-6. If no clear chapter marker exists, use previous chapter context if provided
-7. DETECT quiz/test sections and extract questions WITH answers
-8. Topics should be specific trading/finance concepts found in the text
-9. Content type should be: instructional, definition, example, exercise, summary, quiz, or reference
-10. Complexity: beginner (basic concepts), intermediate (requires prior knowledge), or advanced (expert level)
+CRITICAL CHAPTER RULES (STRICT MODE):
+1. Only detect a NEW chapter if you see EXPLICIT chapter markers like:
+   - "Chapter 8: Title" or "CHAPTER 8: Title"
+   - "Chapter 8" or "CHAPTER 8" followed by a title on the next line
+   - "8. Title" at the very start of a major section with clear heading formatting
+   - Clear table of contents entry showing "Chapter X"
 
-QUIZ DETECTION:
-- Look for patterns like "Chapter Review Questions", "Practice Quiz", "Test Your Knowledge"
-- Identify numbered questions with options (1. A) B) C) D))
-- Capture True/False questions
-- Capture fill-in-the-blank questions
-- Include answer keys if present (often marked "Answers: 1.B 2.A 3.D")
+2. DO NOT detect chapters from:
+   - Topic keywords alone (e.g., "biofuels" ≠ Chapter 8)
+   - Section headings that don't say "Chapter"
+   - Content type changes (e.g., quiz ≠ new chapter)
+   - Page headers like "Page 201"
+   - Subsection titles
+
+3. If chapter information is UNCLEAR or AMBIGUOUS:
+   - Use the previousChapterContext provided
+   - Return null for chapter_number and chapter_title
+   - CONFIDENCE THRESHOLD: Only set chapter if you're 95%+ confident
+   - Better to have no chapter info than wrong chapter info
+
+4. For quiz questions detection:
+   - Check if the text has ACTUAL Q&A format
+   - Look for: "Question:", "Q:", numbered questions like "1.", "2."
+   - Look for: "Answer:", "A:", multiple choice options
+   - DO NOT mark definitions, explanations, or examples as quizzes
+
+5. Chapter Consistency:
+   - If previousChapterContext says "Chapter 6", don't jump to "Chapter 8" unless you see explicit "Chapter 8" text
+   - Chapters should be sequential (6→7→8, not 6→8)
 
 ${previousChapterContext ? `CONTEXT: Previous chunk was in Chapter ${previousChapterContext.chapter_number}: "${previousChapterContext.chapter_title}"` : ''}`;
 
     const userPrompt = `Extract metadata from this textbook chunk (page ${pageNumber || 'unknown'}):
+IMPORTANT: Use previous chapter context unless you see explicit "Chapter X:" text.
 
 ${text.substring(0, 2000)}`;
 

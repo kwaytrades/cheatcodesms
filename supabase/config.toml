@@ -134,3 +134,9 @@ verify_jwt = false
 
 [functions.reembed-knowledge-base]
 verify_jwt = false
+
+[functions.reprocess-metadata]
+verify_jwt = false
+
+[functions.reprocess-from-source]
+verify_jwt = false
