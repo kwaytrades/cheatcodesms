@@ -127,7 +127,7 @@ export const ContactAnalytics = () => {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       // Fetch contacts
-      const { data: contacts } = await supabase.from("contacts").select("*");
+      const { data: contacts } = await supabase.from("contacts").select("*").limit(100000);
       setAllContacts(contacts || []);
       
       // Fetch recent messages for activity
