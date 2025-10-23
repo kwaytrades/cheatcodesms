@@ -13,6 +13,7 @@ import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AssignAgentDialog } from "@/components/agents/AssignAgentDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { FlaskConical } from "lucide-react";
 
 export default function AIAgents() {
   const navigate = useNavigate();
@@ -116,10 +117,16 @@ export default function AIAgents() {
           </h1>
           <p className="text-muted-foreground">Manage product concierge agents and view performance</p>
         </div>
-        <Button onClick={() => setShowAssignDialog(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Assign Agent
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate('/agents/test')}>
+            <FlaskConical className="w-4 h-4 mr-2" />
+            Test Agents
+          </Button>
+          <Button onClick={() => setShowAssignDialog(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Assign Agent
+          </Button>
+        </div>
       </div>
 
       <Tabs value="dashboard" className="w-full">
@@ -139,6 +146,10 @@ export default function AIAgents() {
           <TabsTrigger value="settings" onClick={() => navigate("/agents/settings")}>
             <Settings className="w-4 h-4 mr-2" />
             Settings
+          </TabsTrigger>
+          <TabsTrigger value="test" onClick={() => navigate("/agents/test")}>
+            <FlaskConical className="w-4 h-4 mr-2" />
+            Testing Lab
           </TabsTrigger>
         </TabsList>
       </Tabs>

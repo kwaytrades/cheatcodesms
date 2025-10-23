@@ -9,8 +9,8 @@ interface AgentConflictIndicatorProps {
 export function AgentConflictIndicator({ isActive, queuePosition }: AgentConflictIndicatorProps) {
   if (isActive) {
     return (
-      <Badge variant="default" className="gap-1">
-        <Zap className="h-3 w-3" />
+      <Badge variant="default" className="gap-1 animate-pulse">
+        <Zap className="h-3 w-3 fill-current" />
         Currently Active
       </Badge>
     );

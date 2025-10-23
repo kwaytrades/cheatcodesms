@@ -142,13 +142,15 @@ export default function AgentTesting() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/agents')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Agent Testing Lab</h1>
-          <p className="text-muted-foreground">Test and evaluate AI agent accuracy</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/agents')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Agent Testing Lab</h1>
+            <p className="text-muted-foreground">Test and evaluate AI agent accuracy with custom scenarios</p>
+          </div>
         </div>
       </div>
 

@@ -48,6 +48,8 @@ export const KnowledgeBase = () => {
   const [content, setContent] = useState("");
   const [uploading, setUploading] = useState(false);
   const [pdfUploaded, setPdfUploaded] = useState(false);
+  const [processingStage, setProcessingStage] = useState<string | null>(null);
+  const [totalChunks, setTotalChunks] = useState(0);
 
   const { data: documents, isLoading } = useQuery({
     queryKey: ["knowledge-base"],
@@ -68,16 +70,30 @@ export const KnowledgeBase = () => {
 
   const addDocument = useMutation({
     mutationFn: async (doc: { title: string; category: string; content: string; file_path?: string; file_type?: string }) => {
+      setProcessingStage("📄 Adding document to knowledge base...");
+      
       const { data, error } = await supabase
         .from("knowledge_base")
         .insert([doc])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        setProcessingStage(null);
+        throw error;
+      }
 
-      // Automatically chunk and embed the document
-      toast.info("Processing and embedding document...");
+      // Estimate chunks (1000 tokens ≈ 750 characters)
+      const estimatedChunks = Math.ceil(doc.content.length / 750);
+      setTotalChunks(estimatedChunks);
+      
+      setProcessingStage("✂️ Chunking content into segments...");
+      
+      // Small delay for visual feedback
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setProcessingStage(`🧠 Generating embeddings for ${estimatedChunks} chunks...`);
+      
       const { data: chunkData, error: chunkError } = await supabase.functions.invoke(
         "chunk-and-embed-pdf",
         {
@@ -91,9 +107,13 @@ export const KnowledgeBase = () => {
       );
 
       if (chunkError) {
+        setProcessingStage(null);
         toast.error("Document added but chunking failed: " + chunkError.message);
       } else {
-        toast.success(`Document embedded into ${chunkData?.chunks_created || 0} searchable chunks`);
+        const chunksCreated = chunkData?.chunks_created || 0;
+        setProcessingStage(`✅ Successfully created ${chunksCreated} searchable chunks!`);
+        setTimeout(() => setProcessingStage(null), 3000);
+        toast.success(`Document embedded into ${chunksCreated} searchable chunks`);
       }
 
       return data;
@@ -198,6 +218,20 @@ export const KnowledgeBase = () => {
     });
   };
 
+  const ProcessingIndicator = () => (
+    <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg animate-in fade-in-50">
+      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+      <div className="flex-1">
+        <p className="font-medium text-sm">{processingStage}</p>
+        {totalChunks > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Estimated chunks: {totalChunks}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <KnowledgeBaseEmbeddings />
@@ -210,7 +244,9 @@ export const KnowledgeBase = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {processingStage && <ProcessingIndicator />}
+          
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div>
               <Label htmlFor="file-upload">Upload Document (Optional)</Label>
               <div className="flex gap-2 mt-2">
@@ -275,8 +311,15 @@ export const KnowledgeBase = () => {
               )}
             </div>
 
-            <Button type="submit" disabled={addDocument.isPending}>
-              {addDocument.isPending ? "Adding..." : "Add to Knowledge Base"}
+            <Button type="submit" disabled={addDocument.isPending || processingStage !== null}>
+              {processingStage ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+                  Processing...
+                </>
+              ) : (
+                "Add to Knowledge Base"
+              )}
             </Button>
           </form>
         </CardContent>

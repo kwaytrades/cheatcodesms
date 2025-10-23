@@ -72,41 +72,46 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
               return (
                 <div 
                   key={agent.id} 
-                  className={`border rounded-lg p-4 space-y-3 transition-colors ${
-                    isActive ? 'bg-primary/5 border-primary/20' : ''
+                  className={`border rounded-lg p-5 space-y-4 transition-all ${
+                    isActive ? 'bg-primary/5 border-primary/30 shadow-lg' : 'hover:border-border/60'
                   }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <AgentTypeIcon type={agent.product_type} className="w-8 h-8" />
-                      <div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <AgentTypeIcon type={agent.product_type} className="w-12 h-12" />
+                      <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <AgentNameBadge agentType={agent.product_type} />
-                          <AgentConflictIndicator 
-                            isActive={isActive}
-                            queuePosition={isQueued ? queuePosition + 1 : undefined}
-                          />
+                          <AgentNameBadge agentType={agent.product_type} className="text-base font-semibold" />
+                          <AgentStatusBadge status={agent.status} />
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {calculateDaysRemaining(agent.expiration_date)} days remaining
-                        </div>
+                        <AgentConflictIndicator 
+                          isActive={isActive}
+                          queuePosition={isQueued ? queuePosition + 1 : undefined}
+                        />
                       </div>
                     </div>
-                    <AgentStatusBadge status={agent.status} />
                   </div>
-                  <div className="flex gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Messages:</span>{" "}
-                      <span className="font-medium">{agent.messages_sent}</span>
+                  
+                  <div className="flex gap-6 bg-muted/30 rounded-lg p-4">
+                    <div className="flex flex-col items-center flex-1">
+                      <span className="text-3xl font-bold text-foreground">{agent.messages_sent}</span>
+                      <span className="text-xs text-muted-foreground mt-1">Messages</span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Replies:</span>{" "}
-                      <span className="font-medium">{agent.replies_received}</span>
+                    <div className="flex flex-col items-center flex-1">
+                      <span className="text-3xl font-bold text-foreground">{agent.replies_received}</span>
+                      <span className="text-xs text-muted-foreground mt-1">Replies</span>
                     </div>
-                    {agent.conversion_achieved && (
-                      <Badge variant="default">Converted</Badge>
-                    )}
+                    <div className="flex flex-col items-center flex-1">
+                      <span className="text-3xl font-bold text-foreground">{calculateDaysRemaining(agent.expiration_date)}</span>
+                      <span className="text-xs text-muted-foreground mt-1">Days Left</span>
+                    </div>
                   </div>
+                  
+                  {agent.conversion_achieved && (
+                    <Badge variant="default" className="w-full justify-center py-2">
+                      🎉 Converted to Customer
+                    </Badge>
+                  )}
                 </div>
               );
             })
