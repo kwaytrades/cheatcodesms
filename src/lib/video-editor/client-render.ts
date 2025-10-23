@@ -76,13 +76,31 @@ export async function renderVideoToMP4(options: RenderOptions): Promise<Blob> {
   // Encode video with FFmpeg
   console.log('[Client Render] Running FFmpeg encoding...');
   await ffmpeg.exec([
+    // Input settings
     '-framerate', fps.toString(),
+    '-start_number', '0',
     '-i', 'frame%05d.png',
+    
+    // Output framerate (critical for duration)
+    '-r', fps.toString(),
+    
+    // Video encoding
     '-c:v', 'libx264',
+    '-profile:v', 'baseline',
+    '-level', '3.0',
     '-preset', 'medium',
     '-crf', '23',
     '-pix_fmt', 'yuv420p',
-    '-movflags', '+faststart',
+    
+    // Proper timebase for accurate duration
+    '-video_track_timescale', (fps * 1000).toString(),
+    
+    // Compatibility and streaming
+    '-movflags', '+faststart+frag_keyframe',
+    
+    // Explicitly set duration to prevent miscalculation
+    '-t', (totalFrames / fps).toFixed(2),
+    
     'output.mp4'
   ]);
 
