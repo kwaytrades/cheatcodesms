@@ -303,8 +303,23 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
     // Get agent name
     const agentName = AGENT_NAMES[agent.product_type as keyof typeof AGENT_NAMES] || 'Your Agent';
 
+    // Fetch agent type config for custom system prompt and tone
+    let agentConfig: any = null;
+    if (!isTestMode) {
+      const { data: configData } = await supabase
+        .from('agent_type_configs')
+        .select('system_prompt, tone')
+        .eq('agent_type', agent.product_type)
+        .maybeSingle();
+      agentConfig = configData;
+    }
+
+    // Use custom system prompt if configured, otherwise use default
+    const customSystemPrompt = agentConfig?.system_prompt;
+    const configuredTone = agentConfig?.tone || 'professional';
+    
     // Build AI prompt
-    const systemPrompt = `You are ${agentName}, an elite product concierge agent for ${agent?.product_type || 'our product'}.
+    const systemPrompt = customSystemPrompt || `You are ${agentName}, an elite product concierge agent for ${agent?.product_type || 'our product'}.
 
 Your role is to send personalized, conversational messages that feel like they're from a real person who knows the customer's journey, NOT marketing automation.
 
@@ -334,7 +349,7 @@ ${JSON.stringify(trigger_context, null, 2)}
 KNOWLEDGE BASE CONTEXT:
 ${knowledgeContext}
 
-TONE GUIDELINES FOR ${personalityType.toUpperCase()}:
+TONE GUIDELINES FOR ${personalityType.toUpperCase()} (Configured Tone: ${configuredTone}):
 - Style: ${toneGuidelines.style}
 - Length: ${toneGuidelines.length}
 - Emoji usage: ${toneGuidelines.emoji_usage}

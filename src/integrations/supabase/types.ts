@@ -107,6 +107,57 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_type_configs: {
+        Row: {
+          agent_type: string
+          conversion_template: string | null
+          created_at: string | null
+          first_message_template: string | null
+          follow_up_template: string | null
+          id: string
+          is_active: boolean | null
+          max_messages_per_week: number | null
+          system_prompt: string | null
+          tone: string | null
+          trigger_milestone_reached: boolean | null
+          trigger_no_reply_48h: boolean | null
+          trigger_product_page_visit: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_type: string
+          conversion_template?: string | null
+          created_at?: string | null
+          first_message_template?: string | null
+          follow_up_template?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_messages_per_week?: number | null
+          system_prompt?: string | null
+          tone?: string | null
+          trigger_milestone_reached?: boolean | null
+          trigger_no_reply_48h?: boolean | null
+          trigger_product_page_visit?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_type?: string
+          conversion_template?: string | null
+          created_at?: string | null
+          first_message_template?: string | null
+          follow_up_template?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_messages_per_week?: number | null
+          system_prompt?: string | null
+          tone?: string | null
+          trigger_milestone_reached?: boolean | null
+          trigger_no_reply_48h?: boolean | null
+          trigger_product_page_visit?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_messages: {
         Row: {
           ai_prompt: string | null

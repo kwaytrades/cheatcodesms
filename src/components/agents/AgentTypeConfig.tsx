@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,6 +23,7 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("templates");
+  
   // Config state
   const [config, setConfig] = useState({
     systemPrompt: "",
@@ -32,11 +33,100 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     tone: "professional",
     maxMessagesPerWeek: 3,
     isActive: true,
+    triggerNoReply48h: true,
+    triggerProductPageVisit: true,
+    triggerMilestoneReached: false,
   });
 
-  const handleSaveConfig = async () => {
-    // In a real implementation, save to a new agent_type_configs table
-    toast({ title: "Success", description: "Agent configuration saved" });
+  // Fetch config from database
+  const { data: savedConfig, isLoading } = useQuery({
+    queryKey: ['agent-config', agentType],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('agent_type_configs')
+        .select('*')
+        .eq('agent_type', agentType)
+        .maybeSingle();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching agent config:', error);
+      }
+      return data;
+    }
+  });
+
+  // Reset local state when agent changes or data loads
+  useEffect(() => {
+    if (savedConfig) {
+      setConfig({
+        systemPrompt: savedConfig.system_prompt || "",
+        firstMessageTemplate: savedConfig.first_message_template || "",
+        followUpTemplate: savedConfig.follow_up_template || "",
+        conversionTemplate: savedConfig.conversion_template || "",
+        tone: savedConfig.tone || "professional",
+        maxMessagesPerWeek: savedConfig.max_messages_per_week || 3,
+        isActive: savedConfig.is_active ?? true,
+        triggerNoReply48h: savedConfig.trigger_no_reply_48h ?? true,
+        triggerProductPageVisit: savedConfig.trigger_product_page_visit ?? true,
+        triggerMilestoneReached: savedConfig.trigger_milestone_reached ?? false,
+      });
+    } else {
+      // Reset to defaults when switching agents with no saved config
+      setConfig({
+        systemPrompt: "",
+        firstMessageTemplate: "",
+        followUpTemplate: "",
+        conversionTemplate: "",
+        tone: "professional",
+        maxMessagesPerWeek: 3,
+        isActive: true,
+        triggerNoReply48h: true,
+        triggerProductPageVisit: true,
+        triggerMilestoneReached: false,
+      });
+    }
+  }, [agentType, savedConfig]);
+
+  // Save to database
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase
+        .from('agent_type_configs')
+        .upsert({
+          agent_type: agentType,
+          system_prompt: config.systemPrompt,
+          first_message_template: config.firstMessageTemplate,
+          follow_up_template: config.followUpTemplate,
+          conversion_template: config.conversionTemplate,
+          tone: config.tone,
+          max_messages_per_week: config.maxMessagesPerWeek,
+          is_active: config.isActive,
+          trigger_no_reply_48h: config.triggerNoReply48h,
+          trigger_product_page_visit: config.triggerProductPageVisit,
+          trigger_milestone_reached: config.triggerMilestoneReached,
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agent-config', agentType] });
+      toast({ title: "Saved", description: "Agent configuration updated successfully" });
+    },
+    onError: (error) => {
+      console.error('Error saving config:', error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to save agent configuration",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSaveConfig = () => {
+    saveMutation.mutate();
   };
 
   return (
@@ -138,7 +228,16 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
             </CardContent>
           </Card>
 
-          <Button onClick={handleSaveConfig}>Save Templates</Button>
+          <Button onClick={handleSaveConfig} disabled={saveMutation.isPending || isLoading}>
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Templates'
+            )}
+          </Button>
         </TabsContent>
 
         <TabsContent value="behavior" className="space-y-4">
@@ -184,26 +283,44 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
                   <div className="font-medium">No Reply After 48 Hours</div>
                   <div className="text-sm text-muted-foreground">Send follow-up if no response</div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={config.triggerNoReply48h}
+                  onCheckedChange={(checked) => setConfig({ ...config, triggerNoReply48h: checked })}
+                />
               </div>
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <div className="font-medium">Product Page Visit</div>
                   <div className="text-sm text-muted-foreground">Message when they visit product page</div>
                 </div>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={config.triggerProductPageVisit}
+                  onCheckedChange={(checked) => setConfig({ ...config, triggerProductPageVisit: checked })}
+                />
               </div>
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <div className="font-medium">Milestone Reached</div>
                   <div className="text-sm text-muted-foreground">Celebrate progress milestones</div>
                 </div>
-                <Switch />
+                <Switch 
+                  checked={config.triggerMilestoneReached}
+                  onCheckedChange={(checked) => setConfig({ ...config, triggerMilestoneReached: checked })}
+                />
               </div>
             </CardContent>
           </Card>
 
-          <Button onClick={handleSaveConfig}>Save Behavior Settings</Button>
+          <Button onClick={handleSaveConfig} disabled={saveMutation.isPending || isLoading}>
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Behavior Settings'
+            )}
+          </Button>
         </TabsContent>
       </Tabs>
     </div>
