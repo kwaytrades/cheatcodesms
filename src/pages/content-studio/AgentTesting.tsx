@@ -53,7 +53,7 @@ export default function AgentTesting() {
           .from('agent_conversations')
           .select('id')
           .eq('contact_id', 'e1daabfd-5a02-4cca-a108-6de63af10a4f')
-          .eq('agent_type', 'customer_service')
+          .eq('agent_type', selectedAgent)
           .maybeSingle();
 
         if (fetchError) throw fetchError;
@@ -81,7 +81,7 @@ export default function AgentTesting() {
             .from('agent_conversations')
             .insert([{
               contact_id: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
-              agent_type: 'customer_service',
+              agent_type: selectedAgent,
               status: 'active',
               started_at: new Date().toISOString()
             }])

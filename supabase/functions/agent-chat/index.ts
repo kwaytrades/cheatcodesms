@@ -1,5 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+// Map agent types to their knowledge base categories
+const KB_CATEGORY_MAP: Record<string, string> = {
+  'textbook': 'agent_textbook',
+  'customer_service': 'agent_customer_service',
+  'sales_agent': 'sales',
+  'trade_analysis': 'trading',
+  'webinar': 'agent_webinar',
+  'flashcards': 'agent_flashcards',
+  'algo_monthly': 'agent_algo_monthly',
+  'ccta': 'agent_ccta',
+  'lead_nurture': 'agent_lead_nurture'
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -85,10 +98,13 @@ Deno.serve(async (req) => {
     // C. Knowledge base search (with error handling)
     let kbResults: any = null;
     try {
+      // Map agent type to knowledge base category
+      const kbCategory = KB_CATEGORY_MAP[agentType] || agentType;
+      
       const kbResponse = await supabase.functions.invoke('search-knowledge-base', {
         body: { 
           query: message,
-          category: agentType,
+          category: kbCategory,
           matchCount: 3 
         }
       });
