@@ -862,10 +862,8 @@ CUSTOMER CONTEXT:
       console.log('Last 3 messages:', conversationHistory.slice(-3).map((m: any) => ({ role: m.role, preview: m.content.substring(0, 50) })));
     }
 
-    const aiMessages = [
-      { role: 'system', content: systemPrompt + '\n\n' + customerInfo },
-      ...conversationHistory
-    ];
+    // Build system content separately for Claude API
+    const systemContent = systemPrompt + '\n\n' + customerInfo;
 
     console.log(`Using model: claude-sonnet-4-5 for ${agentType} agent`);
     
@@ -878,7 +876,8 @@ CUSTOMER CONTEXT:
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 4096,
-        messages: aiMessages,
+        system: systemContent,
+        messages: conversationHistory,
       }),
     });
 
