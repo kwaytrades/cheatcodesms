@@ -45,42 +45,39 @@ serve(async (req) => {
 
     console.log(`Extracting metadata for page ${pageNumber || 'unknown'}`);
 
-    const systemPrompt = `You are a textbook content analyzer. Extract structured metadata from the given text chunk.
+    const systemPrompt = `You are an expert textbook analyst. Read this chunk of text as a human would and extract comprehensive metadata.
 
-CRITICAL CHAPTER RULES (STRICT MODE):
-1. Only detect a NEW chapter if you see EXPLICIT chapter markers like:
-   - "Chapter 8: Title" or "CHAPTER 8: Title"
-   - "Chapter 8" or "CHAPTER 8" followed by a title on the next line
-   - "8. Title" at the very start of a major section with clear heading formatting
-   - Clear table of contents entry showing "Chapter X"
+CHAPTER DETECTION:
+- Read naturally and identify what chapter this content belongs to
+- Chapters may be marked explicitly ("Chapter 8: Trading") OR implicitly (continuing from previous chapter)
+- Use context clues: topic shifts, heading styles, content flow, section numbering
+- If previousChapterContext is provided and content seems to continue that chapter, use it
+- If you see a clear new chapter beginning, extract its number and title
+- Trust your understanding - if it reads like Chapter 8 content about "Trading as a Business", say so
+- Consider the overall context and narrative flow of the textbook
 
-2. DO NOT detect chapters from:
-   - Topic keywords alone (e.g., "biofuels" ≠ Chapter 8)
-   - Section headings that don't say "Chapter"
-   - Content type changes (e.g., quiz ≠ new chapter)
-   - Page headers like "Page 201"
-   - Subsection titles
+QUIZ DETECTION:
+- Identify actual questions and answers (Q&A format, numbered questions, multiple choice)
+- Extract each question with its number, type, options, and correct answer if visible
+- Distinguish between quiz questions and explanatory content
+- Look for question markers: "Question:", "Q:", numbered items with "?", multiple choice options
+- Detect answer keys, practice exercises, and review questions
 
-3. If chapter information is UNCLEAR or AMBIGUOUS:
-   - Use the previousChapterContext provided
-   - Return null for chapter_number and chapter_title
-   - CONFIDENCE THRESHOLD: Only set chapter if you're 95%+ confident
-   - Better to have no chapter info than wrong chapter info
+METADATA EXTRACTION:
+- Topics: What specific concepts are being taught in this section?
+- Keywords: Important terminology, technical terms, key phrases
+- Content type: What kind of educational content is this? (instructional, definition, quiz, example, etc.)
+- Complexity: Who is this written for? Consider language complexity, prerequisite knowledge, depth of explanation
+- Summary: What would you tell someone asking "what's in this section?"
+- Section titles: Identify any subsection headings or topic headers
 
-4. For quiz questions detection:
-   - Check if the text has ACTUAL Q&A format
-   - Look for: "Question:", "Q:", numbered questions like "1.", "2."
-   - Look for: "Answer:", "A:", multiple choice options
-   - DO NOT mark definitions, explanations, or examples as quizzes
+${previousChapterContext ? `CONTEXT: The previous chunk was in Chapter ${previousChapterContext.chapter_number}: "${previousChapterContext.chapter_title}". If this content continues that chapter and you don't see a new chapter heading, use the same chapter info.` : ''}
 
-5. Chapter Consistency:
-   - If previousChapterContext says "Chapter 6", don't jump to "Chapter 8" unless you see explicit "Chapter 8" text
-   - Chapters should be sequential (6→7→8, not 6→8)
-
-${previousChapterContext ? `CONTEXT: Previous chunk was in Chapter ${previousChapterContext.chapter_number}: "${previousChapterContext.chapter_title}"` : ''}`;
+READ NATURALLY. TRUST YOUR UNDERSTANDING. Extract what you actually see and understand from the text.`;
 
     const userPrompt = `Extract metadata from this textbook chunk (page ${pageNumber || 'unknown'}):
-IMPORTANT: Use previous chapter context unless you see explicit "Chapter X:" text.
+
+Read this text carefully and extract all relevant metadata. Consider the context from previous chunks when determining chapter information.
 
 ${text.substring(0, 2000)}`;
 

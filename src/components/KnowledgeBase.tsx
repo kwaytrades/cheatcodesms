@@ -267,117 +267,6 @@ export const KnowledgeBase = () => {
     };
   };
 
-  // Legacy extraction functions (kept for fallback)
-  const extractSectionTitle = (text: string) => {
-    const sectionPatterns = [
-      /^([A-Z][A-Z\s]{5,50})\s*$/m,
-      /\n([A-Z][A-Z\s]{5,50})\n/,
-    ];
-    
-    for (const pattern of sectionPatterns) {
-      const match = text.match(pattern);
-      if (match) {
-        return match[1].trim();
-      }
-    }
-    
-    return null;
-  };
-
-  // Extract trading/finance topics from content
-  const extractTopics = (text: string): string[] => {
-    const lowerText = text.toLowerCase();
-    const topics = new Set<string>();
-    
-    // Trading-specific terms
-    const tradingTerms = [
-      'technical analysis', 'fundamental analysis', 'options trading', 'stock market',
-      'etf', 'trading strategy', 'risk management', 'market analysis', 'chart patterns',
-      'trendlines', 'support and resistance', 'candlestick patterns', 'moving averages',
-      'rsi', 'macd', 'bollinger bands', 'fibonacci', 'volume analysis', 'price action',
-      'day trading', 'swing trading', 'position trading', 'scalping', 'algorithmic trading',
-      'portfolio management', 'asset allocation', 'diversification', 'market psychology',
-      'order types', 'limit orders', 'stop loss', 'take profit', 'margin trading',
-      'short selling', 'derivatives', 'futures', 'forex', 'cryptocurrency'
-    ];
-    
-    tradingTerms.forEach(term => {
-      if (lowerText.includes(term)) {
-        topics.add(term);
-      }
-    });
-    
-    return Array.from(topics);
-  };
-
-  // Extract keywords from content
-  const extractKeywords = (text: string): string[] => {
-    const lowerText = text.toLowerCase();
-    const keywords = new Set<string>();
-    
-    const keywordList = [
-      'bullish', 'bearish', 'breakout', 'reversal', 'trend', 'momentum',
-      'volatility', 'liquidity', 'bid', 'ask', 'spread', 'volume', 'resistance',
-      'support', 'consolidation', 'pullback', 'rally', 'correction', 'crash',
-      'bull market', 'bear market', 'sideways', 'uptrend', 'downtrend'
-    ];
-    
-    keywordList.forEach(keyword => {
-      if (lowerText.includes(keyword)) {
-        keywords.add(keyword);
-      }
-    });
-    
-    return Array.from(keywords);
-  };
-
-  // Detect content type
-  const detectContentType = (text: string): string => {
-    const lowerText = text.toLowerCase();
-    
-    if (lowerText.includes('definition:') || lowerText.match(/is defined as/i)) {
-      return 'definition';
-    }
-    if (lowerText.includes('example:') || lowerText.includes('for instance') || lowerText.includes('for example')) {
-      return 'example';
-    }
-    if (lowerText.match(/step\s+\d+/i) || lowerText.includes('procedure') || lowerText.includes('how to')) {
-      return 'instructional';
-    }
-    if (lowerText.includes('case study') || lowerText.includes('real-world')) {
-      return 'case_study';
-    }
-    if (lowerText.match(/table of contents|index/i)) {
-      return 'reference';
-    }
-    
-    return 'explanatory';
-  };
-
-  // Detect complexity level
-  const detectComplexity = (text: string): string => {
-    const indicators = {
-      beginner: ['introduction', 'basics', 'getting started', 'fundamental', 'simple', 'easy'],
-      advanced: ['advanced', 'sophisticated', 'complex', 'professional', 'expert', 'institutional']
-    };
-    
-    const lowerText = text.toLowerCase();
-    
-    let beginnerScore = 0;
-    let advancedScore = 0;
-    
-    indicators.beginner.forEach(word => {
-      if (lowerText.includes(word)) beginnerScore++;
-    });
-    
-    indicators.advanced.forEach(word => {
-      if (lowerText.includes(word)) advancedScore++;
-    });
-    
-    if (advancedScore > beginnerScore) return 'advanced';
-    if (beginnerScore > advancedScore) return 'beginner';
-    return 'intermediate';
-  };
 
   // Generate searchable questions from metadata
   const generateSearchQuestions = (chapterTitle: string | null, topics: string[]): string[] => {
@@ -458,44 +347,27 @@ export const KnowledgeBase = () => {
       let metadata;
       
       if (isTextbookDocument) {
-        // LLM-based extraction for textbooks only
-        const shouldCallLLM = idx === 0 || idx % 3 === 0 || 
-          (previousMetadata?.chapter_number !== undefined && idx < 5);
-        
-        if (shouldCallLLM) {
-          metadata = await buildEnrichedMetadata(
-            rawChunks[idx],
-            idx + 1,
-            rawChunks.length,
-            startPage,
-            endPage,
-            batchTitle,
-            previousMetadata
-          );
-          metadata.document_type = documentType;
-          previousMetadata = metadata;
-        } else {
-          // Use previous metadata for intermediate chunks (cheaper)
-          metadata = {
-            ...previousMetadata,
-            chunk_index: idx + 1,
-            total_chunks: rawChunks.length,
-            start_page: startPage,
-            end_page: endPage,
-            batch_title: batchTitle,
-            document_type: documentType,
-            extraction_method: 'cached'
-          };
-        }
+        // LLM-based extraction for EVERY chunk when processing textbooks (100% coverage)
+        metadata = await buildEnrichedMetadata(
+          rawChunks[idx],
+          idx + 1,
+          rawChunks.length,
+          startPage,
+          endPage,
+          batchTitle,
+          previousMetadata
+        );
+        metadata.document_type = documentType;
+        previousMetadata = metadata;
       } else {
-        // Simple metadata for non-textbook documents
+        // For non-textbook documents, use basic metadata without LLM
         metadata = {
           chunk_index: idx + 1,
           total_chunks: rawChunks.length,
           content_type: documentType || 'general',
           document_type: documentType,
-          topics: extractTopics(rawChunks[idx]),
-          keywords: extractKeywords(rawChunks[idx]),
+          topics: [],
+          keywords: [],
           page_range: startPage && endPage ? `${startPage}-${endPage}` : null,
           summary: rawChunks[idx].substring(0, 150) + '...',
           start_page: startPage,
