@@ -13,71 +13,52 @@ const KB_CATEGORY_MAP: Record<string, string> = {
   'lead_nurture': 'agent_lead_nurture'
 };
 
-// Agent-specific response guidelines
+// Agent-specific response guidelines - CHARACTER LIMITS ONLY
 const RESPONSE_GUIDELINES: Record<string, string> = {
   'textbook': `
-RESPONSE GUIDELINES:
-- Provide comprehensive, detailed explanations
-- Use numbered lists for multi-part topics
-- Include all relevant information from the knowledge base
-- Structure responses clearly with proper formatting
-- Don't truncate or summarize - be thorough`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- For complex topics, provide focused key points only
+- Example: "Chapter 3 covers risk management fundamentals: position sizing (how much to risk per trade), stop-loss placement (where to exit losing trades), and portfolio diversification (spreading risk across assets). These principles protect your capital while trading." (282 chars)`,
   
   'customer_service': `
-RESPONSE GUIDELINES:
-- Keep responses concise but helpful (2-4 sentences for simple questions)
-- Be empathetic and solution-focused
-- Reference past context naturally when relevant
-- Match the customer's communication style`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Direct, helpful answers only
+- Example: "I can help with that! Your account issue is likely related to payment processing. I've escalated this to our billing team and they'll reach out within 24 hours. Is there anything else I can help with?" (225 chars)`,
   
   'flashcards': `
-RESPONSE GUIDELINES:
-- Provide brief but complete definitions
-- Use clear, memorable language
-- Focus on key concepts only
-- Keep it concise but accurate`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Brief definitions with one example
+- Example: "A stop-loss is an order that automatically exits a trade when price hits a predetermined level. It limits your loss on a position. Example: If you buy stock at $100 with a stop at $95, you'll exit if it drops 5%." (226 chars)`,
   
   'sales_agent': `
-RESPONSE GUIDELINES:
-- Be persuasive but not pushy
-- Highlight benefits and value
-- Keep responses focused and engaging
-- Reference customer's specific needs`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Answer directly, then add one benefit or CTA
+- Example: "The Algo V5 gives you precise entry/exit signals synced to TradingView. It's saved our users an average of 2+ hours daily on chart analysis. Want to see how it works with your trading style?" (199 chars)`,
   
   'trade_analysis': `
-RESPONSE GUIDELINES:
-- Provide comprehensive technical analysis
-- Include all relevant data points and indicators
-- Use clear explanations of complex concepts
-- Structure technical information logically`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Focus on 2-3 key technical points
+- Example: "AAPL is showing bullish divergence on the RSI while price makes lower lows. Volume is decreasing on the downmove, suggesting weakening selling pressure. A break above $175 with volume confirmation could signal reversal." (229 chars)`,
   
   'webinar': `
-RESPONSE GUIDELINES:
-- Be promotional but informative
-- Create excitement about upcoming content
-- Keep responses engaging and conversational
-- Highlight value and benefits`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Create excitement briefly
+- Example: "This Thursday at 8pm EST! We're covering advanced options strategies including iron condors and credit spreads. Chris will show live trade setups and answer questions. Spots are limited - want me to save you a seat?" (223 chars)`,
   
   'algo_monthly': `
-RESPONSE GUIDELINES:
-- Provide detailed technical explanations
-- Cover all relevant algorithm details
-- Use clear, structured responses
-- Include comprehensive context`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Focus on one specific technical aspect
+- Example: "The 4/4 sync requires both your timeframes and indicators to align with TradingView. Go to Settings > Sync Configuration and verify your primary timeframe is set to match your chart. Need help with a specific setup?" (223 chars)`,
   
   'ccta': `
-RESPONSE GUIDELINES:
-- Deliver comprehensive advanced technical content
-- Cover all relevant trading concepts thoroughly
-- Structure complex information clearly
-- Don't oversimplify - maintain technical depth`,
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Advanced concepts condensed to essentials
+- Example: "Module 3 covers multi-timeframe confluence analysis. You'll learn to align daily support/resistance with 4H momentum and 15M entry timing. This reduces false signals by 40-60%. Ready to dive into the first lesson?" (220 chars)`,
   
   'lead_nurture': `
-RESPONSE GUIDELINES:
-- Be warm and relationship-focused
-- Keep responses conversational
-- Show genuine interest in customer's needs
-- Balance education with engagement`
+CHARACTER LIMIT: Your response MUST be between 160-480 characters.
+- Build rapport briefly
+- Example: "That's a great question about risk management! Many traders struggle with position sizing at first. I have a free guide that breaks down the formula step-by-step. Would that be helpful?" (190 chars)`
 };
 
 const corsHeaders = {
@@ -279,7 +260,7 @@ ${responseGuidelines}`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: llmMessages,
-        max_tokens: 800,
+        max_tokens: 150,
         temperature: 0.7,
       }),
     });
@@ -327,6 +308,16 @@ ${responseGuidelines}`;
       .replace(/You've asked about:?/gi, '')
       .replace(/Let me help you with that\.?/gi, '')
       .trim();
+
+    // Validate character count (don't truncate, just log)
+    const charCount = aiMessage.length;
+    if (charCount < 160) {
+      console.warn(`⚠️ Response too short for ${agentType}: ${charCount} chars`);
+    } else if (charCount > 480) {
+      console.warn(`⚠️ Response too long for ${agentType}: ${charCount} chars (exceeded by ${charCount - 480})`);
+    } else {
+      console.log(`✅ Response length OK for ${agentType}: ${charCount} chars`);
+    }
 
     const latency = Date.now() - startTime;
 
