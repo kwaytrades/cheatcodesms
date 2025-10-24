@@ -710,13 +710,27 @@ serve(async (req) => {
 
     const incomingMessage = messages[messages.length - 1]?.content || '';
     
+    // Map normalized agent type back to database format for knowledge base filtering
+    const dbAgentType = agentType === 'sales' ? 'sales_agent' : 
+                        agentType === 'cs' ? 'customer_service' : 
+                        agentType; // textbook, webinar, etc. stay the same
+    
+    // Use agent-specific knowledge base category
+    const knowledgeCategory = `agent_${dbAgentType}`;
+    console.log(`Searching knowledge base for category: ${knowledgeCategory}`);
+    
     // Detect chapter queries
     const chapterQueryMatch = incomingMessage.toLowerCase().match(/(?:whats?|what's|tell me|show me|info|information)?\s*(?:on|about|in|is)?\s*chapter\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)/i);
     const isChapterQuery = chapterQueryMatch !== null;
     const matchCount = isChapterQuery ? 12 : 3;
     
     const { data: knowledgeResults } = await supabase.functions.invoke('search-knowledge-base', {
-      body: { query: incomingMessage, matchThreshold: 0.7, matchCount }
+      body: { 
+        query: incomingMessage, 
+        category: knowledgeCategory,
+        matchThreshold: 0.7, 
+        matchCount 
+      }
     });
 
     let knowledgeContext = '';
@@ -766,6 +780,7 @@ serve(async (req) => {
         const { data: allChunks } = await supabase
           .from('knowledge_base')
           .select('chunk_metadata')
+          .eq('category', knowledgeCategory)
           .not('chunk_metadata', 'is', null)
           .limit(500);
         
@@ -790,11 +805,6 @@ serve(async (req) => {
       }
     }
 
-    // Map normalized agent type back to database format
-    const dbAgentType = agentType === 'sales' ? 'sales_agent' : 
-                        agentType === 'cs' ? 'customer_service' : 
-                        agentType; // textbook, webinar, etc. stay the same
-    
     console.log(`Fetching custom config for agent type: ${dbAgentType}`);
     
     // Fetch custom system prompt from database
@@ -867,6 +877,7 @@ CUSTOMER CONTEXT:
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
+        max_tokens: 4096,
         messages: aiMessages,
       }),
     });
