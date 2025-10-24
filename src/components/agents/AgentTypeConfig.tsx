@@ -124,6 +124,8 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
           trigger_no_reply_48h: config.triggerNoReply48h,
           trigger_product_page_visit: config.triggerProductPageVisit,
           trigger_milestone_reached: config.triggerMilestoneReached,
+        }, {
+          onConflict: 'agent_type'
         })
         .select()
         .single();
