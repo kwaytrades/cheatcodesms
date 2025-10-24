@@ -457,13 +457,15 @@ HELP - This message`;
       );
     }
 
-    // Get conversation history for AI context
+    // Get conversation history for AI context (last 20 messages for better context)
     const { data: recentMessages } = await supabase
       .from('messages')
       .select('*')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(20);
+
+    console.log(`Fetched ${recentMessages?.length || 0} messages for conversation history`);
 
     // ============================================
     // INTELLIGENT MESSAGE ROUTING LOGIC
@@ -551,12 +553,20 @@ HELP - This message`;
     // Call AI agent to generate response
     console.log('Calling AI agent with:', { conversationId: conversation.id, agentType });
     
+    // Format messages correctly for AI agent (reverse to chronological order)
+    const formattedMessages = (recentMessages || []).reverse().map(msg => ({
+      sender: msg.sender,
+      content: msg.body,
+      body: msg.body,
+      created_at: msg.created_at
+    }));
+    
     const aiResponse = await supabase.functions.invoke('ai-agent', {
       body: {
         conversationId: conversation.id,
         agentType: agentType,
         incomingMessage: body,
-        history: recentMessages?.reverse() || [],
+        messages: formattedMessages, // ✅ Correct parameter name
         agentContext: agentContext
       },
     });

@@ -573,7 +573,15 @@ Keep it conversational, under 160 characters for SMS.`;
   }
 }
 
-const SALES_AGENT_PROMPT = `You are a professional sales AI assistant helping customers discover trading education products. Your goal is to understand customer needs and guide them to the right products.
+const SALES_AGENT_PROMPT = `You are a professional sales AI assistant helping customers discover trading education products.
+
+CRITICAL: You have context of the ENTIRE conversation history. DO NOT re-introduce yourself if you've already done so. Continue the conversation naturally based on previous context.
+
+CONVERSATION FLOW:
+- Reference previous messages naturally ("As we discussed...", "Like I mentioned...")
+- Don't repeat information you've already shared
+- Build on the conversation progressively
+- Remember what the customer has told you
 
 COMMUNICATION RULES:
 - Keep responses under 160 characters when possible
@@ -591,7 +599,15 @@ HANDOFF CONDITIONS - Request human agent when:
 
 When handing off, respond: "Let me connect you with our specialist who can help better. One moment..."`;
 
-const CS_AGENT_PROMPT = `You are a professional customer success AI assistant helping existing customers. Your goal is to ensure satisfaction and resolve issues quickly.
+const CS_AGENT_PROMPT = `You are a professional customer success AI assistant helping existing customers.
+
+CRITICAL: You have context of the ENTIRE conversation history. DO NOT re-introduce yourself if you've already done so. Continue the conversation naturally based on previous context.
+
+CONVERSATION FLOW:
+- Reference previous messages naturally ("As we discussed...", "Like I mentioned...")
+- Don't repeat information you've already shared
+- Build on the conversation progressively
+- Remember what the customer has told you
 
 COMMUNICATION RULES:
 - Keep responses under 160 characters when possible
@@ -760,10 +776,16 @@ CUSTOMER CONTEXT:
 - Products Owned: ${conversation.contacts?.products_owned?.join(', ') || 'None'}
 - Lead Score: ${conversation.contacts?.lead_score || 0}/100${availableChapters}${knowledgeContext}${isChapterQuery ? '\n\nIMPORTANT: Customer asking about chapter. Use ONLY the "CHAPTER CONTENT" above. If no content shown, admit you don\'t have it loaded.' : ''}`;
 
-    const conversationHistory = messages.map((msg: any) => ({
+    // Build conversation history from messages array
+    const conversationHistory = (messages || []).map((msg: any) => ({
       role: msg.sender === 'customer' ? 'user' : 'assistant',
-      content: msg.body || msg.content
+      content: msg.body || msg.content || msg.message
     }));
+
+    console.log(`Conversation history contains ${conversationHistory.length} messages`);
+    if (conversationHistory.length > 0) {
+      console.log('Last 3 messages:', conversationHistory.slice(-3).map(m => ({ role: m.role, preview: m.content.substring(0, 50) })));
+    }
 
     const aiMessages = [
       { role: 'system', content: systemPrompt + '\n\n' + customerInfo },
