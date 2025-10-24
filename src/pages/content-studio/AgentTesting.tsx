@@ -52,7 +52,7 @@ export default function AgentTesting() {
         const { data: existingConv, error: fetchError } = await supabase
           .from('agent_conversations')
           .select('id')
-          .eq('contact_id', 'test-contact-id')
+          .eq('contact_id', 'e1daabfd-5a02-4cca-a108-6de63af10a4f')
           .eq('agent_type', 'customer_service')
           .maybeSingle();
 
@@ -80,7 +80,7 @@ export default function AgentTesting() {
           const { data: newConv, error: insertError } = await supabase
             .from('agent_conversations')
             .insert([{
-              contact_id: 'test-contact-id',
+              contact_id: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
               agent_type: 'customer_service',
               status: 'active',
               started_at: new Date().toISOString()
@@ -121,7 +121,7 @@ export default function AgentTesting() {
     try {
       const { data, error } = await supabase.functions.invoke('agent-chat', {
         body: {
-          contactId: 'test-contact-id',
+          contactId: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
           agentType: selectedAgent,
           message: input.trim(),
           conversationId: conversationId || undefined,
