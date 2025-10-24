@@ -25,6 +25,7 @@ const navItems = [
   { title: "Content Studio", url: "/content-studio", icon: Video },
   { title: "Inbox", url: "/inbox", icon: MessageSquare },
   { title: "AI Agents", url: "/agents", icon: Bot },
+  { title: "Cheat Code AI", url: "/cheat-code-ai", icon: TrendingUp },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

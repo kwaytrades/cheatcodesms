@@ -23,6 +23,14 @@ import AIAgents from "./pages/AIAgents";
 import AIAgentAnalytics from "./pages/AIAgentAnalytics";
 import AIAgentSettings from "./pages/AIAgentSettings";
 import AIAgentTypes from "./pages/AIAgentTypes";
+import CheatCodeAI from "./pages/CheatCodeAI";
+import CheatCodeDashboard from "./pages/cheat-code-ai/Dashboard";
+import CheatCodeUsers from "./pages/cheat-code-ai/Users";
+import CheatCodeUserDetail from "./pages/cheat-code-ai/UserDetail";
+import CheatCodeConversations from "./pages/cheat-code-ai/Conversations";
+import CheatCodeTesting from "./pages/cheat-code-ai/Testing";
+import CheatCodeAnalytics from "./pages/cheat-code-ai/Analytics";
+import CheatCodeSettings from "./pages/cheat-code-ai/Settings";
 import NewsDiscovery from "./pages/content-studio/NewsDiscovery";
 import ScriptGenerator from "./pages/content-studio/ScriptGenerator";
 import VideoRecorder from "./pages/content-studio/VideoRecorder";
@@ -58,6 +66,15 @@ const App = () => (
             <Route path="agents/types" element={<AIAgentTypes />} />
             <Route path="agents/settings" element={<AIAgentSettings />} />
             <Route path="agents/test" element={<AgentTesting />} />
+            <Route path="cheat-code-ai" element={<CheatCodeAI />}>
+              <Route index element={<CheatCodeDashboard />} />
+              <Route path="users" element={<CheatCodeUsers />} />
+              <Route path="users/:id" element={<CheatCodeUserDetail />} />
+              <Route path="conversations" element={<CheatCodeConversations />} />
+              <Route path="testing" element={<CheatCodeTesting />} />
+              <Route path="analytics" element={<CheatCodeAnalytics />} />
+              <Route path="settings" element={<CheatCodeSettings />} />
+            </Route>
             <Route path="content-studio" element={<ContentStudio />}>
               <Route index element={<Navigate to="news" replace />} />
               <Route path="news" element={<NewsDiscovery />} />
