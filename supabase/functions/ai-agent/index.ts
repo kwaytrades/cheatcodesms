@@ -720,9 +720,12 @@ CUSTOMER CONTEXT:
 - Lead Score: ${conversation.contacts?.lead_score || 0}/100${knowledgeContext}`;
 
     // Build conversation history from messages array
+    // All AI agents (ai_sales, ai_cs, etc.) map to 'assistant' role for the AI model
     const conversationHistory = (messages || []).map((msg: any) => ({
       role: msg.sender === 'customer' ? 'user' : 'assistant',
-      content: msg.body || msg.content || msg.message
+      content: msg.body || msg.content || msg.message,
+      // Preserve original agent type for reference
+      agent_type: msg.sender !== 'customer' ? msg.sender : undefined
     }));
 
     console.log(`Conversation history contains ${conversationHistory.length} messages`);

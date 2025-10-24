@@ -465,11 +465,16 @@ Return JSON:
             status: 'delivered'
           });
           
-          // Save AI response with consistent sender value
+          // Save AI response with agent-specific sender for tracking
+          const senderValue = agent.product_type === 'sales_agent' || agent.product_type === 'lead_nurture' ? 'ai_sales' :
+                              agent.product_type === 'customer_service' ? 'ai_cs' :
+                              agent.product_type === 'trade_analysis' ? 'ai_sales' :
+                              'ai_sales'; // Default to sales
+          
           await supabase.from('messages').insert({
             conversation_id,
             direction: 'outbound',
-            sender: 'assistant',
+            sender: senderValue,
             body: messageContent.message,
             status: 'sent',
             message_type: 'chat'
