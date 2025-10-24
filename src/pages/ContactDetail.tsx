@@ -40,26 +40,37 @@ const ContactDetail = () => {
     // Get conversation ID first
     const setupRealtimeSubscription = async () => {
       const { data: conversationData } = await supabase
-        .from("conversations")
+        .from("agent_conversations")
         .select("id")
         .eq("contact_id", id)
+        .eq("agent_type", "customer_service")
         .maybeSingle();
 
       if (!conversationData) return;
 
       const channel = supabase
-        .channel(`messages-${conversationData.id}`)
+        .channel(`agent-messages-${conversationData.id}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'messages',
+            table: 'agent_messages',
             filter: `conversation_id=eq.${conversationData.id}`
           },
           (payload) => {
-            console.log('New message received:', payload);
-            setMessages((prev) => [...prev, payload.new as any]);
+            console.log('New agent message received:', payload);
+            const newMsg = payload.new as any;
+            // Convert agent_message to display format
+            const convertedMsg = {
+              id: newMsg.id,
+              body: newMsg.content,
+              sender: newMsg.role === 'user' ? 'customer' : 'ai',
+              direction: newMsg.role === 'user' ? 'inbound' : 'outbound',
+              created_at: newMsg.created_at,
+              status: 'delivered',
+            };
+            setMessages((prev) => [...prev, convertedMsg]);
           }
         )
         .subscribe();
@@ -86,22 +97,31 @@ const ContactDetail = () => {
       if (contactError) throw contactError;
       setContact(contactData);
 
-      // Load conversation and messages
+      // Load conversation and messages from new agent tables
       const { data: conversationData } = await supabase
-        .from("conversations")
+        .from("agent_conversations")
         .select("id")
         .eq("contact_id", contactId)
+        .eq("agent_type", "customer_service")
         .maybeSingle();
 
       let messagesData: any[] = [];
       if (conversationData) {
-        const { data } = await supabase
-          .from("messages")
+        const { data: agentMessages } = await supabase
+          .from("agent_messages")
           .select("*")
           .eq("conversation_id", conversationData.id)
           .order("created_at", { ascending: true });
         
-        messagesData = data || [];
+        // Convert agent_messages to display format
+        messagesData = (agentMessages || []).map((msg: any) => ({
+          id: msg.id,
+          body: msg.content,
+          sender: msg.role === 'user' ? 'customer' : 'ai',
+          direction: msg.role === 'user' ? 'inbound' : 'outbound',
+          created_at: msg.created_at,
+          status: 'delivered',
+        }));
         setMessages(messagesData);
       }
 
@@ -215,7 +235,15 @@ const ContactDetail = () => {
       toast.success("Message sent");
     } catch (error: any) {
       console.error("Error sending message:", error);
-      toast.error("Failed to send message: " + (error.message || "Unknown error"));
+      
+      // Handle specific error types
+      if (error.message?.includes('Rate limit')) {
+        toast.error("Too many requests. Please wait a moment and try again.");
+      } else if (error.message?.includes('Payment required') || error.message?.includes('AI service')) {
+        toast.error("AI service unavailable. Please contact support.");
+      } else {
+        toast.error("Failed to send message: " + (error.message || "Unknown error"));
+      }
     }
   };
 

@@ -48,12 +48,12 @@ export default function AgentTesting() {
   useEffect(() => {
     const initTestConversation = async () => {
       try {
-        // Check if test conversation exists
+        // Check if test conversation exists in agent_conversations
         const { data: existingConv, error: fetchError } = await supabase
-          .from('conversations')
+          .from('agent_conversations')
           .select('id')
-          .eq('phone_number', '+1TEST000TEST')
-          .eq('contact_name', 'Test User')
+          .eq('contact_id', 'test-contact-id')
+          .eq('agent_type', 'customer_service')
           .maybeSingle();
 
         if (fetchError) throw fetchError;
@@ -62,15 +62,15 @@ export default function AgentTesting() {
           setConversationId(existingConv.id);
           // Load existing messages
           const { data: messagesData } = await supabase
-            .from('messages')
+            .from('agent_messages')
             .select('*')
             .eq('conversation_id', existingConv.id)
             .order('created_at', { ascending: true });
           
           if (messagesData && messagesData.length > 0) {
             const formattedMessages = messagesData.map(msg => ({
-              role: msg.sender === 'customer' ? 'user' : 'assistant',
-              content: msg.body,
+              role: msg.role === 'user' ? 'user' : 'assistant',
+              content: msg.content,
               timestamp: new Date(msg.created_at)
             }));
             setMessages(formattedMessages as Message[]);
@@ -78,12 +78,12 @@ export default function AgentTesting() {
         } else {
           // Create new test conversation
           const { data: newConv, error: insertError } = await supabase
-            .from('conversations')
+            .from('agent_conversations')
             .insert([{
-              phone_number: '+1TEST000TEST',
-              contact_name: 'Test User',
-              status: 'active' as const,
-              assigned_agent: 'sales_ai' as const
+              contact_id: 'test-contact-id',
+              agent_type: 'customer_service',
+              status: 'active',
+              started_at: new Date().toISOString()
             }])
             .select('id')
             .single();
@@ -119,20 +119,12 @@ export default function AgentTesting() {
     setIsLoading(true);
 
     try {
-      const isFirstMessage = messages.length === 0;
-      const { data, error } = await supabase.functions.invoke('generate-ai-message', {
+      const { data, error } = await supabase.functions.invoke('agent-chat', {
         body: {
-          contact_id: 'test-contact',
-          agent_id: 'test-agent',
-          conversation_id: conversationId, // ✅ Pass conversation ID for persistence
-          message_type: isFirstMessage ? 'introduction' : 'check_in',
-          trigger_context: {
-            test_mode: true,
-            agent_type: selectedAgent,
-            customer_name: 'Test User',
-            customer_goals: input.trim(),
-            last_customer_message: input.trim(),
-          },
+          contactId: 'test-contact-id',
+          agentType: selectedAgent,
+          message: input.trim(),
+          conversationId: conversationId || undefined,
         },
       });
 
@@ -140,14 +132,27 @@ export default function AgentTesting() {
 
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.message.message,
+        content: data.response,
         timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      
+      // Update conversation ID if it was created
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
     } catch (error: any) {
       console.error('Error:', error);
-      toast.error(error.message || "Failed to get response");
+      
+      // Handle specific error types
+      if (error.message?.includes('Rate limit')) {
+        toast.error('Too many requests. Please wait a moment and try again.');
+      } else if (error.message?.includes('Payment required') || error.message?.includes('AI service')) {
+        toast.error('AI service unavailable. Please contact support.');
+      } else {
+        toast.error(error.message || "Failed to get response");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -170,7 +175,7 @@ export default function AgentTesting() {
     
     try {
       const { error } = await supabase
-        .from('messages')
+        .from('agent_messages')
         .delete()
         .eq('conversation_id', conversationId);
       
