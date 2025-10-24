@@ -1,5 +1,11 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
+[functions.agent-chat]
+verify_jwt = false
+
+[functions.generate-embedding]
+verify_jwt = false
+
 [functions.generate-video-from-script]
 verify_jwt = false
 

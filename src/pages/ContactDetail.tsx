@@ -176,67 +176,40 @@ const ContactDetail = () => {
     if (!id || !message.trim()) return;
 
     try {
-      // Get or create conversation
-      let { data: conversation, error: convError } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("contact_id", id)
-        .maybeSingle();
-
-      if (convError) throw convError;
-
-      if (!conversation) {
-        const { data: newConv, error: createError } = await supabase
-          .from("conversations")
-          .insert([{
-            phone_number: contact?.phone_number || "",
-            contact_id: id,
-            contact_name: contact?.full_name || null,
-            status: "active",
-            last_message_at: new Date().toISOString(),
-          }])
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        conversation = newConv;
-      }
-
-      // Save customer message
-      const { error: msgError } = await supabase
-        .from("messages")
-        .insert([{
-          conversation_id: conversation.id,
-          direction: "inbound" as const,
-          sender: "customer" as const,
-          body: message.trim(),
-          status: "delivered" as const,
-        }]);
-
-      if (msgError) throw msgError;
-
-      // Call AI agent
-      const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
-        "ai-agent",
+      // Call new agent-chat function (handles conversation creation, context, RAG, etc.)
+      const { data: response, error: chatError } = await supabase.functions.invoke(
+        "agent-chat",
         {
           body: {
-            conversationId: conversation.id,
+            contactId: id,
+            agentType: "customer_service",
             message: message.trim(),
           },
         }
       );
 
-      if (aiError) throw aiError;
+      if (chatError) throw chatError;
 
-      // Refresh messages
-      const { data: updatedMessages } = await supabase
-        .from("messages")
-        .select("*")
-        .eq("conversation_id", conversation.id)
-        .order("created_at", { ascending: true });
+      // Refresh messages from agent_conversations/agent_messages
+      if (response?.conversationId) {
+        const { data: agentMessages } = await supabase
+          .from("agent_messages")
+          .select("*")
+          .eq("conversation_id", response.conversationId)
+          .order("created_at", { ascending: true });
 
-      if (updatedMessages) {
-        setMessages(updatedMessages);
+        if (agentMessages) {
+          // Convert agent_messages to messages format for display
+          const convertedMessages = agentMessages.map((msg: any) => ({
+            id: msg.id,
+            body: msg.content,
+            sender: msg.role === 'user' ? 'customer' : 'ai',
+            direction: msg.role === 'user' ? 'inbound' : 'outbound',
+            created_at: msg.created_at,
+            status: 'delivered',
+          }));
+          setMessages(convertedMessages);
+        }
       }
 
       toast.success("Message sent");
