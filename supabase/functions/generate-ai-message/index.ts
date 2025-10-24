@@ -412,11 +412,18 @@ Return JSON:
 
     console.log(`Calling ai-agent with ${formattedMessages.length} messages in history`);
 
+    // Normalize agent type to match ai-agent expectations
+    const normalizedAgentType = agent.product_type === 'sales_agent' ? 'sales' : 
+                                agent.product_type === 'customer_service' ? 'cs' : 
+                                agent.product_type;
+    
+    console.log(`Normalized agent type: ${agent.product_type} -> ${normalizedAgentType}`);
+
     // Call ai-agent which has proper conversation memory logic
     const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
       body: {
         conversationId: conversation_id,
-        agentType: agent.product_type,
+        agentType: normalizedAgentType,
         incomingMessage: trigger_context.last_customer_message || `Generate ${message_type} message`,
         messages: formattedMessages,
         isFirstMessage: formattedMessages.length === 0,
