@@ -13,6 +13,73 @@ const KB_CATEGORY_MAP: Record<string, string> = {
   'lead_nurture': 'agent_lead_nurture'
 };
 
+// Agent-specific response guidelines
+const RESPONSE_GUIDELINES: Record<string, string> = {
+  'textbook': `
+RESPONSE GUIDELINES:
+- Provide comprehensive, detailed explanations
+- Use numbered lists for multi-part topics
+- Include all relevant information from the knowledge base
+- Structure responses clearly with proper formatting
+- Don't truncate or summarize - be thorough`,
+  
+  'customer_service': `
+RESPONSE GUIDELINES:
+- Keep responses concise but helpful (2-4 sentences for simple questions)
+- Be empathetic and solution-focused
+- Reference past context naturally when relevant
+- Match the customer's communication style`,
+  
+  'flashcards': `
+RESPONSE GUIDELINES:
+- Provide brief but complete definitions
+- Use clear, memorable language
+- Focus on key concepts only
+- Keep it concise but accurate`,
+  
+  'sales_agent': `
+RESPONSE GUIDELINES:
+- Be persuasive but not pushy
+- Highlight benefits and value
+- Keep responses focused and engaging
+- Reference customer's specific needs`,
+  
+  'trade_analysis': `
+RESPONSE GUIDELINES:
+- Provide comprehensive technical analysis
+- Include all relevant data points and indicators
+- Use clear explanations of complex concepts
+- Structure technical information logically`,
+  
+  'webinar': `
+RESPONSE GUIDELINES:
+- Be promotional but informative
+- Create excitement about upcoming content
+- Keep responses engaging and conversational
+- Highlight value and benefits`,
+  
+  'algo_monthly': `
+RESPONSE GUIDELINES:
+- Provide detailed technical explanations
+- Cover all relevant algorithm details
+- Use clear, structured responses
+- Include comprehensive context`,
+  
+  'ccta': `
+RESPONSE GUIDELINES:
+- Deliver comprehensive advanced technical content
+- Cover all relevant trading concepts thoroughly
+- Structure complex information clearly
+- Don't oversimplify - maintain technical depth`,
+  
+  'lead_nurture': `
+RESPONSE GUIDELINES:
+- Be warm and relationship-focused
+- Keep responses conversational
+- Show genuine interest in customer's needs
+- Balance education with engagement`
+};
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -174,6 +241,13 @@ Deno.serve(async (req) => {
         kbResults.results.map((kb: any) => kb.content).join('\n\n');
     }
 
+    // Get agent-specific response guidelines
+    const responseGuidelines = RESPONSE_GUIDELINES[agentType] || `
+RESPONSE GUIDELINES:
+- Keep responses focused and relevant
+- Reference past context naturally when relevant
+- Match the customer's communication style`;
+
     // Construct system message
     const systemMessage = `${systemPrompt}
 
@@ -181,11 +255,7 @@ Tone: ${tone}
 
 ${customerContext}${memoryContext}${kbContext}
 
-RESPONSE GUIDELINES:
-- Keep responses concise (2-4 sentences for simple questions)
-- Reference past context naturally when relevant
-- Don't repeat information already discussed
-- Match the customer's communication style`;
+${responseGuidelines}`;
 
     // Build messages for LLM
     const llmMessages = [
@@ -209,7 +279,7 @@ RESPONSE GUIDELINES:
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: llmMessages,
-        max_tokens: 250,
+        max_tokens: 800,
         temperature: 0.7,
       }),
     });
@@ -257,15 +327,6 @@ RESPONSE GUIDELINES:
       .replace(/You've asked about:?/gi, '')
       .replace(/Let me help you with that\.?/gi, '')
       .trim();
-
-    // Truncate if too verbose for simple questions
-    const questionWordCount = message.split(/\s+/).length;
-    const responseWordCount = aiMessage.split(/\s+/).length;
-
-    if (questionWordCount < 10 && responseWordCount > 60) {
-      const sentences = aiMessage.split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
-      aiMessage = sentences.slice(0, 2).join('. ').trim() + '.';
-    }
 
     const latency = Date.now() - startTime;
 
