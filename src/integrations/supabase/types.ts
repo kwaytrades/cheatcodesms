@@ -14,6 +14,166 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_conversations: {
+        Row: {
+          agent_id: string | null
+          agent_type: string
+          contact_id: string
+          conversation_summary: string | null
+          created_at: string | null
+          discussed_topics: Json | null
+          id: string
+          key_entities: Json | null
+          last_knowledge_refresh: string | null
+          last_message_at: string | null
+          message_count: number | null
+          relevant_kb_chunks: string[] | null
+          started_at: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          agent_type: string
+          contact_id: string
+          conversation_summary?: string | null
+          created_at?: string | null
+          discussed_topics?: Json | null
+          id?: string
+          key_entities?: Json | null
+          last_knowledge_refresh?: string | null
+          last_message_at?: string | null
+          message_count?: number | null
+          relevant_kb_chunks?: string[] | null
+          started_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          agent_type?: string
+          contact_id?: string
+          conversation_summary?: string | null
+          created_at?: string | null
+          discussed_topics?: Json | null
+          id?: string
+          key_entities?: Json | null
+          last_knowledge_refresh?: string | null
+          last_message_at?: string | null
+          message_count?: number | null
+          relevant_kb_chunks?: string[] | null
+          started_at?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "product_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_memory_snapshots: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          embedding: string | null
+          id: string
+          key_insights: Json | null
+          messages_covered: number | null
+          snapshot_at: string | null
+          summary: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          key_insights?: Json | null
+          messages_covered?: number | null
+          snapshot_at?: string | null
+          summary: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          key_insights?: Json | null
+          messages_covered?: number | null
+          snapshot_at?: string | null
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_memory_snapshots_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          customer_context: Json | null
+          embedding: string | null
+          id: string
+          knowledge_chunks_used: string[] | null
+          latency_ms: number | null
+          model_used: string | null
+          role: string
+          token_count: number | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          customer_context?: Json | null
+          embedding?: string | null
+          id?: string
+          knowledge_chunks_used?: string[] | null
+          latency_ms?: number | null
+          model_used?: string | null
+          role: string
+          token_count?: number | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          customer_context?: Json | null
+          embedding?: string | null
+          id?: string
+          knowledge_chunks_used?: string[] | null
+          latency_ms?: number | null
+          model_used?: string | null
+          role?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_performance_metrics: {
         Row: {
           agent_type: string
@@ -1599,6 +1759,7 @@ export type Database = {
           agent_context: Json
           assigned_date: string
           contact_id: string
+          conversation_id: string | null
           conversion_achieved: boolean | null
           conversion_date: string | null
           created_at: string | null
@@ -1617,6 +1778,7 @@ export type Database = {
           agent_context?: Json
           assigned_date?: string
           contact_id: string
+          conversation_id?: string | null
           conversion_achieved?: boolean | null
           conversion_date?: string | null
           created_at?: string | null
@@ -1635,6 +1797,7 @@ export type Database = {
           agent_context?: Json
           assigned_date?: string
           contact_id?: string
+          conversation_id?: string | null
           conversion_achieved?: boolean | null
           conversion_date?: string | null
           created_at?: string | null
@@ -1655,6 +1818,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_agents_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -2220,6 +2390,21 @@ export type Database = {
       }
       reset_daily_message_counters: { Args: never; Returns: undefined }
       reset_weekly_message_counters: { Args: never; Returns: undefined }
+      search_agent_memories: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          p_conversation_id: string
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       agent_type: "sales_ai" | "cs_ai" | "human_team"
