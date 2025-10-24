@@ -114,6 +114,301 @@ serve(async (req) => {
       status: 'delivered',
     });
 
+    // ============================================
+    // TRADE ANALYSIS AGENT ROUTING
+    // ============================================
+    
+    // Check if this contact has trade_analysis agent or subscription
+    let isTradeAnalysisUser = false;
+    if (existingContact) {
+      const { data: tradeAgent } = await supabase
+        .from('product_agents')
+        .select('*')
+        .eq('contact_id', existingContact.id)
+        .eq('product_type', 'trade_analysis')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (tradeAgent) {
+        isTradeAnalysisUser = true;
+        console.log('Trade analysis user detected');
+        
+        // Classify intent using AI
+        const { data: classification, error: classifyError } = await supabase.functions.invoke('classify-intent', {
+          body: {
+            message: body,
+            contactProfile: {
+              trading_experience: existingContact.trading_experience,
+              trading_style: existingContact.trading_style,
+              onboarding_phase: existingContact.onboarding_phase || 'Complete'
+            }
+          }
+        });
+
+        if (!classifyError && classification) {
+          console.log('Intent classification:', classification);
+
+          const { intent, confidence, entities, clarification_needed, clarification_question } = classification;
+
+          // Handle clarification
+          if (clarification_needed && clarification_question) {
+            return new Response(
+              `<?xml version="1.0" encoding="UTF-8"?>
+              <Response>
+                <Message>${escapeXml(clarification_question)}</Message>
+              </Response>`,
+              { 
+                headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
+                status: 200,
+              }
+            );
+          }
+
+          // Apply guardrails - redirect off-topic queries
+          if (intent === 'off_topic' && confidence > 0.7) {
+            const redirectMessage = "I only analyze stocks and manage watchlists. Please text a ticker symbol (like AAPL or TSLA) for analysis.";
+            return new Response(
+              `<?xml version="1.0" encoding="UTF-8"?>
+              <Response>
+                <Message>${escapeXml(redirectMessage)}</Message>
+              </Response>`,
+              { 
+                headers: { ...corsHeaders, 'Content-Type': 'text/xml' },
+                status: 200,
+              }
+            );
+          }
+
+          // Route based on intent
+          switch (intent) {
+            case 'stock_analysis': {
+              if (!entities.ticker_symbol) {
+                return new Response(
+                  `<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                    <Message>Please provide a ticker symbol (e.g., AAPL, TSLA) for analysis.</Message>
+                  </Response>`,
+                  { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+                );
+              }
+
+              const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-stock', {
+                body: {
+                  symbol: entities.ticker_symbol.toUpperCase(),
+                  contactId: existingContact.id
+                }
+              });
+
+              if (analysisError || analysisData?.error) {
+                const errorMsg = analysisData?.error === 'no_credits' 
+                  ? analysisData.message
+                  : `Unable to analyze ${entities.ticker_symbol}. Please try again.`;
+                
+                return new Response(
+                  `<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                    <Message>${escapeXml(errorMsg)}</Message>
+                  </Response>`,
+                  { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+                );
+              }
+
+              const { analysis, creditsRemaining } = analysisData;
+              const smsResponse = `📊 ${entities.ticker_symbol} Analysis (Score: ${analysis.technical_score}/100)
+
+SETUP: ${analysis.setup_type}
+📈 Entry: $${analysis.entry_price}
+🛑 Stop: $${analysis.stop_loss}
+🎯 Targets: $${analysis.price_targets[0]} → $${analysis.price_targets[1]}
+
+${analysis.reasoning}
+
+RISKS: ${analysis.key_risks}
+
+💾 Reply "WATCH ${entities.ticker_symbol} ${analysis.entry_price}" to get alerted.
+
+Credits: ${creditsRemaining} remaining`;
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>${escapeXml(smsResponse)}</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'watchlist_add': {
+              if (!entities.ticker_symbol || !entities.target_price) {
+                return new Response(
+                  `<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                    <Message>Format: WATCH [TICKER] [PRICE]
+Example: WATCH AAPL 175</Message>
+                  </Response>`,
+                  { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+                );
+              }
+
+              const { error: watchlistError } = await supabase
+                .from('user_watchlists')
+                .upsert({
+                  contact_id: existingContact.id,
+                  symbol: entities.ticker_symbol.toUpperCase(),
+                  target_entry_price: entities.target_price,
+                  status: 'watching'
+                }, {
+                  onConflict: 'contact_id,symbol'
+                });
+
+              const watchlistMsg = watchlistError
+                ? 'Failed to add to watchlist. Please try again.'
+                : `✅ ${entities.ticker_symbol} added to watchlist at $${entities.target_price}. You'll get an SMS when it hits your target.`;
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>${escapeXml(watchlistMsg)}</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'watchlist_view': {
+              const { data: watchlist } = await supabase
+                .from('user_watchlists')
+                .select('*')
+                .eq('contact_id', existingContact.id)
+                .eq('status', 'watching')
+                .order('created_at', { ascending: false });
+
+              if (!watchlist || watchlist.length === 0) {
+                return new Response(
+                  `<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                    <Message>Your watchlist is empty. Reply "WATCH [TICKER] [PRICE]" to add stocks.</Message>
+                  </Response>`,
+                  { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+                );
+              }
+
+              const watchlistText = watchlist.map((item, i) => 
+                `${i + 1}. ${item.symbol} - Target: $${item.target_entry_price}`
+              ).join('\n');
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>📋 Your Watchlist:\n\n${watchlistText}\n\nReply REMOVE [#] to delete</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'watchlist_remove': {
+              if (!entities.ticker_symbol && !entities.watchlist_item_number) {
+                return new Response(
+                  `<?xml version="1.0" encoding="UTF-8"?>
+                  <Response>
+                    <Message>Reply "REMOVE [TICKER]" or "REMOVE [NUMBER]" to delete from watchlist.</Message>
+                  </Response>`,
+                  { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+                );
+              }
+
+              let deleteQuery = supabase
+                .from('user_watchlists')
+                .delete()
+                .eq('contact_id', existingContact.id);
+
+              if (entities.ticker_symbol) {
+                deleteQuery = deleteQuery.eq('symbol', entities.ticker_symbol.toUpperCase());
+              } else if (entities.watchlist_item_number) {
+                // Get watchlist and delete by index
+                const { data: watchlist } = await supabase
+                  .from('user_watchlists')
+                  .select('id')
+                  .eq('contact_id', existingContact.id)
+                  .eq('status', 'watching')
+                  .order('created_at', { ascending: false });
+
+                if (watchlist && watchlist[entities.watchlist_item_number - 1]) {
+                  deleteQuery = deleteQuery.eq('id', watchlist[entities.watchlist_item_number - 1].id);
+                }
+              }
+
+              const { error: deleteError } = await deleteQuery;
+
+              const removeMsg = deleteError
+                ? 'Failed to remove from watchlist.'
+                : '✅ Removed from watchlist.';
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>${escapeXml(removeMsg)}</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'account_query': {
+              const { data: subscription } = await supabase
+                .from('user_subscriptions')
+                .select('*, subscription_tiers(*)')
+                .eq('contact_id', existingContact.id)
+                .maybeSingle();
+
+              const creditsInfo = subscription
+                ? `Plan: ${subscription.subscription_tiers.name}\nCredits: ${subscription.credits_remaining ?? 'Unlimited'}`
+                : 'No active subscription';
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>📊 Your Account:\n\n${creditsInfo}\n\nReply UPGRADE to see premium plans.</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'help': {
+              const helpMsg = `📱 Commands:
+
+TEXT ANY TICKER - Get analysis (AAPL, TSLA, etc)
+WATCH [TICKER] [PRICE] - Add alert
+WATCHLIST - View all alerts
+REMOVE [TICKER] - Remove alert
+BALANCE - Check credits
+HELP - This message`;
+
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>${escapeXml(helpMsg)}</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+
+            case 'educational_question': {
+              // Keep educational responses under 160 chars
+              const eduResponse = "For in-depth technical analysis training, check out our full courses. Text a ticker for instant analysis!";
+              return new Response(
+                `<?xml version="1.0" encoding="UTF-8"?>
+                <Response>
+                  <Message>${escapeXml(eduResponse)}</Message>
+                </Response>`,
+                { headers: { ...corsHeaders, 'Content-Type': 'text/xml' }, status: 200 }
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // If not a trade analysis user or intent not handled, continue with existing logic
+
     // Check if this phone number was part of any campaigns and increment reply count
     const { data: campaignMessages } = await supabase
       .from('campaign_messages')

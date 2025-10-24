@@ -140,3 +140,15 @@ verify_jwt = false
 
 [functions.reprocess-from-source]
 verify_jwt = false
+
+[functions.classify-intent]
+verify_jwt = false
+
+[functions.analyze-stock]
+verify_jwt = false
+
+[functions.monitor-watchlists]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

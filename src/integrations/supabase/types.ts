@@ -333,6 +333,64 @@ export type Database = {
           },
         ]
       }
+      analysis_credits_log: {
+        Row: {
+          action_type: string | null
+          analysis_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          credits_after: number
+          credits_before: number
+          credits_used: number
+          id: string
+          subscription_id: string | null
+        }
+        Insert: {
+          action_type?: string | null
+          analysis_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          credits_after: number
+          credits_before: number
+          credits_used: number
+          id?: string
+          subscription_id?: string | null
+        }
+        Update: {
+          action_type?: string | null
+          analysis_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          credits_after?: number
+          credits_before?: number
+          credits_used?: number
+          id?: string
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analysis_credits_log_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "stock_analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_credits_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analysis_credits_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_triggers: {
         Row: {
           action_config: Json
@@ -646,6 +704,7 @@ export type Database = {
           referrer: string | null
           risk_tolerance: string | null
           score_trend: string | null
+          sectors_of_interest: string[] | null
           sentiment: string | null
           state: string | null
           status: string | null
@@ -712,6 +771,7 @@ export type Database = {
           referrer?: string | null
           risk_tolerance?: string | null
           score_trend?: string | null
+          sectors_of_interest?: string[] | null
           sentiment?: string | null
           state?: string | null
           status?: string | null
@@ -778,6 +838,7 @@ export type Database = {
           referrer?: string | null
           risk_tolerance?: string | null
           score_trend?: string | null
+          sectors_of_interest?: string[] | null
           sentiment?: string | null
           state?: string | null
           status?: string | null
@@ -1775,6 +1836,65 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_analyses: {
+        Row: {
+          analysis_result: Json
+          contact_id: string | null
+          credits_used: number | null
+          entry_price: number | null
+          id: string
+          price_targets: Json | null
+          requested_at: string | null
+          risk_reward_ratio: number | null
+          sentiment: string | null
+          setup_type: string | null
+          stop_loss: number | null
+          symbol: string
+          technical_score: number | null
+          timeframe: string | null
+        }
+        Insert: {
+          analysis_result: Json
+          contact_id?: string | null
+          credits_used?: number | null
+          entry_price?: number | null
+          id?: string
+          price_targets?: Json | null
+          requested_at?: string | null
+          risk_reward_ratio?: number | null
+          sentiment?: string | null
+          setup_type?: string | null
+          stop_loss?: number | null
+          symbol: string
+          technical_score?: number | null
+          timeframe?: string | null
+        }
+        Update: {
+          analysis_result?: Json
+          contact_id?: string | null
+          credits_used?: number | null
+          entry_price?: number | null
+          id?: string
+          price_targets?: Json | null
+          requested_at?: string | null
+          risk_reward_ratio?: number | null
+          sentiment?: string | null
+          setup_type?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          technical_score?: number | null
+          timeframe?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_analyses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       style_guides: {
         Row: {
           created_at: string | null
@@ -1808,6 +1928,39 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_tiers: {
+        Row: {
+          created_at: string | null
+          credits_per_month: number | null
+          features: Json | null
+          id: string
+          name: string
+          price_monthly: number
+          stripe_price_id: string | null
+          watchlist_slots: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          credits_per_month?: number | null
+          features?: Json | null
+          id?: string
+          name: string
+          price_monthly: number
+          stripe_price_id?: string | null
+          watchlist_slots?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          credits_per_month?: number | null
+          features?: Json | null
+          id?: string
+          name?: string
+          price_monthly?: number
+          stripe_price_id?: string | null
+          watchlist_slots?: number | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1828,6 +1981,123 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          contact_id: string | null
+          created_at: string | null
+          credits_remaining: number | null
+          credits_reset_date: string | null
+          id: string
+          status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier_id: string | null
+          trial_used: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string | null
+          credits_remaining?: number | null
+          credits_reset_date?: string | null
+          id?: string
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_id?: string | null
+          trial_used?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string | null
+          credits_remaining?: number | null
+          credits_reset_date?: string | null
+          id?: string
+          status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier_id?: string | null
+          trial_used?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_subscriptions_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_watchlists: {
+        Row: {
+          alert_triggered: boolean | null
+          contact_id: string | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          original_analysis_id: string | null
+          position_size: number | null
+          status: string | null
+          stop_loss: number | null
+          symbol: string
+          target_entry_price: number
+          triggered_at: string | null
+        }
+        Insert: {
+          alert_triggered?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          original_analysis_id?: string | null
+          position_size?: number | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol: string
+          target_entry_price: number
+          triggered_at?: string | null
+        }
+        Update: {
+          alert_triggered?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          original_analysis_id?: string | null
+          position_size?: number | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          target_entry_price?: number
+          triggered_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_watchlists_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_watchlists_original_analysis_id_fkey"
+            columns: ["original_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "stock_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       video_projects: {
         Row: {
