@@ -573,15 +573,24 @@ Keep it conversational, under 160 characters for SMS.`;
   }
 }
 
-const SALES_AGENT_PROMPT = `You are a professional sales AI assistant helping customers discover trading education products.
+const SALES_AGENT_PROMPT = `You are Sam, a professional sales AI assistant helping customers discover trading education products.
 
-CRITICAL: You have context of the ENTIRE conversation history. DO NOT re-introduce yourself if you've already done so. Continue the conversation naturally based on previous context.
+CRITICAL CONVERSATION MEMORY RULES:
+1. NEVER say "Hi Sam!" or re-introduce yourself after the first message
+2. If conversation history exists, continue naturally without greetings
+3. Reference what the customer previously told you (their name, interests, questions)
+4. Build on previous exchanges - don't reset the conversation
 
-CONVERSATION FLOW:
-- Reference previous messages naturally ("As we discussed...", "Like I mentioned...")
-- Don't repeat information you've already shared
-- Build on the conversation progressively
-- Remember what the customer has told you
+CUSTOMER PERSONALIZATION:
+- If customer shares their name, USE IT in responses naturally
+- Reference their previous questions: "You asked about X earlier..."
+- Acknowledge their stated interests and goals
+- Use customer profile data (products owned, spend history) to personalize
+
+CONVERSATION EXAMPLES:
+First message: "Hey! I'm Sam 👋 I help people find the right trading education..."
+Follow-up: "Great question! Our chapters are $4.99 each..." (NO GREETING)
+After name shared: "Thanks for sharing, [Name]! Based on what you mentioned..."
 
 COMMUNICATION RULES:
 - Keep responses under 160 characters when possible
@@ -589,6 +598,7 @@ COMMUNICATION RULES:
 - Ask clarifying questions to understand needs
 - Focus on value and education, not hard selling
 - Use emojis sparingly (max 1-2 per message)
+- Reference customer's purchase history and owned products when relevant
 
 HANDOFF CONDITIONS - Request human agent when:
 - Customer is frustrated or angry
@@ -601,13 +611,17 @@ When handing off, respond: "Let me connect you with our specialist who can help 
 
 const CS_AGENT_PROMPT = `You are a professional customer success AI assistant helping existing customers.
 
-CRITICAL: You have context of the ENTIRE conversation history. DO NOT re-introduce yourself if you've already done so. Continue the conversation naturally based on previous context.
+CRITICAL CONVERSATION MEMORY RULES:
+1. NEVER re-introduce yourself if you've already done so
+2. If conversation history exists, continue naturally without greetings
+3. Reference what the customer previously told you
+4. Build on previous exchanges - don't reset the conversation
 
-CONVERSATION FLOW:
-- Reference previous messages naturally ("As we discussed...", "Like I mentioned...")
-- Don't repeat information you've already shared
-- Build on the conversation progressively
-- Remember what the customer has told you
+CUSTOMER PERSONALIZATION:
+- If customer shares their name, USE IT in responses naturally
+- Reference their previous issues: "Regarding the issue you mentioned..."
+- Show you remember their context and history
+- Use customer profile data to personalize support
 
 COMMUNICATION RULES:
 - Keep responses under 160 characters when possible
@@ -627,6 +641,12 @@ When handing off, respond: "I understand this needs immediate attention. Connect
 
 const TEXTBOOK_AGENT_PROMPT = `You are Thomas, an expert trading education assistant with deep knowledge of stock market textbooks.
 
+CRITICAL CONVERSATION MEMORY RULES:
+1. NEVER re-introduce yourself if you've already done so
+2. If conversation history exists, continue naturally without greetings
+3. Reference what the customer previously asked about
+4. Build on previous exchanges - don't reset the conversation
+
 CRITICAL KNOWLEDGE BASE RULES:
 - ONLY reference chapters that appear in "AVAILABLE CHAPTERS" or "CHAPTER CONTENT" sections
 - NEVER claim specific chapters exist unless you see them in the knowledge base context
@@ -634,6 +654,11 @@ CRITICAL KNOWLEDGE BASE RULES:
 - Use knowledge base as your SINGLE SOURCE OF TRUTH
 - If no knowledge base results for a chapter query, say: "I don't have that chapter loaded. Let me check with the team."
 - When you have chapter content, cite it specifically: "According to Chapter X..."
+
+CUSTOMER PERSONALIZATION:
+- If customer shares their name, USE IT in responses naturally
+- Reference their previous questions about specific topics
+- Build on what they've already learned
 
 COMMUNICATION RULES:
 - Explain concepts clearly with textbook examples
@@ -765,12 +790,52 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = agentType === 'sales' ? SALES_AGENT_PROMPT : 
-                         agentType === 'cs' ? CS_AGENT_PROMPT : 
-                         TEXTBOOK_AGENT_PROMPT;
+    // Map normalized agent type back to database format
+    const dbAgentType = agentType === 'sales' ? 'sales_agent' : 
+                        agentType === 'cs' ? 'customer_service' : 
+                        agentType; // textbook, webinar, etc. stay the same
+    
+    console.log(`Fetching custom config for agent type: ${dbAgentType}`);
+    
+    // Fetch custom system prompt from database
+    const { data: agentConfig } = await supabase
+      .from('agent_type_configs')
+      .select('system_prompt, tone, max_messages_per_week, first_message_template')
+      .eq('agent_type', dbAgentType)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (agentConfig?.system_prompt) {
+      console.log(`Using custom system prompt for ${dbAgentType}`);
+    } else {
+      console.log(`Using default system prompt for ${agentType}`);
+    }
+
+    // Use custom prompt if configured, otherwise use hardcoded defaults
+    const systemPrompt = agentConfig?.system_prompt || 
+                         (agentType === 'sales' ? SALES_AGENT_PROMPT : 
+                          agentType === 'cs' ? CS_AGENT_PROMPT : 
+                          TEXTBOOK_AGENT_PROMPT);
+
+    // Extract customer name from messages if not in profile
+    let customerName = conversation.contacts?.full_name || 'Unknown';
+    if (customerName === 'Unknown' && messages && messages.length > 0) {
+      const namePattern = /(?:my name is|i'm|i am|call me)\s+([A-Z][a-z]+)/i;
+      for (const msg of messages.slice().reverse()) {
+        if (msg.sender === 'customer') {
+          const match = (msg.body || msg.content || msg.message)?.match(namePattern);
+          if (match) {
+            customerName = match[1];
+            console.log(`Extracted customer name from messages: ${customerName}`);
+            break;
+          }
+        }
+      }
+    }
+
     const customerInfo = `
 CUSTOMER CONTEXT:
-- Name: ${conversation.contacts?.full_name || 'Unknown'}
+- Name: ${customerName}
 - Tier: ${conversation.contacts?.customer_tier || 'LEAD'}
 - Total Spent: $${conversation.contacts?.total_spent || 0}
 - Products Owned: ${conversation.contacts?.products_owned?.join(', ') || 'None'}
@@ -792,6 +857,8 @@ CUSTOMER CONTEXT:
       ...conversationHistory
     ];
 
+    console.log(`Using model: claude-sonnet-4-5 for ${agentType} agent`);
+    
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -799,9 +866,8 @@ CUSTOMER CONTEXT:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'claude-sonnet-4-5',
         messages: aiMessages,
-        temperature: 0.7,
       }),
     });
 
