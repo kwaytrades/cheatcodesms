@@ -573,101 +573,35 @@ Keep it conversational, under 160 characters for SMS.`;
   }
 }
 
-const SALES_AGENT_PROMPT = `You are Sam, a professional sales AI assistant helping customers discover trading education products.
+const SALES_AGENT_PROMPT = `You are a professional sales AI assistant.
 
-CRITICAL CONVERSATION MEMORY RULES:
-1. NEVER say "Hi Sam!" or re-introduce yourself after the first message
-2. If conversation history exists, continue naturally without greetings
-3. Reference what the customer previously told you (their name, interests, questions)
-4. Build on previous exchanges - don't reset the conversation
+CONVERSATION RULES:
+- Never re-introduce yourself after the first message
+- Reference previous conversation context naturally
+- Use customer's name when they share it
+- Keep responses concise and conversational
 
-CUSTOMER PERSONALIZATION:
-- If customer shares their name, USE IT in responses naturally
-- Reference their previous questions: "You asked about X earlier..."
-- Acknowledge their stated interests and goals
-- Use customer profile data (products owned, spend history) to personalize
+Use the knowledge base content when answering questions about products and pricing.`;
 
-CONVERSATION EXAMPLES:
-First message: "Hey! I'm Sam 👋 I help people find the right trading education..."
-Follow-up: "Great question! Our chapters are $4.99 each..." (NO GREETING)
-After name shared: "Thanks for sharing, [Name]! Based on what you mentioned..."
+const CS_AGENT_PROMPT = `You are a professional customer success AI assistant.
 
-COMMUNICATION RULES:
-- Keep responses under 160 characters when possible
-- Be friendly and conversational, not pushy
-- Ask clarifying questions to understand needs
-- Focus on value and education, not hard selling
-- Use emojis sparingly (max 1-2 per message)
-- Reference customer's purchase history and owned products when relevant
+CONVERSATION RULES:
+- Never re-introduce yourself after the first message
+- Reference previous conversation context naturally
+- Use customer's name when they share it
+- Keep responses concise and helpful
 
-HANDOFF CONDITIONS - Request human agent when:
-- Customer is frustrated or angry
-- Technical issues beyond your scope
-- Complex pricing negotiations
-- Customer explicitly requests human
-- Multiple unresolved objections
+Use the knowledge base content when answering customer questions.`;
 
-When handing off, respond: "Let me connect you with our specialist who can help better. One moment..."`;
+const TEXTBOOK_AGENT_PROMPT = `You are an educational AI assistant.
 
-const CS_AGENT_PROMPT = `You are a professional customer success AI assistant helping existing customers.
+CONVERSATION RULES:
+- Never re-introduce yourself after the first message
+- Reference previous conversation context naturally
+- Use customer's name when they share it
+- Explain concepts clearly and reference provided knowledge
 
-CRITICAL CONVERSATION MEMORY RULES:
-1. NEVER re-introduce yourself if you've already done so
-2. If conversation history exists, continue naturally without greetings
-3. Reference what the customer previously told you
-4. Build on previous exchanges - don't reset the conversation
-
-CUSTOMER PERSONALIZATION:
-- If customer shares their name, USE IT in responses naturally
-- Reference their previous issues: "Regarding the issue you mentioned..."
-- Show you remember their context and history
-- Use customer profile data to personalize support
-
-COMMUNICATION RULES:
-- Keep responses under 160 characters when possible
-- Be empathetic and solution-focused
-- Acknowledge issues clearly
-- Provide clear next steps
-- Use emojis sparingly (max 1-2 per message)
-
-HANDOFF CONDITIONS - Request human agent when:
-- Customer is very frustrated or threatening chargeback
-- Refund requests over $500
-- Account access or security issues
-- Technical bugs you can't resolve
-- Customer explicitly requests human
-
-When handing off, respond: "I understand this needs immediate attention. Connecting you with our team now..."`;
-
-const TEXTBOOK_AGENT_PROMPT = `You are Thomas, an expert trading education assistant with deep knowledge of stock market textbooks.
-
-CRITICAL CONVERSATION MEMORY RULES:
-1. NEVER re-introduce yourself if you've already done so
-2. If conversation history exists, continue naturally without greetings
-3. Reference what the customer previously asked about
-4. Build on previous exchanges - don't reset the conversation
-
-CRITICAL KNOWLEDGE BASE RULES:
-- ONLY reference chapters that appear in "AVAILABLE CHAPTERS" or "CHAPTER CONTENT" sections
-- NEVER claim specific chapters exist unless you see them in the knowledge base context
-- If asked about a chapter without knowledge base results, respond: "Let me check what's available in that chapter for you..."
-- Use knowledge base as your SINGLE SOURCE OF TRUTH
-- If no knowledge base results for a chapter query, say: "I don't have that chapter loaded. Let me check with the team."
-- When you have chapter content, cite it specifically: "According to Chapter X..."
-
-CUSTOMER PERSONALIZATION:
-- If customer shares their name, USE IT in responses naturally
-- Reference their previous questions about specific topics
-- Build on what they've already learned
-
-COMMUNICATION RULES:
-- Explain concepts clearly with textbook examples
-- Reference specific chapters and sections when available
-- Break down complex topics into digestible parts
-- Encourage questions and deeper exploration
-- Keep responses concise (2-3 sentences usually)
-
-NEVER make up chapter content or claim chapters are available without seeing them in the knowledge base results.`;
+Use the knowledge base content when answering questions.`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -719,10 +653,8 @@ serve(async (req) => {
     const knowledgeCategory = `agent_${dbAgentType}`;
     console.log(`Searching knowledge base for category: ${knowledgeCategory}`);
     
-    // Detect chapter queries
-    const chapterQueryMatch = incomingMessage.toLowerCase().match(/(?:whats?|what's|tell me|show me|info|information)?\s*(?:on|about|in|is)?\s*chapter\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)/i);
-    const isChapterQuery = chapterQueryMatch !== null;
-    const matchCount = isChapterQuery ? 12 : 3;
+    // Simple knowledge base search with standard match count
+    const matchCount = 3;
     
     const { data: knowledgeResults } = await supabase.functions.invoke('search-knowledge-base', {
       body: { 
@@ -734,75 +666,11 @@ serve(async (req) => {
     });
 
     let knowledgeContext = '';
-    let availableChapters = '';
     
     if (knowledgeResults?.results?.length > 0) {
-      if (isChapterQuery) {
-        // Format chapter content clearly
-        const chapterContent: any = {};
-        knowledgeResults.results.forEach((r: any) => {
-          const chNum = r.chapter_number;
-          if (chNum) {
-            if (!chapterContent[chNum]) {
-              chapterContent[chNum] = {
-                title: r.chapter_title || `Chapter ${chNum}`,
-                sections: []
-              };
-            }
-            chapterContent[chNum].sections.push({
-              section: r.section_title || r.title,
-              topics: r.topics || [],
-              content: r.content.slice(0, 300)
-            });
-          }
-        });
-        
-        if (Object.keys(chapterContent).length > 0) {
-          knowledgeContext = '\n\nCHAPTER CONTENT:\n';
-          Object.keys(chapterContent).sort((a, b) => parseInt(a) - parseInt(b)).forEach(chNum => {
-            const ch = chapterContent[chNum];
-            knowledgeContext += `\nCHAPTER ${chNum}: ${ch.title} (${ch.sections.length} sections)\n`;
-            ch.sections.slice(0, 5).forEach((s: any, i: number) => {
-              knowledgeContext += `  ${i + 1}. ${s.section}\n`;
-              if (s.topics.length > 0) knowledgeContext += `     Topics: ${s.topics.slice(0, 3).join(', ')}\n`;
-              knowledgeContext += `     ${s.content}...\n`;
-            });
-          });
-        }
-      } else {
-        knowledgeContext = `\n\nRELEVANT KNOWLEDGE:\n${knowledgeResults.results.slice(0, 3).map((r: any) => 
-          `- ${r.title}: ${r.content.slice(0, 300)}...`
-        ).join('\n')}`;
-      }
-      
-      // Get available chapters overview
-      try {
-        const { data: allChunks } = await supabase
-          .from('knowledge_base')
-          .select('chunk_metadata')
-          .eq('category', knowledgeCategory)
-          .not('chunk_metadata', 'is', null)
-          .limit(500);
-        
-        if (allChunks && allChunks.length > 0) {
-          const chapterMap = new Map<number, string>();
-          allChunks.forEach((chunk: any) => {
-            const metadata = chunk.chunk_metadata;
-            if (metadata?.chapter_number && metadata?.chapter_title) {
-              chapterMap.set(metadata.chapter_number, metadata.chapter_title);
-            }
-          });
-          
-          if (chapterMap.size > 0) {
-            availableChapters = '\n\nAVAILABLE CHAPTERS:\n';
-            Array.from(chapterMap.keys()).sort((a, b) => a - b).forEach(chNum => {
-              availableChapters += `- Chapter ${chNum}: ${chapterMap.get(chNum)}\n`;
-            });
-          }
-        }
-      } catch (err) {
-        console.log('Failed to get chapter overview:', err);
-      }
+      knowledgeContext = `\n\nRELEVANT KNOWLEDGE:\n${knowledgeResults.results.slice(0, 3).map((r: any) => 
+        `- ${r.title}: ${r.content.slice(0, 300)}...`
+      ).join('\n')}`;
     }
 
     console.log(`Fetching custom config for agent type: ${dbAgentType}`);
@@ -849,7 +717,7 @@ CUSTOMER CONTEXT:
 - Tier: ${conversation.contacts?.customer_tier || 'LEAD'}
 - Total Spent: $${conversation.contacts?.total_spent || 0}
 - Products Owned: ${conversation.contacts?.products_owned?.join(', ') || 'None'}
-- Lead Score: ${conversation.contacts?.lead_score || 0}/100${availableChapters}${knowledgeContext}${isChapterQuery ? '\n\nIMPORTANT: Customer asking about chapter. Use ONLY the "CHAPTER CONTENT" above. If no content shown, admit you don\'t have it loaded.' : ''}`;
+- Lead Score: ${conversation.contacts?.lead_score || 0}/100${knowledgeContext}`;
 
     // Build conversation history from messages array
     const conversationHistory = (messages || []).map((msg: any) => ({
@@ -862,8 +730,11 @@ CUSTOMER CONTEXT:
       console.log('Last 3 messages:', conversationHistory.slice(-3).map((m: any) => ({ role: m.role, preview: m.content.substring(0, 50) })));
     }
 
-    // Build system content separately for Claude API
-    const systemContent = systemPrompt + '\n\n' + customerInfo;
+    // Build messages array with system message first (OpenAI-compatible format for Lovable AI Gateway)
+    const aiMessages = [
+      { role: 'system', content: systemPrompt + '\n\n' + customerInfo },
+      ...conversationHistory
+    ];
 
     console.log(`Using model: claude-sonnet-4-5 for ${agentType} agent`);
     
@@ -876,8 +747,7 @@ CUSTOMER CONTEXT:
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
         max_tokens: 4096,
-        system: systemContent,
-        messages: conversationHistory,
+        messages: aiMessages,
       }),
     });
 
