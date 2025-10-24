@@ -64,8 +64,7 @@ Deno.serve(async (req) => {
     // 3. Build context - Parallel queries
     const [
       { data: recentMessages },
-      { data: contact },
-      { data: kbResults }
+      { data: contact }
     ] = await Promise.all([
       // A. Recent messages (last 10)
       supabase
@@ -80,17 +79,24 @@ Deno.serve(async (req) => {
         .from('contacts')
         .select('full_name, email, customer_tier, products_owned, total_spent, lead_score')
         .eq('id', contactId)
-        .single(),
-      
-      // C. Knowledge base search
-      supabase.functions.invoke('search-knowledge-base', {
+        .single()
+    ]);
+
+    // C. Knowledge base search (with error handling)
+    let kbResults: any = null;
+    try {
+      const kbResponse = await supabase.functions.invoke('search-knowledge-base', {
         body: { 
           query: message,
           category: agentType,
           matchCount: 3 
         }
-      })
-    ]);
+      });
+      kbResults = kbResponse.data;
+    } catch (kbError) {
+      console.error('Knowledge base search failed (non-fatal):', kbError);
+      // Continue without KB context
+    }
 
     // 4. Generate embedding for semantic memory search
     const { data: embeddingData, error: embError } = await supabase.functions.invoke(
@@ -147,9 +153,9 @@ Deno.serve(async (req) => {
 
     // Add knowledge base context
     let kbContext = '';
-    if (kbResults?.data?.results && kbResults.data.results.length > 0) {
+    if (kbResults?.results && kbResults.results.length > 0) {
       kbContext = '\n\nRELEVANT KNOWLEDGE:\n' + 
-        kbResults.data.results.map((kb: any) => kb.content).join('\n\n');
+        kbResults.results.map((kb: any) => kb.content).join('\n\n');
     }
 
     // Construct system message
@@ -192,7 +198,33 @@ RESPONSE GUIDELINES:
       }),
     });
 
+    // Handle rate limit and payment errors
     if (!llmResponse.ok) {
+      if (llmResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ 
+            error: "Rate limit exceeded. Please try again in a moment.",
+            needsHumanIntervention: false
+          }),
+          { 
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      if (llmResponse.status === 402) {
+        return new Response(
+          JSON.stringify({ 
+            error: "AI service requires payment. Please contact support.",
+            needsHumanIntervention: true
+          }),
+          { 
+            status: 402,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
       const error = await llmResponse.text();
       console.error('LLM API error:', error);
       throw new Error(`LLM API error: ${llmResponse.status}`);
@@ -241,7 +273,7 @@ RESPONSE GUIDELINES:
         token_count: aiMessage.split(/\s+/).length,
         model_used: 'google/gemini-2.5-flash',
         latency_ms: latency,
-        knowledge_chunks_used: kbResults?.data?.results?.map((r: any) => r.id) || [],
+        knowledge_chunks_used: kbResults?.results?.map((r: any) => r.id) || [],
       }
     ];
 
@@ -266,6 +298,9 @@ RESPONSE GUIDELINES:
             .eq('role', 'assistant')
             .eq('content', aiMessage);
         }
+      }).catch(embeddingError => {
+        console.error('Failed to generate response embedding (non-fatal):', embeddingError);
+        // Message saved, embedding failed (non-fatal)
       });
     }
 
