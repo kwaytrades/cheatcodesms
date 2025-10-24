@@ -114,10 +114,13 @@ export type Database = {
           created_at: string | null
           first_message_template: string | null
           follow_up_template: string | null
+          guardrails_config: Json | null
           id: string
           is_active: boolean | null
           max_messages_per_week: number | null
+          style_guide_config: Json | null
           system_prompt: string | null
+          system_prompts: Json | null
           tone: string | null
           trigger_milestone_reached: boolean | null
           trigger_no_reply_48h: boolean | null
@@ -130,10 +133,13 @@ export type Database = {
           created_at?: string | null
           first_message_template?: string | null
           follow_up_template?: string | null
+          guardrails_config?: Json | null
           id?: string
           is_active?: boolean | null
           max_messages_per_week?: number | null
+          style_guide_config?: Json | null
           system_prompt?: string | null
+          system_prompts?: Json | null
           tone?: string | null
           trigger_milestone_reached?: boolean | null
           trigger_no_reply_48h?: boolean | null
@@ -146,10 +152,13 @@ export type Database = {
           created_at?: string | null
           first_message_template?: string | null
           follow_up_template?: string | null
+          guardrails_config?: Json | null
           id?: string
           is_active?: boolean | null
           max_messages_per_week?: number | null
+          style_guide_config?: Json | null
           system_prompt?: string | null
+          system_prompts?: Json | null
           tone?: string | null
           trigger_milestone_reached?: boolean | null
           trigger_no_reply_48h?: boolean | null

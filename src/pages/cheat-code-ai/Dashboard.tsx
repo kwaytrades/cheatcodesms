@@ -1,8 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, DollarSign, TrendingUp, Activity, BarChart3, Target } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users, DollarSign, TrendingUp, Activity, BarChart3, Target, Bot } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { TradeAnalysisKnowledgeBase } from "@/components/cheat-code-ai/TradeAnalysisKnowledgeBase";
+import { TradeAnalysisStyleGuide } from "@/components/cheat-code-ai/TradeAnalysisStyleGuide";
+import { SystemPromptEditor } from "@/components/cheat-code-ai/SystemPromptEditor";
+import { GuardrailsSettings } from "@/components/cheat-code-ai/GuardrailsSettings";
 
 export default function Dashboard() {
   const { data: users } = useQuery({
@@ -107,6 +112,48 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Agent Configuration Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" />
+            <div>
+              <CardTitle>Agent Configuration</CardTitle>
+              <CardDescription>
+                Manage knowledge base, style guides, and behavior settings for the Trade Analysis Agent
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="knowledge" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="knowledge">Knowledge Base</TabsTrigger>
+              <TabsTrigger value="style">Style Guide</TabsTrigger>
+              <TabsTrigger value="prompts">System Prompts</TabsTrigger>
+              <TabsTrigger value="guardrails">Guardrails</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="knowledge" className="mt-6">
+              <TradeAnalysisKnowledgeBase />
+            </TabsContent>
+            
+            <TabsContent value="style" className="mt-6">
+              <TradeAnalysisStyleGuide />
+            </TabsContent>
+            
+            <TabsContent value="prompts" className="mt-6">
+              <SystemPromptEditor />
+            </TabsContent>
+            
+            <TabsContent value="guardrails" className="mt-6">
+              <GuardrailsSettings />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Metrics Dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
