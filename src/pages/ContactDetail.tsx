@@ -173,7 +173,77 @@ const ContactDetail = () => {
   };
 
   const handleSendMessage = async (message: string) => {
-    toast.info("Message sending functionality coming soon");
+    if (!id || !message.trim()) return;
+
+    try {
+      // Get or create conversation
+      let { data: conversation, error: convError } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("contact_id", id)
+        .maybeSingle();
+
+      if (convError) throw convError;
+
+      if (!conversation) {
+        const { data: newConv, error: createError } = await supabase
+          .from("conversations")
+          .insert([{
+            phone_number: contact?.phone_number || "",
+            contact_id: id,
+            contact_name: contact?.full_name || null,
+            status: "active",
+            last_message_at: new Date().toISOString(),
+          }])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        conversation = newConv;
+      }
+
+      // Save customer message
+      const { error: msgError } = await supabase
+        .from("messages")
+        .insert([{
+          conversation_id: conversation.id,
+          direction: "inbound" as const,
+          sender: "customer" as const,
+          body: message.trim(),
+          status: "delivered" as const,
+        }]);
+
+      if (msgError) throw msgError;
+
+      // Call AI agent
+      const { data: aiResponse, error: aiError } = await supabase.functions.invoke(
+        "ai-agent",
+        {
+          body: {
+            conversationId: conversation.id,
+            message: message.trim(),
+          },
+        }
+      );
+
+      if (aiError) throw aiError;
+
+      // Refresh messages
+      const { data: updatedMessages } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: true });
+
+      if (updatedMessages) {
+        setMessages(updatedMessages);
+      }
+
+      toast.success("Message sent");
+    } catch (error: any) {
+      console.error("Error sending message:", error);
+      toast.error("Failed to send message: " + (error.message || "Unknown error"));
+    }
   };
 
   const handleSaveNotes = async (notes: string) => {

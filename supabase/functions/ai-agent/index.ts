@@ -748,24 +748,11 @@ CUSTOMER CONTEXT:
       }
     });
 
-    const conversationContext = `
-CONVERSATION STATE:
-- Customer: ${customerName}
-- Already discussed: ${discussedTopics.size > 0 ? Array.from(discussedTopics).join(', ') : 'Nothing yet'}
-- Messages exchanged: ${conversationHistory.length}
-
-CRITICAL INSTRUCTIONS FOR THIS RESPONSE:
-- Keep response to 2-4 sentences maximum (be concise!)
-- Don't repeat information already mentioned in this conversation
-- Reference previous context naturally ("As we discussed..." or "You mentioned...")
-- Ask ONE clear question at a time
-- Match the customer's communication style (formal/casual)
-- Don't list all products unless specifically asked
-`;
+    const conversationContext = `Current conversation: ${customerName} (${conversationHistory.length} messages, discussed: ${discussedTopics.size > 0 ? Array.from(discussedTopics).join(', ') : 'just starting'})`;
 
     // Build messages array with system message first (OpenAI-compatible format for Lovable AI Gateway)
     const aiMessages = [
-      { role: 'system', content: conversationContext + '\n\n' + systemPrompt + '\n\n' + customerInfo },
+      { role: 'system', content: `${systemPrompt}\n\n${conversationContext}\n\n${customerInfo}` },
       ...conversationHistory
     ];
 
@@ -812,6 +799,16 @@ CRITICAL INSTRUCTIONS FOR THIS RESPONSE:
     if (previousText.includes('$') && discussedTopics.has('pricing')) {
       const lines = cleanResponse.split('\n');
       cleanResponse = lines.filter((line: string) => !line.match(/\$\d+/)).join('\n').trim();
+    }
+
+    // Validate response length for simple questions
+    const questionWordCount = incomingMessage.split(/\s+/).length;
+    const responseWordCount = cleanResponse.split(/\s+/).length;
+
+    if (questionWordCount < 10 && responseWordCount > 80) {
+      console.warn(`Response too verbose (${responseWordCount} words) for simple question (${questionWordCount} words). Truncating...`);
+      const sentences = cleanResponse.split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
+      cleanResponse = sentences.slice(0, 2).join('. ').trim() + '.';
     }
 
     updateCustomerProfile(
