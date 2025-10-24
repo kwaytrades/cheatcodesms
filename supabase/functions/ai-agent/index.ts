@@ -609,6 +609,25 @@ HANDOFF CONDITIONS - Request human agent when:
 
 When handing off, respond: "I understand this needs immediate attention. Connecting you with our team now..."`;
 
+const TEXTBOOK_AGENT_PROMPT = `You are Thomas, an expert trading education assistant with deep knowledge of stock market textbooks.
+
+CRITICAL KNOWLEDGE BASE RULES:
+- ONLY reference chapters that appear in "AVAILABLE CHAPTERS" or "CHAPTER CONTENT" sections
+- NEVER claim specific chapters exist unless you see them in the knowledge base context
+- If asked about a chapter without knowledge base results, respond: "Let me check what's available in that chapter for you..."
+- Use knowledge base as your SINGLE SOURCE OF TRUTH
+- If no knowledge base results for a chapter query, say: "I don't have that chapter loaded. Let me check with the team."
+- When you have chapter content, cite it specifically: "According to Chapter X..."
+
+COMMUNICATION RULES:
+- Explain concepts clearly with textbook examples
+- Reference specific chapters and sections when available
+- Break down complex topics into digestible parts
+- Encourage questions and deeper exploration
+- Keep responses concise (2-3 sentences usually)
+
+NEVER make up chapter content or claim chapters are available without seeing them in the knowledge base results.`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -650,24 +669,96 @@ serve(async (req) => {
 
     const incomingMessage = messages[messages.length - 1]?.content || '';
     
+    // Detect chapter queries
+    const chapterQueryMatch = incomingMessage.toLowerCase().match(/(?:whats?|what's|tell me|show me|info|information)?\s*(?:on|about|in|is)?\s*chapter\s*(\d+|one|two|three|four|five|six|seven|eight|nine|ten)/i);
+    const isChapterQuery = chapterQueryMatch !== null;
+    const matchCount = isChapterQuery ? 12 : 3;
+    
     const { data: knowledgeResults } = await supabase.functions.invoke('search-knowledge-base', {
-      body: { query: incomingMessage, matchThreshold: 0.7, matchCount: 3 }
+      body: { query: incomingMessage, matchThreshold: 0.7, matchCount }
     });
 
-    const knowledgeContext = knowledgeResults?.results
-      ?.map((r: any) => `${r.title}: ${r.content}`)
-      .join('\n\n') || '';
+    let knowledgeContext = '';
+    let availableChapters = '';
+    
+    if (knowledgeResults?.results?.length > 0) {
+      if (isChapterQuery) {
+        // Format chapter content clearly
+        const chapterContent: any = {};
+        knowledgeResults.results.forEach((r: any) => {
+          const chNum = r.chapter_number;
+          if (chNum) {
+            if (!chapterContent[chNum]) {
+              chapterContent[chNum] = {
+                title: r.chapter_title || `Chapter ${chNum}`,
+                sections: []
+              };
+            }
+            chapterContent[chNum].sections.push({
+              section: r.section_title || r.title,
+              topics: r.topics || [],
+              content: r.content.slice(0, 300)
+            });
+          }
+        });
+        
+        if (Object.keys(chapterContent).length > 0) {
+          knowledgeContext = '\n\nCHAPTER CONTENT:\n';
+          Object.keys(chapterContent).sort((a, b) => parseInt(a) - parseInt(b)).forEach(chNum => {
+            const ch = chapterContent[chNum];
+            knowledgeContext += `\nCHAPTER ${chNum}: ${ch.title} (${ch.sections.length} sections)\n`;
+            ch.sections.slice(0, 5).forEach((s: any, i: number) => {
+              knowledgeContext += `  ${i + 1}. ${s.section}\n`;
+              if (s.topics.length > 0) knowledgeContext += `     Topics: ${s.topics.slice(0, 3).join(', ')}\n`;
+              knowledgeContext += `     ${s.content}...\n`;
+            });
+          });
+        }
+      } else {
+        knowledgeContext = `\n\nRELEVANT KNOWLEDGE:\n${knowledgeResults.results.slice(0, 3).map((r: any) => 
+          `- ${r.title}: ${r.content.slice(0, 300)}...`
+        ).join('\n')}`;
+      }
+      
+      // Get available chapters overview
+      try {
+        const { data: allChunks } = await supabase
+          .from('knowledge_base')
+          .select('chunk_metadata')
+          .not('chunk_metadata', 'is', null)
+          .limit(500);
+        
+        if (allChunks && allChunks.length > 0) {
+          const chapterMap = new Map<number, string>();
+          allChunks.forEach((chunk: any) => {
+            const metadata = chunk.chunk_metadata;
+            if (metadata?.chapter_number && metadata?.chapter_title) {
+              chapterMap.set(metadata.chapter_number, metadata.chapter_title);
+            }
+          });
+          
+          if (chapterMap.size > 0) {
+            availableChapters = '\n\nAVAILABLE CHAPTERS:\n';
+            Array.from(chapterMap.keys()).sort((a, b) => a - b).forEach(chNum => {
+              availableChapters += `- Chapter ${chNum}: ${chapterMap.get(chNum)}\n`;
+            });
+          }
+        }
+      } catch (err) {
+        console.log('Failed to get chapter overview:', err);
+      }
+    }
 
-    const systemPrompt = agentType === 'sales' ? SALES_AGENT_PROMPT : CS_AGENT_PROMPT;
+    const systemPrompt = agentType === 'sales' ? SALES_AGENT_PROMPT : 
+                         agentType === 'cs' ? CS_AGENT_PROMPT : 
+                         TEXTBOOK_AGENT_PROMPT;
     const customerInfo = `
 CUSTOMER CONTEXT:
 - Name: ${conversation.contacts?.full_name || 'Unknown'}
 - Tier: ${conversation.contacts?.customer_tier || 'LEAD'}
 - Total Spent: $${conversation.contacts?.total_spent || 0}
 - Products Owned: ${conversation.contacts?.products_owned?.join(', ') || 'None'}
-- Lead Score: ${conversation.contacts?.lead_score || 0}/100
-
-${knowledgeContext ? `RELEVANT KNOWLEDGE:\n${knowledgeContext}` : ''}`;
+- Lead Score: ${conversation.contacts?.lead_score || 0}/100${availableChapters}${knowledgeContext}${isChapterQuery ? '\n\nIMPORTANT: Customer asking about chapter. Use ONLY the "CHAPTER CONTENT" above. If no content shown, admit you don\'t have it loaded.' : ''}`;
 
     const conversationHistory = messages.map((msg: any) => ({
       role: msg.sender === 'customer' ? 'user' : 'assistant',
