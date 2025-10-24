@@ -402,40 +402,47 @@ Return JSON:
   "reasoning": "Why this message fits this customer now"
 }`;
 
-    // Call OpenAI directly
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is not configured');
-    }
+    // Format conversation history for ai-agent
+    const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({
+      sender: msg.sender,
+      content: msg.body,
+      body: msg.body,
+      created_at: msg.created_at
+    }));
 
-    const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { 
-            role: 'user', 
-            content: `Generate the ${message_type} message now based on all context above.` 
-          }
-        ],
-        temperature: 0.8,
-        response_format: { type: 'json_object' }
-      })
+    console.log(`Calling ai-agent with ${formattedMessages.length} messages in history`);
+
+    // Call ai-agent which has proper conversation memory logic
+    const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
+      body: {
+        conversationId: conversation_id,
+        agentType: agent.product_type,
+        incomingMessage: trigger_context.last_customer_message || `Generate ${message_type} message`,
+        messages: formattedMessages,
+        isFirstMessage: formattedMessages.length === 0,
+        contactId: contact_id,
+        agentContext: agent.agent_context,
+        context: {
+          contact,
+          purchases,
+          messageType: message_type,
+          channel
+        }
+      }
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('OpenAI error:', aiResponse.status, errorText);
-      throw new Error(`OpenAI error: ${aiResponse.status}`);
+    if (aiAgentError) {
+      console.error('ai-agent error:', aiAgentError);
+      throw new Error(`ai-agent error: ${aiAgentError.message}`);
     }
 
-    const aiData = await aiResponse.json();
-    const messageContent = JSON.parse(aiData.choices[0].message.content);
+    // Extract message from ai-agent response
+    const messageContent = {
+      subject: null,
+      message: aiAgentData.response || aiAgentData.message,
+      reasoning: `Generated via ai-agent with ${formattedMessages.length} messages of context`
+    };
+    
     console.log('AI generated message:', messageContent);
 
     if (isTestMode) {
