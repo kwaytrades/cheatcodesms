@@ -1,5 +1,6 @@
 import { AutomationTriggersManager } from "@/components/AutomationTriggersManager";
 import { AgentCampaignConfigEditor } from "@/components/AgentCampaignConfigEditor";
+import { AgentCampaignSimulator } from "@/components/AgentCampaignSimulator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,11 +62,23 @@ const AutomationTriggers = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <AgentCampaignConfigEditor agentType={selectedAgentType} />
-        </TabsContent>
+            <Card>
+              <CardHeader>
+                <CardTitle>Test Campaign</CardTitle>
+                <CardDescription>
+                  Preview all messages for this agent's campaign with a simulated customer
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AgentCampaignSimulator agentType={selectedAgentType} />
+              </CardContent>
+            </Card>
+            
+            <AgentCampaignConfigEditor agentType={selectedAgentType} />
+          </TabsContent>
 
         <TabsContent value="triggers" className="mt-6">
           <AutomationTriggersManager />

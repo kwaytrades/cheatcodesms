@@ -111,6 +111,61 @@ Deno.serve(async (req) => {
   }
 });
 
+async function getRecentConversationContext(
+  agentId: string,
+  contactId: string,
+  supabase: any
+) {
+  const { data: convState } = await supabase
+    .from('conversation_state')
+    .select('last_engagement_at, last_message_sent_at')
+    .eq('contact_id', contactId)
+    .single();
+
+  const hoursSinceLastEngagement = convState?.last_engagement_at
+    ? (Date.now() - new Date(convState.last_engagement_at).getTime()) / (1000 * 60 * 60)
+    : 999;
+
+  const hoursSinceLastMessage = convState?.last_message_sent_at
+    ? (Date.now() - new Date(convState.last_message_sent_at).getTime()) / (1000 * 60 * 60)
+    : 999;
+
+  const { data: agent } = await supabase
+    .from('product_agents')
+    .select('conversation_id')
+    .eq('id', agentId)
+    .single();
+
+  let recentMessagesSummary = '';
+  let lastTopic = '';
+  
+  if (agent?.conversation_id) {
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('body, sender, created_at')
+      .eq('conversation_id', agent.conversation_id)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (messages && messages.length > 0) {
+      recentMessagesSummary = messages
+        .map((m: any) => `${m.sender === 'customer' ? 'Customer' : 'Agent'}: ${m.body.substring(0, 100)}`)
+        .join(' | ');
+      
+      lastTopic = messages[0].body.substring(0, 200);
+    }
+  }
+
+  return {
+    hours_since_last_engagement: hoursSinceLastEngagement,
+    hours_since_last_message: hoursSinceLastMessage,
+    last_topic: lastTopic,
+    recent_messages_summary: recentMessagesSummary,
+    was_recent_conversation: hoursSinceLastEngagement < 48,
+    was_very_recent: hoursSinceLastEngagement < 24
+  };
+}
+
 function checkFrequencyLimits(convState: any): boolean {
   if (!convState) return true;
 
@@ -138,6 +193,13 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
   const triggers = [];
   const now = new Date();
   const daysSinceAssigned = Math.floor((now.getTime() - new Date(agent.assigned_date).getTime()) / (1000 * 60 * 60 * 24));
+
+  // Get recent conversation context for conversation awareness
+  const recentConversation = await getRecentConversationContext(
+    agent.id,
+    contact.id,
+    supabase
+  );
 
   // Load campaign config for this agent type
   const { data: agentConfig } = await supabase
@@ -178,7 +240,8 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
           campaign_day: campaignDay,
           days_remaining: campaignConfig.duration_days - campaignDay,
           goal: scheduled.goal,
-          trigger_source: 'scheduled_outreach'
+          trigger_source: 'scheduled_outreach',
+          recent_conversation: recentConversation
         },
         channel: scheduled.channel || 'sms'
       });
@@ -219,7 +282,8 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
             days_remaining: campaignConfig.duration_days - campaignDay,
             goal: milestone.goal,
             trigger_source: 'milestone',
-            milestone_event: milestone.event
+            milestone_event: milestone.event,
+            recent_conversation: recentConversation
           },
           channel: milestone.channel || 'sms'
         });

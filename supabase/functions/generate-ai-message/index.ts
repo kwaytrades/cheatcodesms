@@ -355,6 +355,40 @@ ${trigger_context.milestone_event ? `- Milestone Event: ${trigger_context.milest
 Tailor your message based on where they are in the campaign journey. Early days focus on engagement and education. Mid-campaign checks on progress. Late campaign introduces soft-sells and upsells.`;
     }
 
+    // Add conversation awareness to system prompt
+    let conversationAwarenessPrompt = '';
+    if (trigger_context?.recent_conversation) {
+      const rc = trigger_context.recent_conversation;
+      
+      if (rc.was_very_recent) {
+        conversationAwarenessPrompt = `
+
+⚠️ CONVERSATION AWARENESS - CRITICAL:
+You spoke with this customer ${Math.floor(rc.hours_since_last_engagement)} hours ago.
+Last Topic Discussed: ${rc.last_topic || 'Not recorded'}
+Recent Exchange: ${rc.recent_messages_summary || 'No recent messages'}
+
+MANDATORY ADJUSTMENTS:
+- Start with acknowledgment: "I know we just spoke yesterday, but..."
+- Reference the actual topic you discussed: "Following up on our conversation about ${rc.last_topic?.substring(0, 50)}..."
+- Make this feel like a natural continuation, NOT a scheduled check-in
+- Example: "Hey! I know we chatted yesterday about your progress. Just wanted to quickly check - were you able to review that section we discussed?"
+
+DO NOT send generic campaign messages when you have recent context!`;
+      } else if (rc.was_recent_conversation) {
+        conversationAwarenessPrompt = `
+
+CONVERSATION AWARENESS:
+You had a conversation with this customer ${Math.floor(rc.hours_since_last_engagement / 24)} days ago.
+Last Topic: ${rc.last_topic?.substring(0, 100) || 'Not specified'}
+
+ADJUSTMENTS:
+- Acknowledge the previous conversation: "Hope you've been well since we last talked..."
+- Reference what you discussed if relevant to today's message
+- Bridge naturally from past conversation to this check-in`;
+      }
+    }
+
     // Use custom system prompt if configured, otherwise use default
     const customSystemPrompt = agentConfig?.system_prompt;
     const configuredTone = agentConfig?.tone || 'professional';
@@ -364,6 +398,7 @@ Tailor your message based on where they are in the campaign journey. Early days 
 
 Your role is to send personalized, conversational messages that feel like they're from a real person who knows the customer's journey, NOT marketing automation.
 ${campaignContext}
+${conversationAwarenessPrompt}
 
 CUSTOMER PROFILE:
 - Name: ${contact?.full_name || 'Customer'}
