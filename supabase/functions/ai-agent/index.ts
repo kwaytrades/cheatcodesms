@@ -733,9 +733,39 @@ CUSTOMER CONTEXT:
       console.log('Last 3 messages:', conversationHistory.slice(-3).map((m: any) => ({ role: m.role, preview: m.content.substring(0, 50) })));
     }
 
+    // Extract what's already been discussed to prevent repetition
+    const discussedTopics = new Set<string>();
+    const recentMessages = (messages || []).slice(-5);
+    recentMessages.forEach((msg: any) => {
+      if (msg.sender !== 'customer') {
+        const msgContent = (msg.body || msg.content || msg.message || '').toLowerCase();
+        if (msgContent.includes('textbook')) discussedTopics.add('textbook');
+        if (msgContent.includes('webinar')) discussedTopics.add('webinar');
+        if (msgContent.includes('flashcard')) discussedTopics.add('flashcards');
+        if (msgContent.includes('certification') || msgContent.includes('ccta')) discussedTopics.add('certification');
+        if (msgContent.includes('algo') || msgContent.includes('monthly')) discussedTopics.add('algo subscription');
+        if (msgContent.includes('$')) discussedTopics.add('pricing');
+      }
+    });
+
+    const conversationContext = `
+CONVERSATION STATE:
+- Customer: ${customerName}
+- Already discussed: ${discussedTopics.size > 0 ? Array.from(discussedTopics).join(', ') : 'Nothing yet'}
+- Messages exchanged: ${conversationHistory.length}
+
+CRITICAL INSTRUCTIONS FOR THIS RESPONSE:
+- Keep response to 2-4 sentences maximum (be concise!)
+- Don't repeat information already mentioned in this conversation
+- Reference previous context naturally ("As we discussed..." or "You mentioned...")
+- Ask ONE clear question at a time
+- Match the customer's communication style (formal/casual)
+- Don't list all products unless specifically asked
+`;
+
     // Build messages array with system message first (OpenAI-compatible format for Lovable AI Gateway)
     const aiMessages = [
-      { role: 'system', content: systemPrompt + '\n\n' + customerInfo },
+      { role: 'system', content: conversationContext + '\n\n' + systemPrompt + '\n\n' + customerInfo },
       ...conversationHistory
     ];
 
@@ -749,7 +779,7 @@ CUSTOMER CONTEXT:
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        max_tokens: 4096,
+        max_tokens: 300, // Force concise responses
         messages: aiMessages,
       }),
     });
@@ -765,10 +795,24 @@ CUSTOMER CONTEXT:
                        responseText.toLowerCase().includes('specialist') ||
                        responseText.toLowerCase().includes('team now');
 
-    const cleanResponse = responseText
+    let cleanResponse = responseText
       .replace(/\*\*/g, '')
       .replace(/\*/g, '')
       .trim();
+
+    // Post-process to remove redundancy
+    const previousText = (messages || []).slice(-3).map((m: any) => m.body || m.content || m.message || '').join(' ').toLowerCase();
+    
+    // Remove repetitive greetings after first exchange
+    if ((messages || []).length > 2) {
+      cleanResponse = cleanResponse.replace(/^(Hi|Hey|Hello|Hi there|Hey there)[^!.?]*[!.?]\s*/i, '');
+    }
+    
+    // If pricing/products were already discussed, don't list them again
+    if (previousText.includes('$') && discussedTopics.has('pricing')) {
+      const lines = cleanResponse.split('\n');
+      cleanResponse = lines.filter((line: string) => !line.match(/\$\d+/)).join('\n').trim();
+    }
 
     updateCustomerProfile(
       conversationId,

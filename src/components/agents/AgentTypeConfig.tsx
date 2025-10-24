@@ -23,6 +23,8 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("templates");
+  const [promptTooLarge, setPromptTooLarge] = useState(false);
+  const [promptSizeKB, setPromptSizeKB] = useState(0);
   
   // Config state
   const [config, setConfig] = useState({
@@ -87,9 +89,27 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
     }
   }, [agentType, savedConfig]);
 
+  // Monitor prompt size
+  useEffect(() => {
+    const sizeKB = new Blob([config.systemPrompt]).size / 1024;
+    setPromptSizeKB(Math.round(sizeKB * 10) / 10);
+    setPromptTooLarge(sizeKB > 10);
+  }, [config.systemPrompt]);
+
   // Save to database
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Validate prompt size
+      const promptSize = new Blob([config.systemPrompt]).size;
+      
+      if (promptSize > 50000) { // > 50KB
+        throw new Error(
+          `System prompt is too large (${Math.round(promptSize / 1024)}KB). ` +
+          'Please reduce to under 50KB or move detailed content to Knowledge Base. ' +
+          'Tip: Keep prompts focused on personality and guidelines, not detailed product information.'
+        );
+      }
+      
       const { data, error } = await supabase
         .from('agent_type_configs')
         .upsert({
@@ -108,7 +128,10 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Save error details:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -167,8 +190,26 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
         <TabsContent value="templates" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>System Prompt</CardTitle>
-              <CardDescription>Core instructions that define this agent's personality and role</CardDescription>
+              <CardTitle className="flex items-center justify-between">
+                <span>System Prompt</span>
+                <span className="text-sm font-normal text-muted-foreground">{promptSizeKB}KB</span>
+              </CardTitle>
+              <CardDescription>
+                Core instructions that define this agent's personality and role
+                {promptTooLarge && (
+                  <div className="mt-3 p-3 bg-destructive/10 border border-destructive/30 rounded-md flex items-start gap-2">
+                    <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-destructive space-y-1">
+                      <div className="font-semibold">⚠️ Prompt Too Large ({promptSizeKB}KB)</div>
+                      <div>Large prompts cause verbose, repetitive responses. Keep under 10KB for best results.</div>
+                      <div className="mt-2 text-xs">
+                        <strong>Best practice:</strong> Keep prompts focused on personality & guidelines (~2-3KB). 
+                        Move detailed product info to Knowledge Base.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea
@@ -176,6 +217,7 @@ export function AgentTypeConfig({ agentType, agentName, agentDescription }: Agen
                 placeholder={`You are a friendly ${agentName} concierge. Your role is to...`}
                 value={config.systemPrompt}
                 onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
+                className={promptTooLarge ? "border-destructive" : ""}
               />
             </CardContent>
           </Card>
