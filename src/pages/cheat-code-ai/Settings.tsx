@@ -1,28 +1,43 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Settings as SettingsIcon } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ScoringMethodEditor from "@/components/cheat-code-ai/ScoringMethodEditor";
+import EntryExitRulesEditor from "@/components/cheat-code-ai/EntryExitRulesEditor";
+import IndicatorSettingsEditor from "@/components/cheat-code-ai/IndicatorSettingsEditor";
+import PresetTemplateManager from "@/components/cheat-code-ai/PresetTemplateManager";
 
 export default function Settings() {
   return (
-    <div className="p-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <SettingsIcon className="h-5 w-5" />
-            <CardTitle>Settings & Configuration</CardTitle>
-          </div>
-          <CardDescription>Configure Cheat Code AI agent settings and parameters</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12">
-            <SettingsIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Agent Configuration</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Configuration options for subscription tiers, agent prompts, market data settings,
-              credit management, and integration settings will be available here.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Settings & Configuration</h1>
+        <p className="text-muted-foreground mt-2">
+          Customize how the Trade Analysis Agent scores stocks and manages trades
+        </p>
+      </div>
+
+      <Tabs defaultValue="scoring" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="scoring">Scoring Method</TabsTrigger>
+          <TabsTrigger value="entry-exit">Entry/Exit Rules</TabsTrigger>
+          <TabsTrigger value="indicators">Indicator Settings</TabsTrigger>
+          <TabsTrigger value="presets">Preset Templates</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="scoring">
+          <ScoringMethodEditor />
+        </TabsContent>
+
+        <TabsContent value="entry-exit">
+          <EntryExitRulesEditor />
+        </TabsContent>
+
+        <TabsContent value="indicators">
+          <IndicatorSettingsEditor />
+        </TabsContent>
+
+        <TabsContent value="presets">
+          <PresetTemplateManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

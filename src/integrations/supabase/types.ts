@@ -118,6 +118,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           max_messages_per_week: number | null
+          scoring_config: Json | null
           style_guide_config: Json | null
           system_prompt: string | null
           system_prompts: Json | null
@@ -137,6 +138,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           max_messages_per_week?: number | null
+          scoring_config?: Json | null
           style_guide_config?: Json | null
           system_prompt?: string | null
           system_prompts?: Json | null
@@ -156,6 +158,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           max_messages_per_week?: number | null
+          scoring_config?: Json | null
           style_guide_config?: Json | null
           system_prompt?: string | null
           system_prompts?: Json | null
