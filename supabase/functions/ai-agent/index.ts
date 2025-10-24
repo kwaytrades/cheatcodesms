@@ -736,7 +736,7 @@ CUSTOMER CONTEXT:
       ...conversationHistory
     ];
 
-    console.log(`Using model: claude-sonnet-4-5 for ${agentType} agent`);
+    console.log(`Using model: google/gemini-2.5-flash for ${agentType} agent`);
     
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -745,7 +745,7 @@ CUSTOMER CONTEXT:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'google/gemini-2.5-flash',
         max_tokens: 4096,
         messages: aiMessages,
       }),
