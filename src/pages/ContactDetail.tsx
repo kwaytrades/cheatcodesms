@@ -33,6 +33,45 @@ const ContactDetail = () => {
     }
   }, [id]);
 
+  // Set up real-time subscription for new messages
+  useEffect(() => {
+    if (!id) return;
+
+    // Get conversation ID first
+    const setupRealtimeSubscription = async () => {
+      const { data: conversationData } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("contact_id", id)
+        .maybeSingle();
+
+      if (!conversationData) return;
+
+      const channel = supabase
+        .channel(`messages-${conversationData.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationData.id}`
+          },
+          (payload) => {
+            console.log('New message received:', payload);
+            setMessages((prev) => [...prev, payload.new as any]);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    setupRealtimeSubscription();
+  }, [id]);
+
   const loadContactData = async (contactId: string) => {
     try {
       setLoading(true);

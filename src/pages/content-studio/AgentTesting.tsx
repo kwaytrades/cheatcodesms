@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import { AgentTypeIcon } from "@/components/agents/AgentTypeIcon";
 import { AgentNameBadge } from "@/components/agents/AgentNameBadge";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ export default function AgentTesting() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -42,6 +43,62 @@ export default function AgentTesting() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize test conversation on mount
+  useEffect(() => {
+    const initTestConversation = async () => {
+      try {
+        // Check if test conversation exists
+        const { data: existingConv, error: fetchError } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('phone_number', '+1TEST000TEST')
+          .eq('contact_name', 'Test User')
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (existingConv) {
+          setConversationId(existingConv.id);
+          // Load existing messages
+          const { data: messagesData } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', existingConv.id)
+            .order('created_at', { ascending: true });
+          
+          if (messagesData && messagesData.length > 0) {
+            const formattedMessages = messagesData.map(msg => ({
+              role: msg.sender === 'customer' ? 'user' : 'assistant',
+              content: msg.body,
+              timestamp: new Date(msg.created_at)
+            }));
+            setMessages(formattedMessages as Message[]);
+          }
+        } else {
+          // Create new test conversation
+          const { data: newConv, error: insertError } = await supabase
+            .from('conversations')
+            .insert([{
+              phone_number: '+1TEST000TEST',
+              contact_name: 'Test User',
+              status: 'active' as const,
+              assigned_agent: 'sales_ai' as const
+            }])
+            .select('id')
+            .single();
+
+          if (insertError) throw insertError;
+          if (newConv) setConversationId(newConv.id);
+        }
+      } catch (error) {
+        console.error('Error initializing test conversation:', error);
+        toast.error('Failed to initialize test conversation');
+      }
+    };
+
+    initTestConversation();
+  }, []);
 
   const handleSend = async () => {
     if (!input.trim() || !selectedAgent) {
@@ -67,13 +124,13 @@ export default function AgentTesting() {
         body: {
           contact_id: 'test-contact',
           agent_id: 'test-agent',
+          conversation_id: conversationId, // ✅ Pass conversation ID for persistence
           message_type: isFirstMessage ? 'introduction' : 'check_in',
           trigger_context: {
             test_mode: true,
             agent_type: selectedAgent,
             customer_name: 'Test User',
             customer_goals: input.trim(),
-            conversation_history: messages,
             last_customer_message: input.trim(),
           },
         },
@@ -108,6 +165,25 @@ export default function AgentTesting() {
     setInput("");
   };
 
+  const handleClearHistory = async () => {
+    if (!conversationId) return;
+    
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('conversation_id', conversationId);
+      
+      if (error) throw error;
+      
+      setMessages([]);
+      toast.success('Conversation history cleared');
+    } catch (error) {
+      console.error('Error clearing history:', error);
+      toast.error('Failed to clear history');
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -140,6 +216,10 @@ export default function AgentTesting() {
             </Select>
             <Button variant="outline" onClick={handleNewChat}>
               New Chat
+            </Button>
+            <Button variant="outline" onClick={handleClearHistory} disabled={messages.length === 0}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear History
             </Button>
           </div>
         </div>

@@ -8,6 +8,7 @@ const corsHeaders = {
 interface GenerateMessageRequest {
   contact_id: string;
   agent_id: string;
+  conversation_id?: string; // ✅ Optional conversation ID for persistent history
   message_type: 'introduction' | 'check_in' | 'upsell' | 'retention' | 'expiration_notice' | 'onboarding';
   trigger_context: Record<string, any>;
   channel?: 'sms' | 'email';
@@ -76,6 +77,7 @@ Deno.serve(async (req) => {
     let {
       contact_id,
       agent_id,
+      conversation_id,
       message_type,
       trigger_context,
       channel = 'sms'
@@ -100,11 +102,28 @@ Deno.serve(async (req) => {
     // Handle test mode
     const isTestMode = trigger_context?.test_mode === true;
     
+    // Fetch conversation history from database if conversationId provided (for test mode)
+    let recentMessages: any[] = [];
+    if (isTestMode && conversation_id) {
+      const { data: messageData, error: msgError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversation_id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (msgError) {
+        console.error('Error fetching conversation history:', msgError);
+      } else {
+        recentMessages = messageData || [];
+        console.log(`Fetched ${recentMessages.length} messages for test conversation`);
+      }
+    }
+    
     let agent: any;
     let conversationState: any = null;
     let contact: any;
     let purchases: any[] = [];
-    let recentMessages: any[] = [];
 
     if (isTestMode) {
       // Use mock data for testing
@@ -341,7 +360,9 @@ ${agent?.agent_context?.context ? `\nAdditional Context: ${JSON.stringify(agent.
 YOUR ROLE: ${agent.product_type === 'customer_service' ? 'You handle general inquiries and route to specialists when needed.' : `You focus specifically on ${agent.product_type} and its features.`}
 
 CONVERSATION HISTORY (last 10 messages):
-${recentMessages?.map(m => `${m.sender}: ${m.body}`).join('\n') || 'No previous messages'}
+${recentMessages && recentMessages.length > 0 
+  ? recentMessages.reverse().map((m: any) => `${m.sender}: ${m.body}`).join('\n') 
+  : 'No previous messages'}
 
 TRIGGER CONTEXT:
 ${JSON.stringify(trigger_context, null, 2)}
@@ -418,7 +439,34 @@ Return JSON:
     console.log('AI generated message:', messageContent);
 
     if (isTestMode) {
-      // In test mode, just return the generated message without saving
+      // If test mode, save messages to database for persistence
+      if (conversation_id) {
+        try {
+          // Save user message
+          await supabase.from('messages').insert({
+            conversation_id,
+            direction: 'inbound',
+            sender: 'customer',
+            body: trigger_context.last_customer_message || 'test message',
+            status: 'delivered'
+          });
+          
+          // Save AI response
+          await supabase.from('messages').insert({
+            conversation_id,
+            direction: 'outbound',
+            sender: `ai_${agent.product_type}`,
+            body: messageContent.message,
+            status: 'sent'
+          });
+          
+          console.log('Test messages saved to database');
+        } catch (saveError) {
+          console.error('Error saving test messages:', saveError);
+        }
+      }
+      
+      // In test mode, return the generated message
       return new Response(
         JSON.stringify({
           success: true,

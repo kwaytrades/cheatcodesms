@@ -784,7 +784,7 @@ CUSTOMER CONTEXT:
 
     console.log(`Conversation history contains ${conversationHistory.length} messages`);
     if (conversationHistory.length > 0) {
-      console.log('Last 3 messages:', conversationHistory.slice(-3).map(m => ({ role: m.role, preview: m.content.substring(0, 50) })));
+      console.log('Last 3 messages:', conversationHistory.slice(-3).map((m: any) => ({ role: m.role, preview: m.content.substring(0, 50) })));
     }
 
     const aiMessages = [
