@@ -465,13 +465,14 @@ Return JSON:
             status: 'delivered'
           });
           
-          // Save AI response
+          // Save AI response with consistent sender value
           await supabase.from('messages').insert({
             conversation_id,
             direction: 'outbound',
-            sender: `ai_${agent.product_type}`,
+            sender: 'assistant',
             body: messageContent.message,
-            status: 'sent'
+            status: 'sent',
+            message_type: 'chat'
           });
           
           console.log('Test messages saved to database');
