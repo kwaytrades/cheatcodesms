@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_campaign_events: {
+        Row: {
+          agent_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          event_type: string
+          id: string
+          message_scheduled: boolean | null
+          message_sent_at: string | null
+          trigger_config: Json | null
+          trigger_day: number | null
+        }
+        Insert: {
+          agent_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          event_type: string
+          id?: string
+          message_scheduled?: boolean | null
+          message_sent_at?: string | null
+          trigger_config?: Json | null
+          trigger_day?: number | null
+        }
+        Update: {
+          agent_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          message_scheduled?: boolean | null
+          message_sent_at?: string | null
+          trigger_config?: Json | null
+          trigger_day?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_campaign_events_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "product_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_campaign_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_conversations: {
         Row: {
           agent_id: string | null
@@ -270,6 +321,7 @@ export type Database = {
       agent_type_configs: {
         Row: {
           agent_type: string
+          campaign_config: Json | null
           conversion_template: string | null
           created_at: string | null
           first_message_template: string | null
@@ -290,6 +342,7 @@ export type Database = {
         }
         Insert: {
           agent_type: string
+          campaign_config?: Json | null
           conversion_template?: string | null
           created_at?: string | null
           first_message_template?: string | null
@@ -310,6 +363,7 @@ export type Database = {
         }
         Update: {
           agent_type?: string
+          campaign_config?: Json | null
           conversion_template?: string | null
           created_at?: string | null
           first_message_template?: string | null
@@ -1910,6 +1964,7 @@ export type Database = {
       scheduled_messages: {
         Row: {
           agent_id: string | null
+          campaign_day: number | null
           channel: string
           contact_id: string
           created_at: string | null
@@ -1923,10 +1978,12 @@ export type Database = {
           sent_at: string | null
           status: string
           subject: string | null
+          trigger_type: string | null
           updated_at: string | null
         }
         Insert: {
           agent_id?: string | null
+          campaign_day?: number | null
           channel: string
           contact_id: string
           created_at?: string | null
@@ -1940,10 +1997,12 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject?: string | null
+          trigger_type?: string | null
           updated_at?: string | null
         }
         Update: {
           agent_id?: string | null
+          campaign_day?: number | null
           channel?: string
           contact_id?: string
           created_at?: string | null
@@ -1957,6 +2016,7 @@ export type Database = {
           sent_at?: string | null
           status?: string
           subject?: string | null
+          trigger_type?: string | null
           updated_at?: string | null
         }
         Relationships: [

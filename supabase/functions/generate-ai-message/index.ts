@@ -333,6 +333,28 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
       agentConfig = configData;
     }
 
+    // Add campaign context if available
+    let campaignContext = '';
+    if (trigger_context?.campaign_day !== undefined) {
+      const { data: agentConfig } = await supabase
+        .from('agent_type_configs')
+        .select('campaign_config')
+        .eq('agent_type', agent.product_type)
+        .single();
+
+      const duration = agentConfig?.campaign_config?.duration_days || 90;
+      campaignContext = `
+
+CAMPAIGN CONTEXT:
+- Campaign Day: ${trigger_context.campaign_day} of ${duration}
+- Days Remaining: ${trigger_context.days_remaining || (duration - trigger_context.campaign_day)}
+- Trigger Type: ${trigger_context.trigger_source === 'scheduled_outreach' ? 'Scheduled Check-in' : 'Behavior-Based Milestone'}
+- Message Goal: ${trigger_context.goal || 'engage'}
+${trigger_context.milestone_event ? `- Milestone Event: ${trigger_context.milestone_event}` : ''}
+
+Tailor your message based on where they are in the campaign journey. Early days focus on engagement and education. Mid-campaign checks on progress. Late campaign introduces soft-sells and upsells.`;
+    }
+
     // Use custom system prompt if configured, otherwise use default
     const customSystemPrompt = agentConfig?.system_prompt;
     const configuredTone = agentConfig?.tone || 'professional';
@@ -341,6 +363,7 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
     const systemPrompt = customSystemPrompt || `You are ${agentName}, an elite product concierge agent for ${agent?.product_type || 'our product'}.
 
 Your role is to send personalized, conversational messages that feel like they're from a real person who knows the customer's journey, NOT marketing automation.
+${campaignContext}
 
 CUSTOMER PROFILE:
 - Name: ${contact?.full_name || 'Customer'}

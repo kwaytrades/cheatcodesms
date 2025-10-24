@@ -139,6 +139,157 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
   const now = new Date();
   const daysSinceAssigned = Math.floor((now.getTime() - new Date(agent.assigned_date).getTime()) / (1000 * 60 * 60 * 24));
 
+  // Load campaign config for this agent type
+  const { data: agentConfig } = await supabase
+    .from('agent_type_configs')
+    .select('campaign_config')
+    .eq('agent_type', agent.product_type)
+    .single();
+
+  if (!agentConfig?.campaign_config) {
+    console.log(`No campaign config found for ${agent.product_type}, using default triggers`);
+    return evaluateDefaultTriggers(agent, contact, convState, supabase, daysSinceAssigned, now);
+  }
+
+  const campaignConfig = agentConfig.campaign_config;
+  const campaignDay = daysSinceAssigned;
+
+  console.log(`Evaluating campaign triggers for ${agent.product_type} on day ${campaignDay}/${campaignConfig.duration_days}`);
+
+  // Check scheduled outreach for today
+  const scheduledForToday = campaignConfig.outreach_schedule.filter((s: any) => s.day === campaignDay);
+  
+  for (const scheduled of scheduledForToday) {
+    // Check if this event was already sent
+    const { data: existingEvent } = await supabase
+      .from('agent_campaign_events')
+      .select('*')
+      .eq('agent_id', agent.id)
+      .eq('trigger_day', campaignDay)
+      .eq('event_type', 'scheduled_outreach')
+      .eq('trigger_config->>type', scheduled.type)
+      .single();
+
+    if (!existingEvent) {
+      triggers.push({
+        type: scheduled.type,
+        message_type: scheduled.goal,
+        context: { 
+          campaign_day: campaignDay,
+          days_remaining: campaignConfig.duration_days - campaignDay,
+          goal: scheduled.goal,
+          trigger_source: 'scheduled_outreach'
+        },
+        channel: scheduled.channel || 'sms'
+      });
+
+      // Log the event
+      await supabase.from('agent_campaign_events').insert({
+        agent_id: agent.id,
+        contact_id: contact.id,
+        event_type: 'scheduled_outreach',
+        trigger_day: campaignDay,
+        trigger_config: scheduled,
+        message_scheduled: true
+      });
+    }
+  }
+
+  // Check milestone triggers
+  for (const milestone of campaignConfig.milestone_triggers || []) {
+    const milestoneTriggered = await checkMilestoneTrigger(milestone, agent, contact, convState, supabase);
+    
+    if (milestoneTriggered) {
+      // Check if this milestone was already triggered recently
+      const { data: recentMilestone } = await supabase
+        .from('agent_campaign_events')
+        .select('*')
+        .eq('agent_id', agent.id)
+        .eq('event_type', 'milestone_triggered')
+        .eq('trigger_config->>event', milestone.event)
+        .gte('created_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString())
+        .single();
+
+      if (!recentMilestone) {
+        triggers.push({
+          type: milestone.type,
+          message_type: milestone.goal,
+          context: {
+            campaign_day: campaignDay,
+            days_remaining: campaignConfig.duration_days - campaignDay,
+            goal: milestone.goal,
+            trigger_source: 'milestone',
+            milestone_event: milestone.event
+          },
+          channel: milestone.channel || 'sms'
+        });
+
+        // Log the milestone event
+        await supabase.from('agent_campaign_events').insert({
+          agent_id: agent.id,
+          contact_id: contact.id,
+          event_type: 'milestone_triggered',
+          trigger_day: campaignDay,
+          trigger_config: milestone,
+          message_scheduled: true
+        });
+      }
+    }
+  }
+
+  return triggers;
+}
+
+async function checkMilestoneTrigger(milestone: any, agent: any, contact: any, convState: any, supabase: any) {
+  const now = new Date();
+
+  switch (milestone.event) {
+    case 'lesson_completed':
+      const { count: lessonCount } = await supabase
+        .from('contact_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('contact_id', contact.id)
+        .eq('activity_type', 'lesson_completed');
+      return (lessonCount || 0) >= (milestone.threshold || 3);
+
+    case 'no_activity':
+      const daysSinceActivity = contact.last_engagement_date 
+        ? Math.floor((now.getTime() - new Date(contact.last_engagement_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 999;
+      return daysSinceActivity >= (milestone.days || 7);
+
+    case 'no_login':
+      const { data: recentLogins } = await supabase
+        .from('contact_activities')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .eq('activity_type', 'login')
+        .gte('created_at', new Date(now.getTime() - (milestone.days || 7) * 24 * 60 * 60 * 1000).toISOString());
+      return !recentLogins || recentLogins.length === 0;
+
+    case 'high_usage':
+      const { count: usageCount } = await supabase
+        .from('contact_activities')
+        .select('*', { count: 'exact', head: true })
+        .eq('contact_id', contact.id)
+        .eq('activity_type', 'login')
+        .gte('created_at', new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      return (usageCount || 0) >= (milestone.threshold || 5);
+
+    case 'no_engagement':
+      const daysSinceEngagement = convState?.last_engagement_at
+        ? Math.floor((now.getTime() - new Date(convState.last_engagement_at).getTime()) / (1000 * 60 * 60 * 24))
+        : 999;
+      return daysSinceEngagement >= (milestone.days || 5);
+
+    default:
+      return false;
+  }
+}
+
+async function evaluateDefaultTriggers(agent: any, contact: any, convState: any, supabase: any, daysSinceAssigned: number, now: Date) {
+  const triggers = [];
+
   // TRIGGER 1: No engagement for 7 days
   if (convState?.last_engagement_at) {
     const daysSinceEngagement = Math.floor((now.getTime() - new Date(convState.last_engagement_at).getTime()) / (1000 * 60 * 60 * 24));
