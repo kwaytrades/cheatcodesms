@@ -40,37 +40,27 @@ const ContactDetail = () => {
     // Get conversation ID first
     const setupRealtimeSubscription = async () => {
       const { data: conversationData } = await supabase
-        .from("agent_conversations")
+        .from("conversations")
         .select("id")
         .eq("contact_id", id)
-        .eq("agent_type", "customer_service")
         .maybeSingle();
 
       if (!conversationData) return;
 
       const channel = supabase
-        .channel(`agent-messages-${conversationData.id}`)
+        .channel(`messages-${conversationData.id}`)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'agent_messages',
+            table: 'messages',
             filter: `conversation_id=eq.${conversationData.id}`
           },
           (payload) => {
-            console.log('New agent message received:', payload);
+            console.log('New message received:', payload);
             const newMsg = payload.new as any;
-            // Convert agent_message to display format
-            const convertedMsg = {
-              id: newMsg.id,
-              body: newMsg.content,
-              sender: newMsg.role === 'user' ? 'customer' : 'ai',
-              direction: newMsg.role === 'user' ? 'inbound' : 'outbound',
-              created_at: newMsg.created_at,
-              status: 'delivered',
-            };
-            setMessages((prev) => [...prev, convertedMsg]);
+            setMessages((prev) => [...prev, newMsg]);
           }
         )
         .subscribe();
@@ -97,31 +87,22 @@ const ContactDetail = () => {
       if (contactError) throw contactError;
       setContact(contactData);
 
-      // Load conversation and messages from new agent tables
+      // Load conversation and messages from live SMS
       const { data: conversationData } = await supabase
-        .from("agent_conversations")
+        .from("conversations")
         .select("id")
         .eq("contact_id", contactId)
-        .eq("agent_type", "customer_service")
         .maybeSingle();
 
       let messagesData: any[] = [];
       if (conversationData) {
-        const { data: agentMessages } = await supabase
-          .from("agent_messages")
+        const { data: liveMessages } = await supabase
+          .from("messages")
           .select("*")
           .eq("conversation_id", conversationData.id)
           .order("created_at", { ascending: true });
         
-        // Convert agent_messages to display format
-        messagesData = (agentMessages || []).map((msg: any) => ({
-          id: msg.id,
-          body: msg.content,
-          sender: msg.role === 'user' ? 'customer' : 'ai',
-          direction: msg.role === 'user' ? 'inbound' : 'outbound',
-          created_at: msg.created_at,
-          status: 'delivered',
-        }));
+        messagesData = liveMessages || [];
         setMessages(messagesData);
       }
 
@@ -210,25 +191,22 @@ const ContactDetail = () => {
 
       if (chatError) throw chatError;
 
-      // Refresh messages from agent_conversations/agent_messages
-      if (response?.conversationId) {
-        const { data: agentMessages } = await supabase
-          .from("agent_messages")
+      // Refresh messages from live SMS conversation
+      const { data: conversationData } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("contact_id", id)
+        .maybeSingle();
+
+      if (conversationData) {
+        const { data: liveMessages } = await supabase
+          .from("messages")
           .select("*")
-          .eq("conversation_id", response.conversationId)
+          .eq("conversation_id", conversationData.id)
           .order("created_at", { ascending: true });
 
-        if (agentMessages) {
-          // Convert agent_messages to messages format for display
-          const convertedMessages = agentMessages.map((msg: any) => ({
-            id: msg.id,
-            body: msg.content,
-            sender: msg.role === 'user' ? 'customer' : 'ai',
-            direction: msg.role === 'user' ? 'inbound' : 'outbound',
-            created_at: msg.created_at,
-            status: 'delivered',
-          }));
-          setMessages(convertedMessages);
+        if (liveMessages) {
+          setMessages(liveMessages);
         }
       }
 
