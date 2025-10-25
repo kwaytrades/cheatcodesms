@@ -609,7 +609,7 @@ serve(async (req) => {
   }
 
   try {
-    const { conversationId, agentType = 'sales', messages = [], type, contactId, context } = await req.json();
+    const { conversationId, agentType = 'sales', messages = [], type, contactId, context, campaignContext } = await req.json();
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -677,12 +677,19 @@ serve(async (req) => {
     const knowledgeCategory = `agent_${dbAgentType}`;
     console.log(`Searching knowledge base for category: ${knowledgeCategory}`);
     
-    // Simple knowledge base search with standard match count
-    const matchCount = 3;
-    
+    // Build search query - campaign-aware if context provided
+    const searchQuery = campaignContext?.customInstructions 
+      ? `${campaignContext.customInstructions} ${campaignContext.messageGoal || ''} ${incomingMessage}`.substring(0, 200)
+      : incomingMessage;
+
+    // Use more KB results for campaigns (15 vs 3)
+    const matchCount = campaignContext ? 15 : 3;
+
+    console.log(`KB search - Query: "${searchQuery}", Category: ${knowledgeCategory}, Count: ${matchCount}`);
+
     const { data: knowledgeResults } = await supabase.functions.invoke('search-knowledge-base', {
       body: { 
-        query: incomingMessage, 
+        query: searchQuery, 
         category: knowledgeCategory,
         matchThreshold: 0.7, 
         matchCount 
@@ -692,9 +699,18 @@ serve(async (req) => {
     let knowledgeContext = '';
     
     if (knowledgeResults?.results?.length > 0) {
-      knowledgeContext = `\n\nRELEVANT KNOWLEDGE:\n${knowledgeResults.results.slice(0, 3).map((r: any) => 
+      const kbSummary = knowledgeResults.results.slice(0, matchCount).map((r: any) => 
         `- ${r.title}: ${r.content.slice(0, 300)}...`
-      ).join('\n')}`;
+      ).join('\n');
+      
+      knowledgeContext = `\n\nRELEVANT KNOWLEDGE BASE:\n${kbSummary}`;
+      
+      // Add specific instruction for campaigns to reference chapters
+      if (campaignContext) {
+        knowledgeContext += `\n\n⚠️ CRITICAL: Reference specific chapters/topics from above by name and number!`;
+        knowledgeContext += `\nExample: "Have you had a chance to review Chapter 2 on Exchange-Traded Notes?"`;
+        knowledgeContext += `\nNOT: "Have you reviewed the material?"`;
+      }
     }
 
     console.log(`Fetching custom config for agent type: ${dbAgentType}`);
@@ -714,10 +730,38 @@ serve(async (req) => {
     }
 
     // Use custom prompt if configured, otherwise use hardcoded defaults
-    const systemPrompt = agentConfig?.system_prompt || 
-                         (agentType === 'sales' ? SALES_AGENT_PROMPT : 
-                          agentType === 'cs' ? CS_AGENT_PROMPT : 
-                          TEXTBOOK_AGENT_PROMPT);
+    let systemPrompt = agentConfig?.system_prompt || 
+                       (agentType === 'sales' ? SALES_AGENT_PROMPT : 
+                        agentType === 'cs' ? CS_AGENT_PROMPT : 
+                        TEXTBOOK_AGENT_PROMPT);
+
+    // If campaign context provided, prepend it prominently ABOVE system prompt
+    if (campaignContext?.customInstructions) {
+      const campaignPrefix = `
+═══════════════════════════════════════════════════════
+⚠️ CAMPAIGN MESSAGE - Day ${campaignContext.campaignDay || 0} of ${campaignContext.totalDays || 90}
+STAGE: ${campaignContext.stage || 'active'}
+═══════════════════════════════════════════════════════
+
+YOUR PRIMARY MISSION FOR THIS MESSAGE:
+${campaignContext.customInstructions}
+
+Message Goal: ${campaignContext.messageGoal || 'Engage customer'}
+Message Type: ${campaignContext.messageType || 'check-in'}
+Channel: ${campaignContext.channel || 'sms'} ${campaignContext.channel === 'sms' ? '(max 320 chars)' : '(max 150 words)'}
+
+Customer Personality: ${campaignContext.personalityType || 'relationship_builder'}
+
+═══════════════════════════════════════════════════════
+
+BELOW IS YOUR CORE AGENT PERSONALITY - Use this for tone and style:
+`;
+      
+      systemPrompt = campaignPrefix + systemPrompt;
+      console.log(`✅ Campaign context added to prompt (Day ${campaignContext.campaignDay})`);
+    } else {
+      console.log('ℹ️ No campaign context - natural conversation mode');
+    }
 
     // Extract customer name from messages if not in profile
     let customerName = conversation.contacts?.full_name || 'Unknown';
@@ -781,6 +825,14 @@ CUSTOMER CONTEXT:
     ];
 
     console.log(`Using model: google/gemini-2.5-flash for ${agentType} agent`);
+
+    if (campaignContext) {
+      console.log(`📅 Campaign Mode Active:`);
+      console.log(`   - Day: ${campaignContext.campaignDay} of ${campaignContext.totalDays}`);
+      console.log(`   - Goal: ${campaignContext.messageGoal}`);
+      console.log(`   - Custom Instructions: ${campaignContext.customInstructions?.substring(0, 50)}...`);
+      console.log(`   - KB Results: ${knowledgeResults?.results?.length || 0}`);
+    }
     
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

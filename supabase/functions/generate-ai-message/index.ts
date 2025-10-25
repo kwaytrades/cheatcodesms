@@ -417,65 +417,28 @@ ADJUSTMENTS:
       }
     }
 
-    // Use custom system prompt if configured, otherwise use default
-    const customSystemPrompt = agentConfig?.system_prompt;
-    const configuredTone = agentConfig?.tone || 'professional';
-    
-    // Build AI prompt with custom instructions FIRST
-    const systemPrompt = customSystemPrompt || `You are ${agentName}, a ${agent?.product_type} expert.
+    // Build campaign context for ai-agent
+    const campaignContextPayload = {
+      customInstructions: customInstructions || `Send a ${message_type} message`,
+      messageGoal: messageGoal,
+      messageType: message_type,
+      channel: channel,
+      campaignDay: trigger_context.campaign_day || 0,
+      totalDays: 90, // Could be from campaign config
+      stage: trigger_context.stage || 'active',
+      personalityType: personalityType
+    };
 
-${campaignContext}
-
-═══════════════════════════════════════════════════════
-⚠️ YOUR PRIMARY MISSION FOR THIS MESSAGE:
-═══════════════════════════════════════════════════════
-${customInstructions || `Send a ${message_type} message with goal: ${messageGoal}`}
-═══════════════════════════════════════════════════════
-
-CUSTOMER QUICK FACTS:
-• Name: ${contact?.full_name || 'Customer'}
-• Personality: ${personalityType}
-• Goals: ${trigger_context.customer_goals || agent?.agent_context?.customer_goals || 'Not specified'}
-${purchases.length > 0 ? `• Recent Purchase: ${purchases[0].product_name || 'Product'} ($${purchases[0].price || 0})` : ''}
-
-${knowledgeContext ? `
-KNOWLEDGE BASE - Use this to be specific:
-${knowledgeContext}
-
-⚠️ CRITICAL: Reference actual chapter numbers, titles, and topics from above!
-Example: "Have you had a chance to review Chapter 2 on Exchange-Traded Notes?"
-NOT: "Have you reviewed the material?"
-` : ''}
-
-${conversationAwarenessPrompt}
-
-TONE for ${personalityType}: ${toneGuidelines.style}
-
-CONSTRAINTS:
-• ${channel === 'sms' ? 'SMS: 320 chars max, casual, no subject' : 'Email: 150 words max, needs subject line'}
-• Sign as ${agentName}
-• Sound human, NOT automated
-• Follow custom instructions above EXACTLY
-
-${recentMessages.length > 0 ? `
-RECENT CONVERSATION HISTORY:
-${recentMessages.reverse().slice(0, 5).map((m: any) => `${m.sender}: ${m.body}`).join('\n')}
-` : ''}
-
-Return ONLY JSON:
-{
-  "subject": ${channel === 'email' ? '"Email subject here"' : 'null'},
-  "message": "Your message here",
-  "reasoning": "Why this works for this customer"
-}`;
-
-    console.log('=== PROMPT DEBUG ===');
-    console.log('Custom Instructions:', customInstructions || 'NONE');
+    console.log('═══════════════════════════════════════════════');
+    console.log('CAMPAIGN MESSAGE REQUEST');
+    console.log('═══════════════════════════════════════════════');
+    console.log('Agent Type:', agent?.product_type);
+    console.log('Campaign Day:', campaignContextPayload.campaignDay);
     console.log('Message Goal:', messageGoal);
-    console.log('KB Results:', knowledgeContext ? 'YES' : 'NO');
-    console.log('Agent Config Loaded:', agentConfig ? 'YES' : 'NO');
-    console.log('System Prompt Length:', systemPrompt.length);
-    console.log('==================');
+    console.log('Custom Instructions:', customInstructions?.substring(0, 80) || 'NONE');
+    console.log('Channel:', channel);
+    console.log('Personality:', personalityType);
+    console.log('═══════════════════════════════════════════════');
 
     // Format conversation history for ai-agent
     const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({
@@ -485,16 +448,14 @@ Return ONLY JSON:
       created_at: msg.created_at
     }));
 
-    console.log(`Calling ai-agent with ${formattedMessages.length} messages in history`);
+    console.log(`Calling ai-agent with ${formattedMessages.length} messages and campaign context`);
 
     // Normalize agent type to match ai-agent expectations
     const normalizedAgentType = agent.product_type === 'sales_agent' ? 'sales' : 
                                 agent.product_type === 'customer_service' ? 'cs' : 
                                 agent.product_type;
-    
-    console.log(`Normalized agent type: ${agent.product_type} -> ${normalizedAgentType}`);
 
-    // Call ai-agent which has proper conversation memory logic
+    // Call ai-agent with campaign context
     const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
       body: {
         ...(isTestMode ? {} : { conversationId: conversation_id }),
@@ -509,20 +470,24 @@ Return ONLY JSON:
           purchases,
           messageType: message_type,
           channel
-        }
+        },
+        // ✅ NEW: Pass campaign context to ai-agent
+        campaignContext: campaignContextPayload
       }
     });
 
     if (aiAgentError) {
       console.error('ai-agent error:', aiAgentError);
-      throw new Error(`ai-agent error: ${aiAgentError.message}`);
+      throw new Error(`ai-agent failed: ${aiAgentError.message || 'Unknown error'}`);
     }
 
-    // Extract message from ai-agent response
+    console.log('✅ ai-agent response received');
+
+    // Extract message from response
     const messageContent = {
       subject: null,
       message: aiAgentData.response || aiAgentData.message,
-      reasoning: `Generated via ai-agent with ${formattedMessages.length} messages of context`
+      reasoning: `Campaign Day ${campaignContextPayload.campaignDay} - ${messageGoal}`
     };
     
     console.log('AI generated message:', messageContent);
