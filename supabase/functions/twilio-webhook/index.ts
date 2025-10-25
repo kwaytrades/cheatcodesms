@@ -468,15 +468,63 @@ HELP - This message`;
     console.log(`Fetched ${recentMessages?.length || 0} messages for conversation history`);
 
     // ============================================
-    // INTELLIGENT MESSAGE ROUTING LOGIC
+    // HELP COMMAND OVERRIDE - Always route to customer service
     // ============================================
+    const isHelpCommand = body.trim().toUpperCase() === 'HELP' || 
+                          body.trim().toUpperCase() === '/HELP' ||
+                          body.trim().toLowerCase().startsWith('help ');
 
-    // Check if contact has an active product agent
     let routeToAgent = 'customer_service'; // Default to Casey
     let activeProductAgent = null;
     let agentContext = null;
 
-    if (existingContact) {
+    if (isHelpCommand && existingContact) {
+      console.log('📞 HELP command detected - forcing customer service routing');
+      
+      // Find or create customer service agent
+      let { data: csAgent } = await supabase
+        .from('product_agents')
+        .select('*')
+        .eq('contact_id', existingContact.id)
+        .eq('product_type', 'customer_service')
+        .eq('status', 'active')
+        .maybeSingle();
+      
+      if (!csAgent) {
+        // Create customer service agent if doesn't exist
+        const { data: newCSAgent } = await supabase
+          .from('product_agents')
+          .insert({
+            contact_id: existingContact.id,
+            product_type: 'customer_service',
+            status: 'active',
+            direction: 'inbound',
+            expiration_date: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 100 years
+            agent_context: { help_requested: true }
+          })
+          .select()
+          .single();
+        
+        csAgent = newCSAgent;
+      }
+      
+      // Temporarily override routing to customer service (don't change active_agent_id)
+      routeToAgent = 'customer_service';
+      agentContext = {
+        agent_id: csAgent?.id,
+        product_type: 'customer_service',
+        context: { help_requested: true, temporary_override: true }
+      };
+      
+      console.log('✅ Routing to customer service (temporary override for HELP)');
+    }
+
+    // ============================================
+    // INTELLIGENT MESSAGE ROUTING LOGIC
+    // ============================================
+    
+    // Only proceed with normal routing if NOT a help command override
+    if (!isHelpCommand && existingContact) {
       // Look up conversation state to find active agent
       const { data: convState } = await supabase
         .from('conversation_state')
@@ -533,9 +581,23 @@ HELP - This message`;
       } else {
         console.log('No active product agent found, routing to customer service');
       }
-    } else {
+    } else if (!isHelpCommand) {
       console.log('No existing contact found, routing to customer service');
     }
+
+    // ============================================
+    // ROUTING DECISION LOGGING
+    // ============================================
+    console.log('═══════════════════════════════════════════════');
+    console.log('ROUTING DECISION');
+    console.log('═══════════════════════════════════════════════');
+    console.log('Contact ID:', existingContact?.id);
+    console.log('Incoming Message:', body.substring(0, 50));
+    console.log('Route To Agent:', routeToAgent);
+    console.log('Is Help Override:', isHelpCommand || false);
+    console.log('Active Product Agent:', activeProductAgent?.product_type || 'None');
+    console.log('Agent Context:', agentContext);
+    console.log('═══════════════════════════════════════════════');
 
     // Store the routing decision in conversation
     await supabase

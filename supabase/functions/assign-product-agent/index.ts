@@ -58,19 +58,37 @@ Deno.serve(async (req) => {
 
     console.log(`Agent assigned: ${agent.id}`);
 
-    // Initialize conversation state if it doesn't exist
+    // Define agent priorities
+    const AGENT_PRIORITIES = {
+      textbook: 5,
+      webinar: 4,
+      flashcards: 3,
+      algo_monthly: 3,
+      ccta: 3,
+      lead_nurture: 2,
+      trade_analysis: 2,
+      customer_service: 1
+    };
+
+    const agentPriority = AGENT_PRIORITIES[product_type as keyof typeof AGENT_PRIORITIES] || 1;
+
+    console.log(`Setting active agent with priority ${agentPriority}`);
+
+    // Initialize conversation state and set active agent
     const { error: stateError } = await supabase
       .from('conversation_state')
       .upsert({
         contact_id,
+        active_agent_id: agent.id,  // ✅ Set the active agent
+        agent_priority: agentPriority,  // ✅ Set priority
         last_message_sent_at: null,
         messages_sent_today: 0,
         messages_sent_this_week: 0,
         current_conversation_phase: 'onboarding',
-        waiting_for_reply: false
+        waiting_for_reply: false,
+        last_engagement_at: new Date().toISOString()
       }, { 
-        onConflict: 'contact_id',
-        ignoreDuplicates: true 
+        onConflict: 'contact_id'  // Always update if exists
       });
 
     if (stateError && stateError.code !== '23505') { // Ignore duplicate key errors
