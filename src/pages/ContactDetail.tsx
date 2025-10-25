@@ -87,24 +87,40 @@ const ContactDetail = () => {
       if (contactError) throw contactError;
       setContact(contactData);
 
-      // Load conversation and messages from live SMS
-      const { data: conversationData } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("contact_id", contactId)
-        .maybeSingle();
-
+      // Load conversation and messages from live SMS - query by phone number to get ALL conversations
+      const contactPhone = contactData.phone_number;
       let messagesData: any[] = [];
-      if (conversationData) {
-        const { data: liveMessages } = await supabase
-          .from("messages")
-          .select("*")
-          .eq("conversation_id", conversationData.id)
-          .order("created_at", { ascending: true });
-        
-        messagesData = liveMessages || [];
-        setMessages(messagesData);
+      
+      if (contactPhone) {
+        // Handle phone number format variations (+17038630655, 7038630655, etc.)
+        const phoneVariations = [
+          contactPhone,
+          contactPhone.startsWith('+1') ? contactPhone.slice(2) : `+1${contactPhone}`,
+          contactPhone.replace(/^\+1/, '')
+        ];
+
+        const { data: conversationsData } = await supabase
+          .from("conversations")
+          .select("id")
+          .in("phone_number", phoneVariations)
+          .order("created_at", { ascending: false });
+
+        // Get ALL conversation IDs for this phone number
+        const conversationIds = conversationsData?.map(c => c.id) || [];
+
+        // Fetch messages from ALL conversations
+        if (conversationIds.length > 0) {
+          const { data: liveMessages } = await supabase
+            .from("messages")
+            .select("*")
+            .in("conversation_id", conversationIds)
+            .order("created_at", { ascending: true });
+          
+          messagesData = liveMessages || [];
+        }
       }
+      
+      setMessages(messagesData);
 
       // Load AI messages (emails)
       const { data: aiMessagesData } = await supabase
