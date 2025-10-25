@@ -77,6 +77,33 @@ Deno.serve(async (req) => {
       if (emailError) throw emailError;
     }
 
+    // Save message to messages table for conversation tracking
+    if (message.channel === 'sms') {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('contact_id', message.contact_id)
+        .maybeSingle();
+
+      if (conv) {
+        const { error: msgError } = await supabase
+          .from('messages')
+          .insert({
+            conversation_id: conv.id,
+            sender: 'ai',
+            direction: 'outbound',
+            body: message.message_body,
+            status: 'sent'
+          });
+
+        if (msgError) {
+          console.error('Error saving message to messages table:', msgError);
+        } else {
+          console.log('✅ Message saved to messages table');
+        }
+      }
+    }
+
     // Update message status to sent
     const { error: updateError } = await supabase
       .from('scheduled_messages')

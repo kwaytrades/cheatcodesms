@@ -1234,6 +1234,7 @@ export type Database = {
           contact_id: string
           created_at: string | null
           current_conversation_phase: string | null
+          help_mode_until: string | null
           id: string
           last_engagement_at: string | null
           last_message_sent_at: string | null
@@ -1251,6 +1252,7 @@ export type Database = {
           contact_id: string
           created_at?: string | null
           current_conversation_phase?: string | null
+          help_mode_until?: string | null
           id?: string
           last_engagement_at?: string | null
           last_message_sent_at?: string | null
@@ -1268,6 +1270,7 @@ export type Database = {
           contact_id?: string
           created_at?: string | null
           current_conversation_phase?: string | null
+          help_mode_until?: string | null
           id?: string
           last_engagement_at?: string | null
           last_message_sent_at?: string | null

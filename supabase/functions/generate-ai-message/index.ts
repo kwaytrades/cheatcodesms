@@ -26,14 +26,14 @@ const AGENT_NAMES = {
 };
 
 const AGENT_PRIORITIES = {
-  customer_service: 10,
-  sales_agent: 5,
-  webinar: 3,
-  textbook: 3,
+  sales_agent: 10,      // Highest priority
+  textbook: 5,
+  webinar: 4,
   flashcards: 3,
   algo_monthly: 3,
   ccta: 3,
-  lead_nurture: 1,
+  lead_nurture: 2,
+  customer_service: 1   // Lowest priority (fallback)
 };
 
 const PERSONALITY_TONES = {
@@ -83,7 +83,16 @@ Deno.serve(async (req) => {
       channel = 'sms'
     }: GenerateMessageRequest = await req.json();
 
-    console.log(`Generating ${message_type} message for contact ${contact_id}`);
+    console.log('═══════════════════════════════════════════════');
+    console.log('GENERATE-AI-MESSAGE INVOKED');
+    console.log('═══════════════════════════════════════════════');
+    console.log('Contact ID:', contact_id);
+    console.log('Agent ID:', agent_id);
+    console.log('Conversation ID:', conversation_id);
+    console.log('Message Type:', message_type);
+    console.log('Channel:', channel);
+    console.log('Trigger Context:', JSON.stringify(trigger_context));
+    console.log('═══════════════════════════════════════════════');
 
     // If no agent_id provided but contact_id is, check for active product agent
     if (!agent_id && contact_id) {

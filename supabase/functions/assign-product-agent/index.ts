@@ -60,13 +60,13 @@ Deno.serve(async (req) => {
 
     // Define agent priorities
     const AGENT_PRIORITIES = {
+      sales_agent: 10,
       textbook: 5,
       webinar: 4,
       flashcards: 3,
       algo_monthly: 3,
       ccta: 3,
       lead_nurture: 2,
-      trade_analysis: 2,
       customer_service: 1
     };
 
@@ -74,25 +74,56 @@ Deno.serve(async (req) => {
 
     console.log(`Setting active agent with priority ${agentPriority}`);
 
-    // Initialize conversation state and set active agent
-    const { error: stateError } = await supabase
+    // Check if conversation state exists
+    const { data: existingState } = await supabase
       .from('conversation_state')
-      .upsert({
-        contact_id,
-        active_agent_id: agent.id,  // ✅ Set the active agent
-        agent_priority: agentPriority,  // ✅ Set priority
-        last_message_sent_at: null,
-        messages_sent_today: 0,
-        messages_sent_this_week: 0,
-        current_conversation_phase: 'onboarding',
-        waiting_for_reply: false,
-        last_engagement_at: new Date().toISOString()
-      }, { 
-        onConflict: 'contact_id'  // Always update if exists
-      });
+      .select('id')
+      .eq('contact_id', contact_id)
+      .maybeSingle();
 
-    if (stateError && stateError.code !== '23505') { // Ignore duplicate key errors
-      console.error('Error initializing conversation state:', stateError);
+    if (existingState) {
+      // UPDATE existing record (force override)
+      const { error: stateError } = await supabase
+        .from('conversation_state')
+        .update({
+          active_agent_id: agent.id,
+          agent_priority: agentPriority,
+          last_message_sent_at: null,
+          messages_sent_today: 0,
+          messages_sent_this_week: 0,
+          current_conversation_phase: 'onboarding',
+          waiting_for_reply: false,
+          last_engagement_at: new Date().toISOString(),
+          help_mode_until: null  // Clear any help mode override
+        })
+        .eq('contact_id', contact_id);
+
+      if (stateError) {
+        console.error('Error updating conversation state:', stateError);
+      } else {
+        console.log('✅ Conversation state UPDATED with new active agent');
+      }
+    } else {
+      // INSERT new record
+      const { error: stateError } = await supabase
+        .from('conversation_state')
+        .insert({
+          contact_id,
+          active_agent_id: agent.id,
+          agent_priority: agentPriority,
+          last_message_sent_at: null,
+          messages_sent_today: 0,
+          messages_sent_this_week: 0,
+          current_conversation_phase: 'onboarding',
+          waiting_for_reply: false,
+          last_engagement_at: new Date().toISOString()
+        });
+
+      if (stateError) {
+        console.error('Error creating conversation state:', stateError);
+      } else {
+        console.log('✅ Conversation state CREATED with new active agent');
+      }
     }
 
     // Load contact data for first message
@@ -104,6 +135,39 @@ Deno.serve(async (req) => {
 
     if (contactError) throw contactError;
 
+    // Create or get conversation for message tracking
+    let conversation_id = null;
+
+    const { data: existingConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contact_id)
+      .maybeSingle();
+
+    if (existingConv) {
+      conversation_id = existingConv.id;
+      console.log(`Using existing conversation: ${conversation_id}`);
+    } else {
+      const { data: newConv, error: convError } = await supabase
+        .from('conversations')
+        .insert({
+          contact_id,
+          phone_number: contact.phone_number,
+          contact_name: contact.full_name,
+          assigned_agent: 'sales_ai',
+          status: 'active'
+        })
+        .select('id')
+        .single();
+
+      if (convError) {
+        console.error('Error creating conversation:', convError);
+      } else {
+        conversation_id = newConv.id;
+        console.log(`Created new conversation: ${conversation_id}`);
+      }
+    }
+
     // Generate first message immediately
     console.log('Generating first message...');
     const { data: messageData, error: messageError } = await supabase.functions.invoke(
@@ -112,6 +176,7 @@ Deno.serve(async (req) => {
         body: {
           contact_id,
           agent_id: agent.id,
+          conversation_id,  // ✅ Pass conversation_id for message tracking
           message_type: 'introduction',
           trigger_context: {
             event: 'agent_assigned',
@@ -124,8 +189,10 @@ Deno.serve(async (req) => {
 
     if (messageError) {
       console.error('Error generating message:', messageError);
+      console.error('Message error details:', JSON.stringify(messageError));
     } else {
-      console.log('First message generated and scheduled');
+      console.log('✅ First message generated and scheduled');
+      console.log('Message data:', JSON.stringify(messageData));
     }
 
     return new Response(

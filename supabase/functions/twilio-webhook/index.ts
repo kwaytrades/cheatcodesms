@@ -6,6 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const AGENT_PRIORITIES = {
+  sales_agent: 10,
+  textbook: 5,
+  webinar: 4,
+  flashcards: 3,
+  algo_monthly: 3,
+  ccta: 3,
+  lead_nurture: 2,
+  customer_service: 1
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -468,63 +479,106 @@ HELP - This message`;
     console.log(`Fetched ${recentMessages?.length || 0} messages for conversation history`);
 
     // ============================================
-    // HELP COMMAND OVERRIDE - Always route to customer service
+    // HELP COMMAND OVERRIDE - 24 Hour Temporary Priority Boost
     // ============================================
     const isHelpCommand = body.trim().toUpperCase() === 'HELP' || 
                           body.trim().toUpperCase() === '/HELP' ||
                           body.trim().toLowerCase().startsWith('help ');
 
-    let routeToAgent = 'customer_service'; // Default to Casey
+    let routeToAgent = 'customer_service'; // Default
     let activeProductAgent = null;
     let agentContext = null;
+    let isInHelpMode = false;
 
-    if (isHelpCommand && existingContact) {
-      console.log('📞 HELP command detected - forcing customer service routing');
-      
-      // Find or create customer service agent
-      let { data: csAgent } = await supabase
-        .from('product_agents')
-        .select('*')
+    if (existingContact) {
+      // Check if currently in HELP mode (24hr window)
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('help_mode_until, active_agent_id, product_agents!conversation_state_active_agent_id_fkey(*)')
         .eq('contact_id', existingContact.id)
-        .eq('product_type', 'customer_service')
-        .eq('status', 'active')
         .maybeSingle();
+
+      const now = new Date();
       
-      if (!csAgent) {
-        // Create customer service agent if doesn't exist
-        const { data: newCSAgent } = await supabase
-          .from('product_agents')
-          .insert({
-            contact_id: existingContact.id,
-            product_type: 'customer_service',
-            status: 'active',
-            direction: 'inbound',
-            expiration_date: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), // 100 years
-            agent_context: { help_requested: true }
-          })
-          .select()
-          .single();
+      // Check if help mode is still active
+      if (convState?.help_mode_until) {
+        const helpModeExpiry = new Date(convState.help_mode_until);
+        isInHelpMode = now < helpModeExpiry;
         
-        csAgent = newCSAgent;
+        if (isInHelpMode) {
+          console.log(`📞 HELP MODE ACTIVE (expires: ${helpModeExpiry.toISOString()})`);
+        } else {
+          console.log('⏰ HELP MODE EXPIRED - Clearing help_mode_until');
+          // Clear expired help mode
+          await supabase
+            .from('conversation_state')
+            .update({ help_mode_until: null })
+            .eq('contact_id', existingContact.id);
+        }
       }
-      
-      // Temporarily override routing to customer service (don't change active_agent_id)
-      routeToAgent = 'customer_service';
-      agentContext = {
-        agent_id: csAgent?.id,
-        product_type: 'customer_service',
-        context: { help_requested: true, temporary_override: true }
-      };
-      
-      console.log('✅ Routing to customer service (temporary override for HELP)');
+
+      // If user types /HELP, activate help mode for 24 hours
+      if (isHelpCommand) {
+        const helpModeExpiry = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+        
+        console.log(`📞 /HELP COMMAND DETECTED - Activating help mode until ${helpModeExpiry.toISOString()}`);
+        
+        await supabase
+          .from('conversation_state')
+          .update({ help_mode_until: helpModeExpiry.toISOString() })
+          .eq('contact_id', existingContact.id);
+        
+        isInHelpMode = true;
+      }
+
+      // Route based on help mode status
+      if (isInHelpMode) {
+        // HELP MODE PRIORITIES: CS (10) > Sales (7) > Product (1)
+        console.log('🔀 Using HELP MODE priorities');
+        
+        // Find or create customer service agent
+        let { data: csAgent } = await supabase
+          .from('product_agents')
+          .select('*')
+          .eq('contact_id', existingContact.id)
+          .eq('product_type', 'customer_service')
+          .eq('status', 'active')
+          .maybeSingle();
+        
+        if (!csAgent) {
+          const { data: newCSAgent } = await supabase
+            .from('product_agents')
+            .insert({
+              contact_id: existingContact.id,
+              product_type: 'customer_service',
+              status: 'active',
+              direction: 'inbound',
+              expiration_date: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+              agent_context: { help_mode: true }
+            })
+            .select()
+            .single();
+          
+          csAgent = newCSAgent;
+        }
+        
+        routeToAgent = 'customer_service';
+        agentContext = {
+          agent_id: csAgent?.id,
+          product_type: 'customer_service',
+          context: { help_mode: true, help_mode_active: true }
+        };
+      }
     }
 
     // ============================================
     // INTELLIGENT MESSAGE ROUTING LOGIC
     // ============================================
     
-    // Only proceed with normal routing if NOT a help command override
-    if (!isHelpCommand && existingContact) {
+    // Only proceed with normal routing if NOT in help mode
+    if (!isInHelpMode && existingContact) {
+      console.log('🔀 Using NORMAL MODE priorities');
+      
       // Look up conversation state to find active agent
       const { data: convState } = await supabase
         .from('conversation_state')
@@ -532,17 +586,56 @@ HELP - This message`;
         .eq('contact_id', existingContact.id)
         .maybeSingle();
 
-      if (convState?.active_agent_id && convState.product_agents) {
+      // PRIORITY LOGIC: Sales (10) > Product (5-7) > CS (1)
+      
+      // Step 1: Check for active Sales Agent (priority 10)
+      const { data: salesAgent } = await supabase
+        .from('product_agents')
+        .select('*')
+        .eq('contact_id', existingContact.id)
+        .eq('product_type', 'sales_agent')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (salesAgent) {
+        const now = new Date();
+        const expirationDate = new Date(salesAgent.expiration_date);
+        const isExpired = now > expirationDate;
+
+        if (!isExpired) {
+          console.log('✅ Routing to SALES AGENT (priority 10)');
+          routeToAgent = 'sales_agent';
+          agentContext = {
+            agent_id: salesAgent.id,
+            product_type: 'sales_agent',
+            assigned_date: salesAgent.assigned_date,
+            context: salesAgent.agent_context
+          };
+          
+          await supabase
+            .from('product_agents')
+            .update({ 
+              last_engagement_at: now.toISOString(),
+              replies_received: (salesAgent.replies_received || 0) + 1
+            })
+            .eq('id', salesAgent.id);
+        }
+      }
+
+      // Step 2: If no sales agent, check for active Product Agent (priority 5-7)
+      if (routeToAgent === 'customer_service' && convState?.active_agent_id && convState.product_agents) {
         activeProductAgent = convState.product_agents;
         
-        // Check if agent is still active and not expired
         const now = new Date();
         const expirationDate = new Date(activeProductAgent.expiration_date);
         const isExpired = now > expirationDate;
         const isActive = activeProductAgent.status === 'active';
+        const isNotCS = activeProductAgent.product_type !== 'customer_service';
 
-        if (isActive && !isExpired) {
-          // Route to active product agent
+        if (isActive && !isExpired && isNotCS) {
+          const priority = AGENT_PRIORITIES[activeProductAgent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
+          console.log(`✅ Routing to PRODUCT AGENT: ${activeProductAgent.product_type} (priority ${priority})`);
+          
           routeToAgent = activeProductAgent.product_type;
           agentContext = {
             agent_id: activeProductAgent.id,
@@ -551,9 +644,6 @@ HELP - This message`;
             context: activeProductAgent.agent_context
           };
           
-          console.log(`Routing to active product agent: ${routeToAgent}`);
-          
-          // Update last_engagement_at for both agent and conversation state
           await supabase
             .from('product_agents')
             .update({ 
@@ -566,22 +656,20 @@ HELP - This message`;
             .from('conversation_state')
             .update({ last_engagement_at: now.toISOString() })
             .eq('id', convState.id);
-        } else {
-          console.log(`Agent ${activeProductAgent.product_type} is expired/inactive, routing to customer service`);
-          routeToAgent = 'customer_service';
-          
-          // Clear active agent if expired
-          if (isExpired) {
-            await supabase
-              .from('conversation_state')
-              .update({ active_agent_id: null })
-              .eq('id', convState.id);
-          }
+        } else if (isExpired) {
+          console.log(`Agent ${activeProductAgent.product_type} is expired, routing to customer service`);
+          await supabase
+            .from('conversation_state')
+            .update({ active_agent_id: null })
+            .eq('id', convState.id);
         }
-      } else {
-        console.log('No active product agent found, routing to customer service');
       }
-    } else if (!isHelpCommand) {
+
+      // Step 3: Fallback to Customer Service (priority 1)
+      if (routeToAgent === 'customer_service') {
+        console.log('ℹ️ No sales/product agent found, routing to CUSTOMER SERVICE (priority 1)');
+      }
+    } else if (!isInHelpMode && !existingContact) {
       console.log('No existing contact found, routing to customer service');
     }
 
@@ -594,7 +682,7 @@ HELP - This message`;
     console.log('Contact ID:', existingContact?.id);
     console.log('Incoming Message:', body.substring(0, 50));
     console.log('Route To Agent:', routeToAgent);
-    console.log('Is Help Override:', isHelpCommand || false);
+    console.log('Is In Help Mode:', isInHelpMode);
     console.log('Active Product Agent:', activeProductAgent?.product_type || 'None');
     console.log('Agent Context:', agentContext);
     console.log('═══════════════════════════════════════════════');
