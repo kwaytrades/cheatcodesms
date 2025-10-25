@@ -43,8 +43,19 @@ serve(async (req) => {
     const body = formData.get('Body')?.toString() || '';
     const messageSid = formData.get('MessageSid')?.toString() || '';
     
-    // Normalize phone number for matching (remove spaces and special chars except +)
-    const normalizePhone = (phone: string) => phone.replace(/[\s\-\(\)]/g, '');
+    // Normalize phone number for matching (strip +1 prefix and all formatting)
+    const normalizePhone = (phone: string) => {
+      // Remove all spaces, dashes, parentheses, and dots
+      let cleaned = phone.replace(/[\s\-\(\)\.]/g, '');
+      // Strip +1 prefix if present (US country code)
+      if (cleaned.startsWith('+1')) {
+        cleaned = cleaned.substring(2);
+      } else if (cleaned.startsWith('1') && cleaned.length === 11) {
+        // Handle case where it's just '1' prefix without '+'
+        cleaned = cleaned.substring(1);
+      }
+      return cleaned;
+    };
 
     console.log('Incoming SMS:', { from, body, messageSid });
 
@@ -54,7 +65,11 @@ serve(async (req) => {
       body.toUpperCase().includes(keyword)
     );
 
-    // Find existing contact by phone number (try both normalized and original)
+    // Find existing contact by phone number with universal normalization
+    const normalizedFrom = normalizePhone(from);
+    console.log(`📞 Looking up contact: ${from} → normalized: ${normalizedFrom}`);
+    
+    // Try exact match first
     let { data: existingContact } = await supabase
       .from('contacts')
       .select('*')
@@ -68,8 +83,16 @@ serve(async (req) => {
         .select('*');
       
       existingContact = allContacts?.find(c => 
-        c.phone_number && normalizePhone(c.phone_number) === normalizePhone(from)
+        c.phone_number && normalizePhone(c.phone_number) === normalizedFrom
       ) || null;
+      
+      if (existingContact) {
+        console.log(`✅ Found contact by normalized phone: ${existingContact.id} (${existingContact.full_name})`);
+      } else {
+        console.log(`❌ No contact found for ${normalizedFrom}`);
+      }
+    } else {
+      console.log(`✅ Found contact by exact match: ${existingContact.id} (${existingContact.full_name})`);
     }
 
     // Find or create conversation
