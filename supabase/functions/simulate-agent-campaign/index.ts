@@ -31,7 +31,7 @@ serve(async (req) => {
     }
 
     const campaignConfig = agentConfig.campaign_config as any;
-    const scheduledOutreach = campaignConfig.scheduled_outreach || [];
+    const scheduledOutreach = campaignConfig.outreach_schedule || [];
 
     // Create temporary test context
     const testContactId = `test_${Date.now()}`;
