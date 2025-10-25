@@ -100,9 +100,11 @@ serve(async (req) => {
         last_message_at: new Date().toISOString()
       };
       
-      if (existingContact && !conversation.contact_id) {
+      // ALWAYS sync contact_id if we found a contact (fixes product visibility issue)
+      if (existingContact) {
         updates.contact_id = existingContact.id;
         updates.contact_name = existingContact.full_name;
+        console.log(`🔗 Linking conversation ${conversation.id} to contact ${existingContact.id}`);
       }
       
       if (isOptOut) {
@@ -113,6 +115,11 @@ serve(async (req) => {
         .from('conversations')
         .update(updates)
         .eq('id', conversation.id);
+      
+      // Update local conversation object with the new contact_id
+      if (existingContact) {
+        conversation.contact_id = existingContact.id;
+      }
     }
 
     // Store incoming message
