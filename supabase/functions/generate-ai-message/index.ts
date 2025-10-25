@@ -254,12 +254,23 @@ Deno.serve(async (req) => {
 
     // Search knowledge base for relevant context with enhanced metadata
     let knowledgeContext = '';
+    const customInstructions = trigger_context?.custom_instructions || '';
+    const messageGoal = trigger_context?.message_goal || '';
+    
     try {
+      // Build smarter search query from context
+      const kbSearchQuery = [
+        agent?.product_type,
+        customInstructions || message_type,
+        messageGoal,
+        trigger_context.message_type
+      ].filter(Boolean).join(' ').substring(0, 200);
+      
       const { data: kbData } = await supabase.functions.invoke('search-knowledge-base', {
         body: {
-          query: `${agent?.product_type} product information customer support`,
+          query: kbSearchQuery,
           category: `agent_${agent.product_type}`,
-          match_count: 5
+          match_count: 15
         }
       });
       if (kbData?.results && kbData.results.length > 0) {
@@ -329,19 +340,18 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
     // Get agent name
     const agentName = AGENT_NAMES[agent.product_type as keyof typeof AGENT_NAMES] || 'Your Agent';
 
-    // Fetch agent type config for custom system prompt and tone
+    // Fetch agent type config for custom system prompt and tone (always load, even in test mode)
     let agentConfig: any = null;
-    if (!isTestMode) {
-      const { data: configData } = await supabase
-        .from('agent_type_configs')
-        .select('system_prompt, tone')
-        .eq('agent_type', agent.product_type)
-        .maybeSingle();
-      agentConfig = configData;
-    }
+    const { data: configData } = await supabase
+      .from('agent_type_configs')
+      .select('system_prompt, tone')
+      .eq('agent_type', agent.product_type)
+      .maybeSingle();
+    agentConfig = configData;
 
     // Add campaign context if available
     let campaignContext = '';
+    
     if (trigger_context?.campaign_day !== undefined) {
       const { data: agentConfig } = await supabase
         .from('agent_type_configs')
@@ -350,36 +360,18 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
         .single();
 
       const duration = agentConfig?.campaign_config?.duration_days || 90;
-      const messageGoal = trigger_context.message_goal || 'engage';
-      const customInstructions = trigger_context.custom_instructions || '';
       const campaignStage = getCampaignStage(trigger_context.campaign_day, duration);
       
       campaignContext = `
 
 ═══════════════════════════════════════════════════════
-CAMPAIGN CONTEXT - READ CAREFULLY
+CAMPAIGN CONTEXT - Day ${trigger_context.campaign_day} of ${duration}
 ═══════════════════════════════════════════════════════
 
-📅 Timeline Position:
-   • Day ${trigger_context.campaign_day} of ${duration} (${Math.round((trigger_context.campaign_day / duration) * 100)}% through campaign)
-   • Campaign stage: ${campaignStage}
-
-🎯 Message Goal: "${messageGoal}"
-   Message Type: "${trigger_context.message_type}"
-
+📅 Timeline: ${Math.round((trigger_context.campaign_day / duration) * 100)}% through campaign (${campaignStage})
+🎯 Goal: "${messageGoal}" | Type: "${trigger_context.message_type}"
 📝 Channel: ${trigger_context.message_channel || 'sms'}
-   ${trigger_context.message_channel === 'sms' ? '→ Keep it concise (max 320 chars), friendly, conversational' : '→ Can be more detailed, include subject line'}
-
-📋 CUSTOM INSTRUCTIONS FOR THIS MESSAGE:
-${customInstructions || 'Use general best practices for ' + messageGoal + ' messages.'}
-
-${trigger_context.customer_goals ? `
-👤 Customer Context:
-   • Goals: ${trigger_context.customer_goals}
-   • Personality Type: ${trigger_context.personality_type || 'Unknown'}
-` : ''}
-
-⚠️ CRITICAL: Follow the custom instructions above precisely. Reference specific content from the knowledge base when relevant.`;
+${trigger_context.customer_goals ? `👤 Goals: ${trigger_context.customer_goals} | Personality: ${trigger_context.personality_type || 'Unknown'}` : ''}`;
     }
 
     function getCampaignStage(day: number, duration: number): string {
@@ -429,82 +421,61 @@ ADJUSTMENTS:
     const customSystemPrompt = agentConfig?.system_prompt;
     const configuredTone = agentConfig?.tone || 'professional';
     
-    // Build AI prompt
-    const systemPrompt = customSystemPrompt || `You are ${agentName}, an elite product concierge agent for ${agent?.product_type || 'our product'}.
+    // Build AI prompt with custom instructions FIRST
+    const systemPrompt = customSystemPrompt || `You are ${agentName}, a ${agent?.product_type} expert.
 
-Your role is to send personalized, conversational messages that feel like they're from a real person who knows the customer's journey, NOT marketing automation.
 ${campaignContext}
-${conversationAwarenessPrompt}
 
-CUSTOMER PROFILE:
-- Name: ${contact?.full_name || 'Customer'}
-- Email: ${contact?.email}
-- Phone: ${contact?.phone_number}
-- Tier: ${contact?.customer_tier || 'LEAD'}
-- Total Spent: $${contact?.total_spent || 0}
-- Lead Score: ${contact?.lead_score || 0}
-- Engagement Score: ${contact?.engagement_score || 0}
-- Personality Type: ${personalityType}
+═══════════════════════════════════════════════════════
+⚠️ YOUR PRIMARY MISSION FOR THIS MESSAGE:
+═══════════════════════════════════════════════════════
+${customInstructions || `Send a ${message_type} message with goal: ${messageGoal}`}
+═══════════════════════════════════════════════════════
 
-AGENT CONTEXT:
-${JSON.stringify(agent?.agent_context || {}, null, 2)}
-${agent?.agent_context?.customer_goals ? `\nCustomer Goals: ${agent.agent_context.customer_goals}` : ''}
-${agent?.agent_context?.context ? `\nAdditional Context: ${JSON.stringify(agent.agent_context.context)}` : ''}
-
-YOUR ROLE: ${agent.product_type === 'customer_service' ? 'You handle general inquiries and route to specialists when needed.' : `You focus specifically on ${agent.product_type} and its features.`}
-
-CONVERSATION HISTORY (last 10 messages):
-${recentMessages && recentMessages.length > 0 
-  ? recentMessages.reverse().map((m: any) => `${m.sender}: ${m.body}`).join('\n') 
-  : 'No previous messages'}
-
-TRIGGER CONTEXT:
-${JSON.stringify(trigger_context, null, 2)}
-
-KNOWLEDGE BASE CONTEXT:
-${knowledgeContext}
+CUSTOMER QUICK FACTS:
+• Name: ${contact?.full_name || 'Customer'}
+• Personality: ${personalityType}
+• Goals: ${trigger_context.customer_goals || agent?.agent_context?.customer_goals || 'Not specified'}
+${purchases.length > 0 ? `• Recent Purchase: ${purchases[0].product_name || 'Product'} ($${purchases[0].price || 0})` : ''}
 
 ${knowledgeContext ? `
-⚠️ YOU HAVE ACCESS TO DETAILED COURSE CONTENT ABOVE
-When the message goal or custom instructions require it:
-- Reference SPECIFIC chapter numbers and titles
-- Mention actual topics from the chapters
-- Ask about particular concepts by name
-- Example: "Have you reviewed Chapter 3 on Exchange-Traded Notes (ETNs)?"
-NOT: "Have you had a chance to review the material?"
+KNOWLEDGE BASE - Use this to be specific:
+${knowledgeContext}
+
+⚠️ CRITICAL: Reference actual chapter numbers, titles, and topics from above!
+Example: "Have you had a chance to review Chapter 2 on Exchange-Traded Notes?"
+NOT: "Have you reviewed the material?"
 ` : ''}
 
-TONE GUIDELINES FOR ${personalityType.toUpperCase()} (Configured Tone: ${configuredTone}):
-- Style: ${toneGuidelines.style}
-- Length: ${toneGuidelines.length}
-- Emoji usage: ${toneGuidelines.emoji_usage}
-- Example opening: ${toneGuidelines.example_opening}
+${conversationAwarenessPrompt}
 
-MESSAGE TYPE: ${message_type}
+TONE for ${personalityType}: ${toneGuidelines.style}
 
-YOUR TASK:
-Generate a ${channel === 'sms' ? 'text message (max 320 characters)' : 'email'} that:
-1. Introduces yourself as ${agentName} (use this name naturally)
-2. References their specific goals/challenges from agent_context
-3. Feels conversational and personal, not robotic
-4. Matches their personality type
-5. Has a clear but soft CTA
-6. Uses their name naturally
+CONSTRAINTS:
+• ${channel === 'sms' ? 'SMS: 320 chars max, casual, no subject' : 'Email: 150 words max, needs subject line'}
+• Sign as ${agentName}
+• Sound human, NOT automated
+• Follow custom instructions above EXACTLY
 
-CRITICAL RULES:
-- Always sign as ${agentName}
-- Never sound like marketing automation
-- Reference specific details from their journey
-- Match the tone to personality type
-- Keep SMS under 320 characters
-- For email, keep under 150 words
+${recentMessages.length > 0 ? `
+RECENT CONVERSATION HISTORY:
+${recentMessages.reverse().slice(0, 5).map((m: any) => `${m.sender}: ${m.body}`).join('\n')}
+` : ''}
 
-Return JSON:
+Return ONLY JSON:
 {
-  "subject": "..." (only for email, null for SMS),
-  "message": "...",
-  "reasoning": "Why this message fits this customer now"
+  "subject": ${channel === 'email' ? '"Email subject here"' : 'null'},
+  "message": "Your message here",
+  "reasoning": "Why this works for this customer"
 }`;
+
+    console.log('=== PROMPT DEBUG ===');
+    console.log('Custom Instructions:', customInstructions || 'NONE');
+    console.log('Message Goal:', messageGoal);
+    console.log('KB Results:', knowledgeContext ? 'YES' : 'NO');
+    console.log('Agent Config Loaded:', agentConfig ? 'YES' : 'NO');
+    console.log('System Prompt Length:', systemPrompt.length);
+    console.log('==================');
 
     // Format conversation history for ai-agent
     const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({

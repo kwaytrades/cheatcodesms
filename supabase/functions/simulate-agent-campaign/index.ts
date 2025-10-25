@@ -85,11 +85,14 @@ serve(async (req) => {
               days_remaining: daysRemaining,
               trigger_type: 'scheduled_outreach',
               message_goal: outreach.goal,
+              message_type: outreach.type,
               message_channel: outreach.channel,
+              custom_instructions: outreach.custom_instructions || '',
               recent_conversation: recentConversation,
               test_mode: true,
               customer_name: mockContact.name,
               customer_goals: mockContact.customer_goals,
+              personality_type: mockContact.personality_type,
               agent_type: agent_type
             },
             channel: outreach.channel
