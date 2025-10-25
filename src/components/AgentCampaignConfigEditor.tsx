@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -54,6 +55,11 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
   const [messageGoal, setMessageGoal] = useState("engage");
   const [messageChannel, setMessageChannel] = useState("sms");
   const [customInstructions, setCustomInstructions] = useState("");
+  
+  // Edit dialog state
+  const [editingSchedule, setEditingSchedule] = useState<OutreachSchedule | null>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editInstructions, setEditInstructions] = useState("");
 
   // Fetch agent config
   const { data: agentConfig, isLoading } = useQuery({
@@ -139,6 +145,37 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
       ...campaignConfig,
       duration_days: value[0]
     });
+  };
+
+  const handleOpenEdit = (schedule: OutreachSchedule, index: number) => {
+    setEditingSchedule(schedule);
+    setEditingIndex(index);
+    setEditInstructions(schedule.custom_instructions || "");
+  };
+
+  const handleSaveEdit = () => {
+    if (editingIndex === null) return;
+    
+    const updatedSchedule = [...campaignConfig.outreach_schedule];
+    updatedSchedule[editingIndex] = {
+      ...updatedSchedule[editingIndex],
+      custom_instructions: editInstructions
+    };
+    
+    updateConfigMutation.mutate({
+      ...campaignConfig,
+      outreach_schedule: updatedSchedule
+    });
+    
+    setEditingSchedule(null);
+    setEditingIndex(null);
+    setEditInstructions("");
+  };
+
+  const handleCloseEdit = () => {
+    setEditingSchedule(null);
+    setEditingIndex(null);
+    setEditInstructions("");
   };
 
   if (isLoading) {
@@ -288,36 +325,106 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
                 </div>
               ) : (
                 campaignConfig.outreach_schedule.map((schedule, index) => (
-                  <Card key={index} className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1">
-                        <div className="flex items-center gap-2 min-w-[80px]">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold">Day {schedule.day}</span>
+                  <Dialog key={index}>
+                    <DialogTrigger asChild>
+                      <Card className="p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="flex items-center gap-2 min-w-[80px]">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-semibold">Day {schedule.day}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {getChannelIcon(schedule.channel)}
+                              <span className="text-sm">{schedule.type}</span>
+                            </div>
+                            <Badge className={getGoalColor(schedule.goal)}>
+                              <Target className="h-3 w-3 mr-1" />
+                              {schedule.goal}
+                            </Badge>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveOutreach(index);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {getChannelIcon(schedule.channel)}
-                          <span className="text-sm">{schedule.type}</span>
+                        {schedule.custom_instructions && (
+                          <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded line-clamp-2">
+                            <strong>Instructions:</strong> {schedule.custom_instructions}
+                          </div>
+                        )}
+                      </Card>
+                    </DialogTrigger>
+                    
+                    <DialogContent className="max-w-2xl" onClick={(e) => {
+                      setEditingSchedule(schedule);
+                      setEditingIndex(index);
+                      setEditInstructions(schedule.custom_instructions || "");
+                    }}>
+                      <DialogHeader>
+                        <DialogTitle>Edit Campaign Milestone - Day {schedule.day}</DialogTitle>
+                        <DialogDescription>
+                          Customize the AI instructions for this campaign step
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label>Message Type</Label>
+                            <Input value={schedule.type} disabled className="bg-muted" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Goal</Label>
+                            <div className="pt-2">
+                              <Badge className={getGoalColor(schedule.goal)}>
+                                {schedule.goal}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Channel</Label>
+                            <div className="flex items-center gap-2 pt-2">
+                              {getChannelIcon(schedule.channel)}
+                              <span className="text-sm">{schedule.channel}</span>
+                            </div>
+                          </div>
                         </div>
-                        <Badge className={getGoalColor(schedule.goal)}>
-                          <Target className="h-3 w-3 mr-1" />
-                          {schedule.goal}
-                        </Badge>
+                        
+                        <Separator />
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-instructions">Custom AI Instructions</Label>
+                          <Textarea
+                            id="edit-instructions"
+                            value={editInstructions}
+                            onChange={(e) => setEditInstructions(e.target.value)}
+                            placeholder="e.g., Ask about Chapter 2 on ETNs. Reference the difference between ETNs and ETFs. Offer to clarify confusing concepts..."
+                            rows={8}
+                            className="resize-none font-mono text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Provide specific instructions for the AI about what to include in this message
+                          </p>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveOutreach(index)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                    {schedule.custom_instructions && (
-                      <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded">
-                        <strong>Instructions:</strong> {schedule.custom_instructions}
+                      
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={handleCloseEdit}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveEdit}>
+                          Save Instructions
+                        </Button>
                       </div>
-                    )}
-                  </Card>
+                    </DialogContent>
+                  </Dialog>
                 ))
               )}
             </div>
