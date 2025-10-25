@@ -28,7 +28,7 @@ export const SMSChatView = ({ messages }: SMSChatViewProps) => {
       <div className="space-y-4 p-4">
         {messages.map((message) => {
           const isInbound = message.direction === "inbound";
-          const isAI = message.sender === "ai";
+          const isAI = message.sender.startsWith("ai_");
           
           return (
             <div
