@@ -22,7 +22,7 @@ serve(async (req) => {
     // Get campaign config for agent type
     const { data: agentConfig, error: configError } = await supabase
       .from('agent_type_configs')
-      .select('campaign_config, duration_days')
+      .select('campaign_config')
       .eq('agent_type', agent_type)
       .single();
 
@@ -58,7 +58,7 @@ serve(async (req) => {
 
       // Build campaign context for this day
       const campaignDay = outreach.day;
-      const daysRemaining = (agentConfig.duration_days || 90) - campaignDay;
+      const daysRemaining = (campaignConfig.duration_days || 90) - campaignDay;
 
       // Simulate conversation context (messages get more contextual as days progress)
       const hasRecentConversation = campaignDay > 1 && Math.random() > 0.5;
@@ -142,7 +142,7 @@ serve(async (req) => {
       JSON.stringify({
         agent_type,
         mock_customer: mockContact,
-        campaign_duration: agentConfig.duration_days,
+        campaign_duration: campaignConfig.duration_days,
         campaign_preview: campaignPreview,
         statistics: {
           total_messages: totalMessages,
