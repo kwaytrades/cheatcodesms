@@ -6,8 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { getAgentExpirationDate } from "@/lib/agent-utils";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface AssignAgentDialogProps {
   open: boolean;
@@ -17,6 +16,7 @@ interface AssignAgentDialogProps {
 
 export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgentDialogProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedContact, setSelectedContact] = useState(contactId || "");
   const [productType, setProductType] = useState("");
   const [agentContext, setAgentContext] = useState("");
@@ -60,31 +60,48 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
   });
 
   const handleAssign = async () => {
-    if (!selectedContact || !productType) {
-      toast({ title: "Error", description: "Please select a contact and product type", variant: "destructive" });
+    if (!selectedContact && !contactId) {
+      toast({ title: "Error", description: "Please select a contact", variant: "destructive" });
+      return;
+    }
+    
+    if (!productType) {
+      toast({ title: "Error", description: "Please select a product type", variant: "destructive" });
       return;
     }
 
+    const targetContactId = selectedContact || contactId;
+
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from("product_agents")
-        .insert({
-          contact_id: selectedContact,
+      // Call the edge function to properly assign agent and trigger campaign
+      const { data, error } = await supabase.functions.invoke('assign-product-agent', {
+        body: {
+          contact_id: targetContactId,
           product_type: productType,
-          status: "active",
-          direction: "outbound",
-          expiration_date: getAgentExpirationDate(productType),
-          agent_context: agentContext ? { notes: agentContext } : {},
-          last_engagement_at: new Date().toISOString(),
-        });
+          days_active: 90, // Default campaign duration
+          agent_context: agentContext ? { notes: agentContext } : {}
+        }
+      });
 
       if (error) throw error;
 
-      toast({ title: "Success", description: "Agent assigned successfully" });
+      toast({ 
+        title: "Success", 
+        description: "Agent assigned and campaign started" 
+      });
       onOpenChange(false);
+      
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['agent-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['active-agent'] });
     } catch (error) {
-      toast({ title: "Error", description: "Failed to assign agent", variant: "destructive" });
+      console.error('Error assigning agent:', error);
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to assign agent", 
+        variant: "destructive" 
+      });
     } finally {
       setIsSubmitting(false);
     }
