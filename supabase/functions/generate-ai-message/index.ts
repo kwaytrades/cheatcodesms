@@ -26,14 +26,14 @@ const AGENT_NAMES = {
 };
 
 const AGENT_PRIORITIES = {
-  sales_agent: 10,      // Highest priority
+  sales_agent: 10,      // Highest priority in normal mode
+  webinar: 6,           // Highest product agent
   textbook: 5,
-  webinar: 4,
-  flashcards: 3,
-  algo_monthly: 3,
-  ccta: 3,
-  lead_nurture: 2,
-  customer_service: 1   // Lowest priority (fallback)
+  flashcards: 4,
+  algo_monthly: 4,
+  ccta: 4,
+  lead_nurture: 3,
+  customer_service: 2   // Lowest in normal mode
 };
 
 const PERSONALITY_TONES = {

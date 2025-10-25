@@ -58,19 +58,44 @@ Deno.serve(async (req) => {
 
     console.log(`Agent assigned: ${agent.id}`);
 
-    // Define agent priorities
-    const AGENT_PRIORITIES = {
+    // Define agent priorities (normal mode - no /help)
+    const AGENT_PRIORITIES_NORMAL = {
       sales_agent: 10,
+      webinar: 6,        // Highest product agent
       textbook: 5,
-      webinar: 4,
-      flashcards: 3,
-      algo_monthly: 3,
-      ccta: 3,
-      lead_nurture: 2,
-      customer_service: 1
+      flashcards: 4,
+      algo_monthly: 4,
+      ccta: 4,
+      lead_nurture: 3,
+      customer_service: 2  // Lowest in normal mode
     };
 
-    const agentPriority = AGENT_PRIORITIES[product_type as keyof typeof AGENT_PRIORITIES] || 1;
+    // Help mode priorities (when /help command is active)
+    const HELP_MODE_PRIORITIES = {
+      customer_service: 10,  // Highest in help mode
+      lead_nurture: 9,
+      webinar: 6,
+      textbook: 5,
+      flashcards: 4,
+      algo_monthly: 4,
+      ccta: 4,
+      sales_agent: 2  // Lowest in help mode
+    };
+
+    // Check if contact is in help mode
+    const { data: helpModeCheck } = await supabase
+      .from('conversation_state')
+      .select('help_mode_until')
+      .eq('contact_id', contact_id)
+      .maybeSingle();
+
+    const isHelpMode = helpModeCheck?.help_mode_until && 
+      new Date(helpModeCheck.help_mode_until) > new Date();
+
+    // Calculate priority based on mode
+    const agentPriority = isHelpMode
+      ? (HELP_MODE_PRIORITIES[product_type as keyof typeof HELP_MODE_PRIORITIES] || 1)
+      : (AGENT_PRIORITIES_NORMAL[product_type as keyof typeof AGENT_PRIORITIES_NORMAL] || 1);
 
     console.log(`Setting active agent with priority ${agentPriority}`);
 
@@ -191,8 +216,14 @@ Deno.serve(async (req) => {
       console.error('Error generating message:', messageError);
       console.error('Message error details:', JSON.stringify(messageError));
     } else {
-      console.log('✅ First message generated and scheduled');
+      console.log('✅ First message generated');
       console.log('Message data:', JSON.stringify(messageData));
+      
+      // Note: generate-ai-message already sends the message immediately
+      // No need to call send-scheduled-message again here
+      if (messageData?.scheduled_message_id) {
+        console.log(`✅ Welcome message scheduled and sent (ID: ${messageData.scheduled_message_id})`);
+      }
     }
 
     return new Response(
