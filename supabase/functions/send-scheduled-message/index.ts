@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
           .from('messages')
           .insert({
             conversation_id: conv.id,
-            sender: 'ai',
+            sender: 'ai_sales',
             direction: 'outbound',
             body: message.message_body,
             status: 'sent'
