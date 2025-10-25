@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ interface OutreachSchedule {
   type: string;
   goal: string;
   channel: string;
+  custom_instructions?: string;
 }
 
 interface MilestoneTrigger {
@@ -51,6 +53,7 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
   const [messageType, setMessageType] = useState("");
   const [messageGoal, setMessageGoal] = useState("engage");
   const [messageChannel, setMessageChannel] = useState("sms");
+  const [customInstructions, setCustomInstructions] = useState("");
 
   // Fetch agent config
   const { data: agentConfig, isLoading } = useQuery({
@@ -105,7 +108,13 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
 
     const newSchedule = [
       ...campaignConfig.outreach_schedule,
-      { day: selectedDay, type: messageType, goal: messageGoal, channel: messageChannel }
+      { 
+        day: selectedDay, 
+        type: messageType, 
+        goal: messageGoal, 
+        channel: messageChannel,
+        custom_instructions: customInstructions
+      }
     ].sort((a, b) => a.day - b.day);
 
     updateConfigMutation.mutate({
@@ -114,6 +123,7 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
     });
 
     setMessageType("");
+    setCustomInstructions("");
   };
 
   const handleRemoveOutreach = (index: number) => {
@@ -254,6 +264,20 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label>Custom AI Instructions</Label>
+            <Textarea
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="e.g., Ask about Chapter 2 on ETNs. Reference the difference between ETNs and ETFs. Offer to clarify confusing concepts..."
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              Provide specific instructions for the AI about what to include in this message
+            </p>
+          </div>
+
           <Separator />
 
           <ScrollArea className="h-[300px] pr-4">
@@ -288,6 +312,11 @@ export const AgentCampaignConfigEditor = ({ agentType }: AgentCampaignConfigEdit
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
+                    {schedule.custom_instructions && (
+                      <div className="text-xs text-muted-foreground mt-2 p-2 bg-muted/50 rounded">
+                        <strong>Instructions:</strong> {schedule.custom_instructions}
+                      </div>
+                    )}
                   </Card>
                 ))
               )}

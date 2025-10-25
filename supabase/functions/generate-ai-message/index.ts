@@ -137,7 +137,14 @@ Deno.serve(async (req) => {
         status: 'active',
         agent_context: {
           test_mode: true,
-          customer_goals: trigger_context.customer_goals || 'General support'
+          customer_goals: trigger_context.customer_goals || 'General support',
+          personality_type: trigger_context.personality_type || 'analytical',
+          engagement_level: trigger_context.engagement_level || 'medium',
+          context: {
+            simulation_mode: true,
+            campaign_day: trigger_context.campaign_day,
+            message_goal: trigger_context.message_goal
+          }
         }
       };
       contact = {
@@ -149,7 +156,7 @@ Deno.serve(async (req) => {
         total_spent: 0,
         lead_score: 50,
         engagement_score: 50,
-        personality_type: 'relationship_builder'
+        personality_type: trigger_context.personality_type || 'analytical'
       };
     } else {
       // Check for agent conflicts
@@ -343,16 +350,45 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
         .single();
 
       const duration = agentConfig?.campaign_config?.duration_days || 90;
+      const messageGoal = trigger_context.message_goal || 'engage';
+      const customInstructions = trigger_context.custom_instructions || '';
+      const campaignStage = getCampaignStage(trigger_context.campaign_day, duration);
+      
       campaignContext = `
 
-CAMPAIGN CONTEXT:
-- Campaign Day: ${trigger_context.campaign_day} of ${duration}
-- Days Remaining: ${trigger_context.days_remaining || (duration - trigger_context.campaign_day)}
-- Trigger Type: ${trigger_context.trigger_source === 'scheduled_outreach' ? 'Scheduled Check-in' : 'Behavior-Based Milestone'}
-- Message Goal: ${trigger_context.goal || 'engage'}
-${trigger_context.milestone_event ? `- Milestone Event: ${trigger_context.milestone_event}` : ''}
+═══════════════════════════════════════════════════════
+CAMPAIGN CONTEXT - READ CAREFULLY
+═══════════════════════════════════════════════════════
 
-Tailor your message based on where they are in the campaign journey. Early days focus on engagement and education. Mid-campaign checks on progress. Late campaign introduces soft-sells and upsells.`;
+📅 Timeline Position:
+   • Day ${trigger_context.campaign_day} of ${duration} (${Math.round((trigger_context.campaign_day / duration) * 100)}% through campaign)
+   • Campaign stage: ${campaignStage}
+
+🎯 Message Goal: "${messageGoal}"
+   Message Type: "${trigger_context.message_type}"
+
+📝 Channel: ${trigger_context.message_channel || 'sms'}
+   ${trigger_context.message_channel === 'sms' ? '→ Keep it concise (max 320 chars), friendly, conversational' : '→ Can be more detailed, include subject line'}
+
+📋 CUSTOM INSTRUCTIONS FOR THIS MESSAGE:
+${customInstructions || 'Use general best practices for ' + messageGoal + ' messages.'}
+
+${trigger_context.customer_goals ? `
+👤 Customer Context:
+   • Goals: ${trigger_context.customer_goals}
+   • Personality Type: ${trigger_context.personality_type || 'Unknown'}
+` : ''}
+
+⚠️ CRITICAL: Follow the custom instructions above precisely. Reference specific content from the knowledge base when relevant.`;
+    }
+
+    function getCampaignStage(day: number, duration: number): string {
+      const pct = (day / duration) * 100;
+      if (pct < 10) return 'Onboarding';
+      if (pct < 30) return 'Early Engagement';
+      if (pct < 60) return 'Active Learning';
+      if (pct < 85) return 'Advanced Content';
+      return 'Conversion Phase';
     }
 
     // Add conversation awareness to system prompt
@@ -427,6 +463,16 @@ ${JSON.stringify(trigger_context, null, 2)}
 
 KNOWLEDGE BASE CONTEXT:
 ${knowledgeContext}
+
+${knowledgeContext ? `
+⚠️ YOU HAVE ACCESS TO DETAILED COURSE CONTENT ABOVE
+When the message goal or custom instructions require it:
+- Reference SPECIFIC chapter numbers and titles
+- Mention actual topics from the chapters
+- Ask about particular concepts by name
+- Example: "Have you reviewed Chapter 3 on Exchange-Traded Notes (ETNs)?"
+NOT: "Have you had a chance to review the material?"
+` : ''}
 
 TONE GUIDELINES FOR ${personalityType.toUpperCase()} (Configured Tone: ${configuredTone}):
 - Style: ${toneGuidelines.style}

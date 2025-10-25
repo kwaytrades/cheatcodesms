@@ -239,9 +239,14 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
         context: { 
           campaign_day: campaignDay,
           days_remaining: campaignConfig.duration_days - campaignDay,
-          goal: scheduled.goal,
+          message_goal: scheduled.goal,
+          message_type: scheduled.type,
+          message_channel: scheduled.channel,
+          custom_instructions: scheduled.custom_instructions || '',
           trigger_source: 'scheduled_outreach',
-          recent_conversation: recentConversation
+          recent_conversation: recentConversation,
+          customer_goals: contact.customer_profile?.goals || 'General learning',
+          personality_type: contact.personality_type || 'analytical'
         },
         channel: scheduled.channel || 'sms'
       });
@@ -280,10 +285,15 @@ async function evaluateTriggers(agent: any, contact: any, convState: any, supaba
           context: {
             campaign_day: campaignDay,
             days_remaining: campaignConfig.duration_days - campaignDay,
-            goal: milestone.goal,
+            message_goal: milestone.goal,
+            message_type: milestone.type,
+            message_channel: milestone.channel,
+            custom_instructions: milestone.custom_instructions || '',
             trigger_source: 'milestone',
             milestone_event: milestone.event,
-            recent_conversation: recentConversation
+            recent_conversation: recentConversation,
+            customer_goals: contact.customer_profile?.goals || 'General learning',
+            personality_type: contact.personality_type || 'analytical'
           },
           channel: milestone.channel || 'sms'
         });
