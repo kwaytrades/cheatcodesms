@@ -480,7 +480,7 @@ Return JSON:
     // Call ai-agent which has proper conversation memory logic
     const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
       body: {
-        conversationId: conversation_id,
+        ...(isTestMode ? {} : { conversationId: conversation_id }),
         agentType: normalizedAgentType,
         incomingMessage: trigger_context.last_customer_message || `Generate ${message_type} message`,
         messages: formattedMessages,
