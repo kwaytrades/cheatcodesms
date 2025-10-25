@@ -228,8 +228,15 @@ export function AgentCampaignSimulator({ agentType }: AgentCampaignSimulatorProp
                     <CardContent className="space-y-3">
                       <div>
                         <div className="text-sm font-medium mb-1">Agent Message:</div>
-                        <div className="bg-primary/5 p-3 rounded-md text-sm">
-                          {message.message_generated}
+                        <div className="bg-primary/5 p-3 rounded-md text-sm space-y-2">
+                          {message.message_generated?.subject && (
+                            <div className="font-semibold border-b pb-2">
+                              {message.message_generated.subject}
+                            </div>
+                          )}
+                          <div>
+                            {message.message_generated?.message || 'Message generation failed'}
+                          </div>
                         </div>
                       </div>
 
