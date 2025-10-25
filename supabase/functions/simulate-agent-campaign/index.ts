@@ -54,7 +54,7 @@ serve(async (req) => {
 
     // Simulate each scheduled message
     for (const outreach of sortedOutreach) {
-      console.log(`Simulating day ${outreach.day} - ${outreach.message_type}`);
+      console.log(`Simulating day ${outreach.day} - ${outreach.type}`);
 
       // Build campaign context for this day
       const campaignDay = outreach.day;
@@ -79,12 +79,12 @@ serve(async (req) => {
             contact_id: testContactId,
             agent_id: testAgentId,
             agent_type: agent_type,
-            trigger_type: outreach.message_type,
+            trigger_type: outreach.type,
             trigger_context: {
               campaign_day: campaignDay,
               days_remaining: daysRemaining,
               trigger_type: 'scheduled_outreach',
-              message_goal: outreach.message_goal,
+              message_goal: outreach.goal,
               message_channel: outreach.channel,
               recent_conversation: recentConversation
             },
@@ -119,8 +119,8 @@ serve(async (req) => {
 
       campaignPreview.push({
         day: campaignDay,
-        trigger_type: outreach.message_type,
-        message_goal: outreach.message_goal,
+        trigger_type: outreach.type,
+        message_goal: outreach.goal,
         channel: outreach.channel,
         message_generated: generatedMessage,
         simulated_customer_reply: simulatedCustomerReply,
