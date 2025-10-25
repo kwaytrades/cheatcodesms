@@ -8,13 +8,13 @@ const corsHeaders = {
 
 const AGENT_PRIORITIES = {
   sales_agent: 10,
+  webinar: 6,
   textbook: 5,
-  webinar: 4,
-  flashcards: 3,
-  algo_monthly: 3,
-  ccta: 3,
-  lead_nurture: 2,
-  customer_service: 1
+  flashcards: 4,
+  algo_monthly: 4,
+  ccta: 4,
+  lead_nurture: 3,
+  customer_service: 2
 };
 
 serve(async (req) => {
@@ -582,11 +582,13 @@ HELP - This message`;
       // Look up conversation state to find active agent
       const { data: convState } = await supabase
         .from('conversation_state')
-        .select('*, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .select('*, agent_priority, product_agents!conversation_state_active_agent_id_fkey(*)')
         .eq('contact_id', existingContact.id)
         .maybeSingle();
 
-      // PRIORITY LOGIC: Sales (10) > Product (5-7) > CS (1)
+      // PRIORITY LOGIC: Sales (10) > Product (4-6) > CS (2)
+      console.log(`📊 Conversation State Priority: ${convState?.agent_priority || 'none'}`);
+      console.log(`📋 Agent Priority Constants:`, AGENT_PRIORITIES);
       
       // Step 1: Check for active Sales Agent (priority 10)
       const { data: salesAgent } = await supabase
@@ -633,8 +635,13 @@ HELP - This message`;
         const isNotCS = activeProductAgent.product_type !== 'customer_service';
 
         if (isActive && !isExpired && isNotCS) {
-          const priority = AGENT_PRIORITIES[activeProductAgent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
-          console.log(`✅ Routing to PRODUCT AGENT: ${activeProductAgent.product_type} (priority ${priority})`);
+          // Use database priority if available, fallback to hardcoded constants
+          const dbPriority = convState?.agent_priority;
+          const hardcodedPriority = AGENT_PRIORITIES[activeProductAgent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
+          const priority = dbPriority || hardcodedPriority;
+          
+          console.log(`✅ Routing to PRODUCT AGENT: ${activeProductAgent.product_type}`);
+          console.log(`   📊 DB Priority: ${dbPriority || 'none'}, Hardcoded: ${hardcodedPriority}, Using: ${priority}`);
           
           routeToAgent = activeProductAgent.product_type;
           agentContext = {
@@ -665,9 +672,9 @@ HELP - This message`;
         }
       }
 
-      // Step 3: Fallback to Customer Service (priority 1)
+      // Step 3: Fallback to Customer Service (priority 2)
       if (routeToAgent === 'customer_service') {
-        console.log('ℹ️ No sales/product agent found, routing to CUSTOMER SERVICE (priority 1)');
+        console.log('ℹ️ No sales/product agent found, routing to CUSTOMER SERVICE (priority 2)');
       }
     } else if (!isInHelpMode && !existingContact) {
       console.log('No existing contact found, routing to customer service');
