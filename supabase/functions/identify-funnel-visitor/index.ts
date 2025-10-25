@@ -26,16 +26,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find or create contact - match by email OR phone
+    // Find or create contact
     let { data: contact, error: contactError } = await supabase
       .from('contacts')
       .select('*')
-      .or(
-        [
-          email ? `email.eq.${email}` : null,
-          phone ? `phone_number.eq.${phone}` : null
-        ].filter(Boolean).join(',')
-      )
+      .or(email ? `email.eq.${email}` : `phone_number.eq.${phone}`)
       .maybeSingle();
 
     if (!contact) {
