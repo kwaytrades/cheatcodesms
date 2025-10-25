@@ -632,14 +632,38 @@ serve(async (req) => {
       );
     }
 
-    const { data: conversation } = await supabase
-      .from('conversations')
-      .select('*, contacts(*)')
-      .eq('id', conversationId)
-      .single();
+    let conversation = null;
+    let contact = null;
 
-    if (!conversation) {
-      throw new Error('Conversation not found');
+    // Only fetch conversation if conversationId is provided (not in test mode)
+    if (conversationId) {
+      const { data: conversationData } = await supabase
+        .from('conversations')
+        .select('*, contacts(*)')
+        .eq('id', conversationId)
+        .single();
+
+      if (!conversationData) {
+        throw new Error('Conversation not found');
+      }
+      
+      conversation = conversationData;
+      contact = conversationData.contacts;
+    } else {
+      // Test mode: use contact info from context
+      contact = context?.contact || {
+        id: contactId,
+        full_name: context?.mockCustomer?.name || 'Test Customer',
+        email: 'test@example.com'
+      };
+      
+      // Create a mock conversation object for test mode
+      conversation = {
+        id: 'test-conversation',
+        contact_id: contactId,
+        agent_type: agentType,
+        contacts: contact
+      };
     }
 
     const incomingMessage = messages[messages.length - 1]?.content || '';
