@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (conv) {
-        const { error: msgError } = await supabase
+        console.log(`Saving message to messages table for conversation: ${conv.id}`);
+        const { data: savedMessage, error: msgError } = await supabase
           .from('messages')
           .insert({
             conversation_id: conv.id,
@@ -94,13 +95,24 @@ Deno.serve(async (req) => {
             direction: 'outbound',
             body: message.message_body,
             status: 'sent'
-          });
+          })
+          .select()
+          .single();
 
         if (msgError) {
-          console.error('Error saving message to messages table:', msgError);
+          console.error('❌ CRITICAL: Failed to save message to messages table:', msgError);
+          console.error('Message details:', {
+            conversation_id: conv.id,
+            body_length: message.message_body?.length,
+            contact_id: message.contact_id
+          });
+          // Don't throw - message was sent successfully via SMS
+          // But log the error for debugging
         } else {
-          console.log('✅ Message saved to messages table');
+          console.log('✅ Message saved to messages table:', savedMessage.id);
         }
+      } else {
+        console.warn(`⚠️ No conversation found for contact ${message.contact_id}`);
       }
     }
 
