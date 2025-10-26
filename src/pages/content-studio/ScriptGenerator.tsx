@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +65,30 @@ const ScriptGenerator = () => {
       return data;
     },
   });
+
+  // Dynamic tone loading from style guide
+  const availableTones = useMemo(() => {
+    if (styleGuide?.tone_presets && Array.isArray(styleGuide.tone_presets) && styleGuide.tone_presets.length > 0) {
+      return (styleGuide.tone_presets as Array<{name: string; label: string}>).map(tp => ({
+        value: tp.name,
+        label: tp.label
+      }));
+    }
+    return [
+      { value: 'educational', label: 'Educational' },
+      { value: 'hype', label: 'Hype' },
+      { value: 'breaking_news', label: 'Breaking News' },
+      { value: 'analytical', label: 'Analytical' },
+      { value: 'casual', label: 'Casual' }
+    ];
+  }, [styleGuide]);
+
+  // Auto-select first available tone when format changes
+  useMemo(() => {
+    if (availableTones.length > 0 && !availableTones.find(t => t.value === tone)) {
+      setTone(availableTones[0].value);
+    }
+  }, [availableTones]);
 
   const generateScript = useMutation({
     mutationFn: async () => {
@@ -272,15 +296,20 @@ const ScriptGenerator = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Tone</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Tone</Label>
+                  {styleGuide?.tone_presets && (styleGuide.tone_presets as any[]).length > 0 && (
+                    <Badge variant="outline" className="text-xs">Custom</Badge>
+                  )}
+                </div>
                 <Select value={tone} onValueChange={setTone}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TONES.map(t => (
-                      <SelectItem key={t} value={t}>
-                        {t.replace('_', ' ')}
+                    {availableTones.map(t => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

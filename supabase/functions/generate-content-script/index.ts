@@ -123,34 +123,58 @@ INSTRUCTION: Integrate this live market data naturally into the script to make t
       }
     }
 
-    let styleGuideSection = '';
-    if (style_guide && style_guide.instructions) {
-      styleGuideSection = `\n\nBRAND STYLE GUIDE:
-${style_guide.instructions}
-
-CRITICAL: Follow the brand style guide above closely. These custom instructions override all general guidelines.`;
+    // Build system prompt with priority: Custom Style Guide > Custom Tone Preset > Generic
+    let systemPrompt = 'You are an expert video script writer for trading/finance content creators. Generate engaging, well-structured scripts optimized for the platform and format.\n\n';
+    
+    // PRIORITY 1: Custom Style Guide (if exists)
+    if (style_guide?.instructions) {
+      console.log('Using custom style guide for format:', format);
+      systemPrompt += `BRAND STYLE GUIDE (PRIMARY INSTRUCTIONS - FOLLOW EXACTLY):\n${style_guide.instructions}\n\n`;
+      
+      // PRIORITY 2: Custom Tone Preset (if exists)
+      if (style_guide.tone_presets && Array.isArray(style_guide.tone_presets) && style_guide.tone_presets.length > 0) {
+        const selectedTonePreset = style_guide.tone_presets.find((tp: any) => tp.name === tone);
+        if (selectedTonePreset?.instructions) {
+          console.log('Using custom tone preset:', tone);
+          systemPrompt += `TONE FOR THIS SCRIPT:\n${selectedTonePreset.instructions}\n\n`;
+        }
+      }
+      
+      // Add format info (always needed)
+      systemPrompt += `FORMAT: ${format}\n`;
+      systemPrompt += `TARGET LENGTH: ${format === 'carousel' ? `${length_seconds} slides` : `${length_seconds} seconds`}\n`;
+      
+    } else {
+      // FALLBACK: Use generic guidelines only if NO custom style guide
+      console.log('Using generic guidelines for format:', format);
+      
+      systemPrompt += `FORMAT GUIDELINES:\n${formatGuidelines[format]}\n\n`;
+      systemPrompt += `TONE:\n${toneInstructions[tone]}\n\n`;
+      systemPrompt += `HOOK STYLE:\n${hookTemplates[hook_style]}\n\n`;
+      systemPrompt += `TARGET LENGTH: ${format === 'carousel' ? `${length_seconds} slides` : `${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)`}\n\n`;
     }
-
-    const systemPrompt = `You are an expert video script writer for trading/finance content creators. Generate engaging, well-structured scripts optimized for the platform and format.
-
-FORMAT GUIDELINES:
-${formatGuidelines[format]}
-
-TONE:
-${toneInstructions[tone]}
-
-HOOK STYLE:
-${hookTemplates[hook_style]}${marketDataSection}${styleGuideSection}
-
-TARGET LENGTH: ${format === 'carousel' ? `${length_seconds} slides` : `${length_seconds} seconds (approximately ${Math.round(length_seconds * 2.5)} words at conversational pace)`}
-
-${include_timestamps && format !== 'carousel' ? 'TIMESTAMPS: Include timestamps like [HOOK - 0:00-0:05], [MAIN - 0:05-4:30], etc.' : ''}
-
-${include_broll && format !== 'carousel' ? 'B-ROLL NOTES: Add suggestions for B-roll footage as [B-roll: description of visual]' : ''}
-
-${include_cta ? 'CTA: Include a clear call-to-action at the end (e.g., "Join our Discord for real-time trade alerts" or "Download the free Algo V6 guide")' : ''}
-
-${format === 'carousel' ? `STRUCTURE YOUR RESPONSE AS:
+    
+    // Add market data if available
+    if (marketDataSection) {
+      systemPrompt += marketDataSection + '\n\n';
+    }
+    
+    // Add optional instructions (timestamps, b-roll, CTA)
+    if (include_timestamps && format !== 'carousel') {
+      systemPrompt += 'TIMESTAMPS: Include timestamps like [HOOK - 0:00-0:05], [MAIN - 0:05-4:30], etc.\n\n';
+    }
+    
+    if (include_broll && format !== 'carousel') {
+      systemPrompt += 'B-ROLL NOTES: Add suggestions for B-roll footage as [B-roll: description of visual]\n\n';
+    }
+    
+    if (include_cta) {
+      systemPrompt += 'CTA: Include a clear call-to-action at the end (e.g., "Join our Discord for real-time trade alerts" or "Download the free Algo V6 guide")\n\n';
+    }
+    
+    // Add structure instructions
+    if (format === 'carousel') {
+      systemPrompt += `\nSTRUCTURE YOUR RESPONSE AS:
 Slide 1:
 (Your attention-grabbing hook here)
 
@@ -165,7 +189,9 @@ Slide 3:
 Slide ${length_seconds}:
 (Strong closing takeaway or CTA)
 
-CRITICAL: Output EXACTLY in the format "Slide X:" followed by the text. NO other formatting, NO timestamps, NO [HOOK] labels.` : `STRUCTURE YOUR RESPONSE AS:
+CRITICAL: Output EXACTLY in the format "Slide X:" followed by the text. NO other formatting, NO timestamps, NO [HOOK] labels.`;
+    } else {
+      systemPrompt += `\nSTRUCTURE YOUR RESPONSE AS:
 ${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
 
 [INTRO - X:XX-X:XX]
@@ -176,9 +202,12 @@ ${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
 ${include_broll ? '[B-roll: relevant visual]' : ''}
 
 [CTA - X:XX-X:XX]
-(Call to action)`}
-
-Return ONLY the formatted script. Do not include any meta-commentary or explanations outside the script.`;
+(Call to action)`;
+    }
+    
+    systemPrompt += '\n\nReturn ONLY the formatted script. Do not include any meta-commentary or explanations outside the script.';
+    
+    console.log('System prompt first 300 chars:', systemPrompt.substring(0, 300));
 
     // Call Lovable AI to generate script
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {

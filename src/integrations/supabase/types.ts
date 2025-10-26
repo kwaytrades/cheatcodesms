@@ -2193,6 +2193,7 @@ export type Database = {
           id: string
           instructions: string | null
           is_active: boolean | null
+          tone_presets: Json | null
           updated_at: string | null
           user_id: string
         }
@@ -2203,6 +2204,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_active?: boolean | null
+          tone_presets?: Json | null
           updated_at?: string | null
           user_id: string
         }
@@ -2213,6 +2215,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_active?: boolean | null
+          tone_presets?: Json | null
           updated_at?: string | null
           user_id?: string
         }
