@@ -48,7 +48,7 @@ export const LeadStatusBadge = ({
       };
     } else {
       return {
-        label: 'Cold Lead',
+        label: 'Cold',
         color: 'bg-[hsl(210,100%,55%)] text-white border-[hsl(210,100%,45%)] font-semibold',
         glow: 'glow-blue',
         icon: Droplet
