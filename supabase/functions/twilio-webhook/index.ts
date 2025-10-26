@@ -751,6 +751,7 @@ HELP - This message`;
     const aiResponse = await supabase.functions.invoke('ai-agent', {
       body: {
         conversationId: conversation.id,
+        contactId: existingContact?.id || conversation.contact_id,
         agentType: agentType,
         incomingMessage: body,
         messages: formattedMessages, // ✅ Correct parameter name
