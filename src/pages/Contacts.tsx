@@ -461,12 +461,12 @@ const Contacts = () => {
   };
 
   const getScoreColor = (score: number | null) => {
-    if (!score) return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30 glow-blue';
-    if (score >= 80) return 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30 glow-green';
-    if (score >= 70) return 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30 glow-red';
-    if (score >= 50) return 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30 glow-orange';
-    if (score >= 30) return 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 glow-cyan';
-    return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30 glow-blue';
+    if (!score) return 'bg-blue-600 text-white border-blue-500 font-semibold glow-blue';
+    if (score >= 80) return 'bg-green-500 text-black border-green-400 font-bold glow-green';
+    if (score >= 70) return 'bg-red-500 text-white border-red-400 font-semibold glow-red';
+    if (score >= 50) return 'bg-orange-500 text-white border-orange-400 font-semibold glow-orange';
+    if (score >= 30) return 'bg-cyan-500 text-black border-cyan-400 font-semibold glow-cyan';
+    return 'bg-blue-600 text-white border-blue-500 font-semibold glow-blue';
   };
 
   const renderCellContent = (contact: Contact, columnKey: ColumnKey) => {

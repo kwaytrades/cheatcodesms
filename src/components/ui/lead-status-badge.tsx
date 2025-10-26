@@ -21,35 +21,35 @@ export const LeadStatusBadge = ({
     if (scoreValue >= 80) {
       return {
         label: 'READY',
-        color: 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30',
+        color: 'bg-green-500 text-black border-green-400 font-bold',
         glow: 'glow-green',
         icon: DollarSign
       };
     } else if (scoreValue >= 70) {
       return {
         label: 'Hot',
-        color: 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30',
+        color: 'bg-red-500 text-white border-red-400 font-semibold',
         glow: 'glow-red',
         icon: Flame
       };
     } else if (scoreValue >= 50) {
       return {
         label: 'Warm',
-        color: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
+        color: 'bg-orange-500 text-white border-orange-400 font-semibold',
         glow: 'glow-orange',
         icon: TrendingUp
       };
     } else if (scoreValue >= 30) {
       return {
         label: 'Nurture',
-        color: 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
+        color: 'bg-cyan-500 text-black border-cyan-400 font-semibold',
         glow: 'glow-cyan',
         icon: Users
       };
     } else {
       return {
         label: 'Cold Lead',
-        color: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30',
+        color: 'bg-blue-600 text-white border-blue-500 font-semibold',
         glow: 'glow-blue',
         icon: Droplet
       };
