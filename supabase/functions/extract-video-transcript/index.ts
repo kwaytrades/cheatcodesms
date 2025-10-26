@@ -56,6 +56,9 @@ serve(async (req) => {
       // Encode the URL for the query parameter
       const encodedUrl = encodeURIComponent(url);
       const apiUrl = `https://api.supadata.ai/v1/transcript?url=${encodedUrl}&text=true&mode=auto`;
+      
+      console.log('Full API URL:', apiUrl);
+      console.log('Request headers:', { 'x-api-key': SUPADATA_API_KEY?.substring(0, 5) + '...' });
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -65,20 +68,27 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Supadata API error:', response.status, errorText);
+        let errorText = '';
+        let errorJson = null;
+        try {
+          errorText = await response.text();
+          errorJson = JSON.parse(errorText);
+          console.error('Supadata API error:', response.status, errorJson);
+        } catch (e) {
+          console.error('Supadata API error:', response.status, errorText);
+        }
         
         if (response.status === 404) {
-          throw new Error('This video doesn\'t have captions/transcript available');
-        } else if (response.status === 403) {
-          throw new Error('Unable to access private video');
+          throw new Error('This video doesn\'t have captions/transcript available. Try mode=generate for AI transcription.');
+        } else if (response.status === 403 || response.status === 401) {
+          throw new Error('API authentication failed. Please check your API key.');
         } else if (response.status === 429) {
           throw new Error('Too many requests, please try again later');
         } else if (response.status === 402) {
           throw new Error('API quota exceeded. Please contact support.');
         }
         
-        throw new Error('Failed to extract transcript');
+        throw new Error(`Failed to extract transcript: ${errorText || response.statusText}`);
       }
 
       const data = await response.json();
@@ -98,6 +108,9 @@ serve(async (req) => {
       // Encode the URL for the query parameter
       const encodedUrl = encodeURIComponent(url);
       const apiUrl = `https://api.supadata.ai/v1/transcript?url=${encodedUrl}&text=true&mode=auto`;
+      
+      console.log('Full API URL:', apiUrl);
+      console.log('Request headers:', { 'x-api-key': SUPADATA_API_KEY?.substring(0, 5) + '...' });
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -107,20 +120,27 @@ serve(async (req) => {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Supadata API error:', response.status, errorText);
+        let errorText = '';
+        let errorJson = null;
+        try {
+          errorText = await response.text();
+          errorJson = JSON.parse(errorText);
+          console.error('Supadata API error:', response.status, errorJson);
+        } catch (e) {
+          console.error('Supadata API error:', response.status, errorText);
+        }
         
         if (response.status === 404) {
-          throw new Error('This video doesn\'t have captions/transcript available');
-        } else if (response.status === 403) {
-          throw new Error('Unable to access private video');
+          throw new Error('This video doesn\'t have captions/transcript available. Try mode=generate for AI transcription.');
+        } else if (response.status === 403 || response.status === 401) {
+          throw new Error('API authentication failed. Please check your API key.');
         } else if (response.status === 429) {
           throw new Error('Too many requests, please try again later');
         } else if (response.status === 402) {
           throw new Error('API quota exceeded. Please contact support.');
         }
         
-        throw new Error('Failed to extract transcript');
+        throw new Error(`Failed to extract transcript: ${errorText || response.statusText}`);
       }
 
       const data = await response.json();
