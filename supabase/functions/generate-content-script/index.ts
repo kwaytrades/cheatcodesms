@@ -159,6 +159,24 @@ INSTRUCTION: Integrate this live market data naturally into the script to make t
       systemPrompt += marketDataSection + '\n\n';
     }
     
+    // CRITICAL: Add carousel parsing instructions (REQUIRED for UI to parse correctly)
+    if (format === 'carousel') {
+      systemPrompt += '\n=== CRITICAL CAROUSEL FORMAT REQUIREMENTS ===\n';
+      systemPrompt += 'The carousel UI parser requires this EXACT format:\n\n';
+      systemPrompt += 'Slide 1:\n(text content for slide 1)\n\n';
+      systemPrompt += 'Slide 2:\n(text content for slide 2)\n\n';
+      systemPrompt += 'Slide 3:\n(text content for slide 3)\n\n';
+      systemPrompt += '...and so on...\n\n';
+      systemPrompt += 'PARSING RULES:\n';
+      systemPrompt += '- Must start with "Slide" + space + number + colon (e.g., "Slide 1:", "Slide 2:")\n';
+      systemPrompt += '- Text content comes immediately after on a new line\n';
+      systemPrompt += '- Each slide separated by double newline before next "Slide X:" header\n';
+      systemPrompt += '- NO other formatting markers like [HOOK], [MAIN], timestamps\n';
+      systemPrompt += '- NO markdown symbols (**, ##, etc.) in slide headers\n';
+      systemPrompt += '- Just "Slide X:" then the text content\n';
+      systemPrompt += '===========================================\n\n';
+    }
+    
     // Only add generic optional instructions if NO custom style guide exists
     if (!style_guide?.instructions) {
       // Add optional instructions (timestamps, b-roll, CTA)
