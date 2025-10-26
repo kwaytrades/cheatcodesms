@@ -69,30 +69,17 @@ serve(async (req) => {
     const normalizedFrom = normalizePhone(from);
     console.log(`📞 Looking up contact: ${from} → normalized: ${normalizedFrom}`);
     
-    // Try exact match first
+    // Single efficient query checking both original and normalized formats
     let { data: existingContact } = await supabase
       .from('contacts')
       .select('*')
-      .eq('phone_number', from)
+      .or(`phone_number.eq.${from},phone_number.eq.${normalizedFrom}`)
       .maybeSingle();
     
-    // If not found, try with normalized phone number matching
-    if (!existingContact) {
-      const { data: allContacts } = await supabase
-        .from('contacts')
-        .select('*');
-      
-      existingContact = allContacts?.find(c => 
-        c.phone_number && normalizePhone(c.phone_number) === normalizedFrom
-      ) || null;
-      
-      if (existingContact) {
-        console.log(`✅ Found contact by normalized phone: ${existingContact.id} (${existingContact.full_name})`);
-      } else {
-        console.log(`❌ No contact found for ${normalizedFrom}`);
-      }
+    if (existingContact) {
+      console.log(`✅ Found contact: ${existingContact.id} (${existingContact.full_name})`);
     } else {
-      console.log(`✅ Found contact by exact match: ${existingContact.id} (${existingContact.full_name})`);
+      console.log(`❌ No contact found for ${from} or ${normalizedFrom}`);
     }
 
     // Find or create conversation
