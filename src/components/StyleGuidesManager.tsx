@@ -17,7 +17,7 @@ const FORMATS = [
   { id: 'youtube_long', name: 'YouTube Long', icon: Video },
   { id: 'youtube_short', name: 'YouTube Short', icon: Tv },
   { id: 'tiktok', name: 'TikTok/Reel', icon: Video },
-  { id: 'carousel', name: 'LinkedIn Carousel', icon: Grid },
+  { id: 'carousel', name: 'X Thread', icon: Grid },
 ];
 
 export const StyleGuidesManager = () => {

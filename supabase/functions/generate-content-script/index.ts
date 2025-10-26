@@ -63,15 +63,6 @@ serve(async (req) => {
 - End with engagement hook (comment, share, follow)
 - Mobile-first vertical format`,
       
-      'carousel': `LinkedIn Carousel (8-10 slides):
-- Output ONLY the raw text for each slide
-- Format: "Slide 1:\n[text]\n\nSlide 2:\n[text]" etc.
-- NO titles, NO visual instructions, NO formatting symbols like ** or ##
-- Keep text concise and impactful (2-3 short sentences per slide max)
-- First slide: Hook that grabs attention
-- Middle slides: Key points, one idea per slide
-- Last slide: Strong takeaway or CTA
-- Professional but engaging tone`
     };
 
     // Build tone-specific instructions
@@ -175,24 +166,7 @@ INSTRUCTION: Integrate this live market data naturally into the script to make t
       }
       
       // Add structure instructions
-      if (format === 'carousel') {
-        systemPrompt += `\nSTRUCTURE YOUR RESPONSE AS:
-Slide 1:
-(Your attention-grabbing hook here)
-
-Slide 2:
-(First key point)
-
-Slide 3:
-(Second key point)
-
-...continue with remaining slides...
-
-Slide ${length_seconds}:
-(Strong closing takeaway or CTA)
-
-CRITICAL: Output EXACTLY in the format "Slide X:" followed by the text. NO other formatting, NO timestamps, NO [HOOK] labels.`;
-      } else {
+      if (format !== 'carousel') {
         systemPrompt += `\nSTRUCTURE YOUR RESPONSE AS:
 ${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
 

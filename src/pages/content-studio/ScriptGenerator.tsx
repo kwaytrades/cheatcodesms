@@ -17,7 +17,7 @@ const FORMATS = [
   { value: 'youtube_long', label: 'YouTube Long-form', icon: '📹', duration: [180, 300, 600, 900] },
   { value: 'youtube_short', label: 'YouTube Short', icon: '🎬', duration: [30, 45, 60] },
   { value: 'tiktok', label: 'TikTok/Reel', icon: '📱', duration: [15, 30, 45, 60] },
-  { value: 'carousel', label: 'X Carousel', icon: '📊', duration: [4, 5, 6, 7, 8, 9, 10] }
+  { value: 'carousel', label: 'X Thread', icon: '📊', duration: [4, 5, 6, 7, 8, 9, 10] }
 ];
 
 const TONES = ['educational', 'hype', 'breaking_news', 'analytical', 'casual'];

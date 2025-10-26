@@ -16,7 +16,7 @@ const FORMATS = {
   youtube_long: { label: 'YouTube Long', color: 'bg-red-500' },
   youtube_short: { label: 'Short', color: 'bg-[#FF6B6B]' },
   tiktok: { label: 'TikTok', color: 'bg-[#00F2EA]' },
-  carousel: { label: 'Carousel', color: 'bg-[#0077B5]' }
+  carousel: { label: 'X Thread', color: 'bg-[#0077B5]' }
 };
 
 const STATUSES = {
@@ -252,7 +252,7 @@ const ContentLibrary = () => {
               🎬 Shorts
             </Button>
             <Button variant="ghost" className="w-full justify-start">
-              📊 Carousels
+              📊 X Threads
             </Button>
           </div>
         </Card>
