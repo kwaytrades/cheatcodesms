@@ -56,7 +56,7 @@ serve(async (req) => {
       const response = await fetch('https://api.supadata.ai/v1/youtube/transcript', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPADATA_API_KEY}`,
+          'x-api-key': SUPADATA_API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ url })
@@ -96,7 +96,7 @@ serve(async (req) => {
       const response = await fetch('https://api.supadata.ai/v1/tiktok/transcript', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SUPADATA_API_KEY}`,
+          'x-api-key': SUPADATA_API_KEY,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ url })
