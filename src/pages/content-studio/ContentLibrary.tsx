@@ -7,11 +7,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download, Scissors, Upload, Edit } from "lucide-react";
+import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download, Scissors, Edit } from "lucide-react";
 import { toast } from "sonner";
 import ReactPlayer from "react-player";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ImportVideoDialog } from "@/components/ImportVideoDialog";
 
 const FORMATS = {
   youtube_long: { label: 'YouTube Long', color: 'bg-red-500' },
@@ -35,7 +34,6 @@ const ContentLibrary = () => {
   const [filterFormat, setFilterFormat] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // Fetch scripts
   const { data: scripts, isLoading: scriptsLoading } = useQuery({
@@ -264,11 +262,6 @@ const ContentLibrary = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Filter Bar */}
         <div className="flex-none mb-4 flex items-center gap-3">
-          <Button onClick={() => setImportDialogOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Import Video
-          </Button>
-          
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -566,12 +559,6 @@ const ContentLibrary = () => {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Import Video Dialog */}
-      <ImportVideoDialog 
-        open={importDialogOpen} 
-        onOpenChange={setImportDialogOpen}
-      />
     </div>
   );
 };

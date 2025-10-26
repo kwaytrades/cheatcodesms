@@ -19,9 +19,10 @@ import { toast } from "sonner";
 interface ImportVideoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode?: 'library' | 'news'; // library saves to imported_videos, news saves to news_stories
 }
 
-export const ImportVideoDialog = ({ open, onOpenChange }: ImportVideoDialogProps) => {
+export const ImportVideoDialog = ({ open, onOpenChange, mode = 'library' }: ImportVideoDialogProps) => {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [platform, setPlatform] = useState<'youtube' | 'tiktok' | 'instagram' | null>(null);
@@ -77,23 +78,47 @@ export const ImportVideoDialog = ({ open, onOpenChange }: ImportVideoDialogProps
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.from('imported_videos').insert({
-        user_id: user.id,
-        external_url: url,
-        platform,
-        title: extractedData.title,
-        thumbnail_url: extractedData.thumbnail,
-        transcript: extractedData.transcript,
-        duration_seconds: extractedData.duration,
-        metadata: { imported_at: new Date().toISOString() }
-      }).select().single();
+      if (mode === 'news') {
+        // Save to news_stories table
+        const { data, error } = await supabase.from('news_stories').insert({
+          user_id: user.id,
+          title: extractedData.title,
+          content: extractedData.transcript,
+          url,
+          source: platform === 'youtube' ? 'YouTube' : platform === 'tiktok' ? 'TikTok' : 'Instagram',
+          viral_score: 50,
+          category: null,
+          tags: [`${platform} video`],
+          ai_analysis: null
+        }).select().single();
 
-      if (error) throw error;
-      return data;
+        if (error) throw error;
+        return data;
+      } else {
+        // Save to imported_videos table
+        const { data, error } = await supabase.from('imported_videos').insert({
+          user_id: user.id,
+          external_url: url,
+          platform,
+          title: extractedData.title,
+          thumbnail_url: extractedData.thumbnail,
+          transcript: extractedData.transcript,
+          duration_seconds: extractedData.duration,
+          metadata: { imported_at: new Date().toISOString() }
+        }).select().single();
+
+        if (error) throw error;
+        return data;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['imported-videos'] });
-      toast.success('Video saved to library!');
+      if (mode === 'news') {
+        queryClient.invalidateQueries({ queryKey: ['news-stories'] });
+        toast.success('Video transcript saved to news!');
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['imported-videos'] });
+        toast.success('Video saved to library!');
+      }
       handleClose();
     },
     onError: (error: Error) => {
@@ -234,6 +259,8 @@ export const ImportVideoDialog = ({ open, onOpenChange }: ImportVideoDialogProps
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...
                     </>
+                  ) : mode === 'news' ? (
+                    'Save to News'
                   ) : (
                     'Save to Library'
                   )}

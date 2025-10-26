@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Search, FileText, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, FileText, Sparkles, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useNavigate } from "react-router-dom";
+import { ImportVideoDialog } from "@/components/ImportVideoDialog";
 
 const SOURCES = ['Bloomberg', 'Reuters', 'CNBC', 'Twitter', 'Reddit', 'Perplexity', 'Manual'];
 const CATEGORIES = ['Stocks', 'Crypto', 'ETFs', 'Options', 'Earnings', 'Fed Policy', 'Market Analysis'];
@@ -22,6 +23,7 @@ const NewsDiscovery = () => {
   const navigate = useNavigate();
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [perplexityDialogOpen, setPerplexityDialogOpen] = useState(false);
+  const [importVideoDialogOpen, setImportVideoDialogOpen] = useState(false);
   const [selectedSource, setSelectedSource] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string[]>([]);
 
@@ -168,7 +170,23 @@ const NewsDiscovery = () => {
               <PerplexitySearchForm onClose={() => setPerplexityDialogOpen(false)} />
             </DialogContent>
           </Dialog>
+
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => setImportVideoDialogOpen(true)}
+          >
+            <Video className="h-4 w-4" />
+            Import Video
+          </Button>
         </div>
+
+        {/* Import Video Dialog */}
+        <ImportVideoDialog 
+          open={importVideoDialogOpen} 
+          onOpenChange={setImportVideoDialogOpen}
+          mode="news"
+        />
 
         {/* Stories Feed */}
         <div className="flex-1 overflow-y-auto space-y-4">
