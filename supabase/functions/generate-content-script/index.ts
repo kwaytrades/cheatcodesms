@@ -131,6 +131,31 @@ INSTRUCTION: Integrate this live market data naturally into the script to make t
       console.log('Using custom style guide for format:', format);
       systemPrompt += `BRAND STYLE GUIDE (PRIMARY INSTRUCTIONS - FOLLOW EXACTLY):\n${style_guide.instructions}\n\n`;
       
+      // Add carousel-specific enforcement if format is carousel
+      if (format === 'carousel') {
+        systemPrompt += `\n=== MANDATORY STRUCTURE FOR EACH SLIDE ===\n`;
+        systemPrompt += `EVERY slide MUST follow this exact pattern:\n\n`;
+        systemPrompt += `1. Opening statement (1 sentence)\n`;
+        systemPrompt += `2. Line break\n`;
+        systemPrompt += `3. Context sentence (1 sentence)\n`;
+        systemPrompt += `4. Line break\n`;
+        systemPrompt += `5. Transition phrase (e.g., "Here's why:", "This means:", "The reality:")\n`;
+        systemPrompt += `6. Line break\n`;
+        systemPrompt += `7. Bulleted list (2-4 bullets using 🔸)\n`;
+        systemPrompt += `8. Line break\n`;
+        systemPrompt += `9. Concluding punch line (1 sentence)\n\n`;
+        systemPrompt += `Example:\n`;
+        systemPrompt += `Slide 3:\n`;
+        systemPrompt += `The tug-of-war between inflation and rate cuts isn't over.\n\n`;
+        systemPrompt += `Inflation must keep falling for the Fed to actually deliver these cuts.\n\n`;
+        systemPrompt += `The reality:\n\n`;
+        systemPrompt += `🔸 One good CPI print doesn't confirm the trend\n`;
+        systemPrompt += `🔸 Next 2 months of data matter more\n`;
+        systemPrompt += `🔸 Fed needs consistent progress\n\n`;
+        systemPrompt += `This is why patience matters now.\n`;
+        systemPrompt += `=====================================\n\n`;
+      }
+      
       // PRIORITY 2: Custom Tone Preset (if exists)
       if (style_guide.tone_presets && Array.isArray(style_guide.tone_presets) && style_guide.tone_presets.length > 0) {
         const selectedTonePreset = style_guide.tone_presets.find((tp: any) => tp.name === tone);
