@@ -2445,6 +2445,7 @@ export type Database = {
         Returns: string
       }
       get_customer_context: { Args: { p_contact_id: string }; Returns: Json }
+      get_customer_profile: { Args: { p_contact_id: string }; Returns: Json }
       get_or_create_agent_conversation: {
         Args: {
           p_agent_id?: string

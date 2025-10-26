@@ -131,10 +131,11 @@ Deno.serve(async (req) => {
     const systemPrompt = agentConfig?.system_prompt || 'You are a helpful customer service assistant.';
     const tone = agentConfig?.tone || 'professional';
 
-    // 3. Build context - Parallel queries
+    // 3. Build context - Fetch unified profile and recent messages in parallel
+    console.log(`📊 Fetching unified customer profile for contact ${contactId}...`);
     const [
       { data: recentMessages },
-      { data: contact }
+      { data: customerProfile, error: profileError }
     ] = await Promise.all([
       // A. Recent messages (last 10)
       supabase
@@ -144,19 +145,17 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(10),
       
-      // B. Customer profile
-      supabase
-        .from('contacts')
-        .select(`
-          full_name, email, customer_tier, products_owned, products_interested,
-          total_spent, lead_score, lead_status, sentiment, personality_type,
-          trading_experience, trading_style, account_size, risk_tolerance,
-          goals, objections, behavioral_tags, last_engagement_action,
-          ai_profile, customer_profile, webinar_attendance, form_responses
-        `)
-        .eq('id', contactId)
-        .single()
+      // B. Unified customer profile (cached for 5 minutes)
+      supabase.rpc('get_customer_profile', { p_contact_id: contactId })
     ]);
+
+    if (profileError || !customerProfile) {
+      console.error('Failed to fetch customer profile:', profileError);
+      throw new Error('Failed to fetch customer profile');
+    }
+
+    console.log(`✅ Profile loaded: ${customerProfile.identity.name}`);
+    console.log(`   Tier: ${customerProfile.financial.tier} | Products: ${customerProfile.financial.productsCount} | Spent: $${customerProfile.financial.totalSpent}`);
 
     // C. Knowledge base search (with error handling, using effectiveAgentType)
     let kbResults: any = null;
@@ -201,96 +200,79 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Construct LLM prompt
-    console.log(`📊 Gathering context for contact ${contactId}...`);
-    const customerName = contact?.full_name || 'Customer';
-    const customerTier = contact?.customer_tier || 'Standard';
-    const productsOwned = contact?.products_owned || [];
-    const totalSpent = contact?.total_spent || 0;
+    // 5. Construct LLM prompt from unified profile
+    const productsOwned = customerProfile.financial.productsOwned || [];
+    const hasProducts = productsOwned.length > 0;
     
-    // CRITICAL VALIDATION: Verify products data
-    console.log(`🔍 Products validation for ${customerName}:`);
-    console.log(`   - Products owned count: ${productsOwned.length}`);
-    console.log(`   - Products list: ${JSON.stringify(productsOwned)}`);
-    console.log(`   - Customer tier: ${customerTier}`);
-    console.log(`   - Total spent: $${totalSpent}`);
-    console.log(`   - Lead status: ${contact?.lead_status}`);
+    console.log(`🔍 Profile Context:`);
+    console.log(`   - Name: ${customerProfile.identity.name}`);
+    console.log(`   - Tier: ${customerProfile.financial.tier}`);
+    console.log(`   - Products: ${productsOwned.length} (${productsOwned.join(', ') || 'None'})`);
+    console.log(`   - Total Spent: $${customerProfile.financial.totalSpent}`);
+    console.log(`   - Lead Score: ${customerProfile.engagement.leadScore}`);
     
-    if (productsOwned.length > 0 && customerTier !== 'Lead') {
-      console.log(`✅ Customer owns ${productsOwned.length} product(s) and is ${customerTier} tier`);
-    } else if (productsOwned.length > 0 && customerTier === 'Lead') {
-      console.warn(`⚠️ DATA MISMATCH: Customer owns products but tier is still "Lead"`);
-    }
-
-    // Build detailed customer context
+    // Build detailed customer context from unified profile
     let customerContext = `CUSTOMER PROFILE:
-Name: ${customerName}
-Tier: ${customerTier} | Spent: $${contact?.total_spent || 0} | Lead Score: ${contact?.lead_score || 'N/A'}`;
+Name: ${customerProfile.identity.name}
+Email: ${customerProfile.identity.email || 'Not provided'}
+Phone: ${customerProfile.identity.phone || 'Not provided'}
 
-    // Trading profile
-    if (contact?.trading_experience || contact?.trading_style || contact?.account_size) {
-      customerContext += `\n\nTRADING PROFILE:`;
-      if (contact.trading_experience) customerContext += `\nExperience: ${contact.trading_experience}`;
-      if (contact.trading_style) customerContext += `\nStyle: ${contact.trading_style}`;
-      if (contact.account_size) customerContext += `\nAccount Size: ${contact.account_size}`;
-      if (contact.risk_tolerance) customerContext += `\nRisk Tolerance: ${contact.risk_tolerance}`;
-    }
+FINANCIAL STATUS:
+Tier: ${customerProfile.financial.tier}
+Total Spent: $${customerProfile.financial.totalSpent.toLocaleString()}
+Products Owned: ${customerProfile.financial.productsCount}
+${customerProfile.financial.hasDisputed ? `⚠️ DISPUTED: $${customerProfile.financial.disputedAmount}` : ''}
 
-    // Products & interests
-    if (productsOwned.length > 0) {
-      customerContext += `\n\nOWNS: ${productsOwned.join(', ')}`;
-    }
-    if (contact?.products_interested && contact.products_interested.length > 0) {
-      customerContext += `\nINTERESTED IN: ${contact.products_interested.join(', ')}`;
-    }
+ENGAGEMENT METRICS:
+Lead Score: ${customerProfile.engagement.leadScore}/100
+Engagement Score: ${customerProfile.engagement.engagementScore}/100
+Likelihood to Buy: ${customerProfile.engagement.likelihoodScore}/100
+Sentiment: ${customerProfile.engagement.sentiment || 'Unknown'}
 
-    // Goals & objections
-    if (contact?.goals && contact.goals.length > 0) {
-      customerContext += `\n\nGOALS: ${contact.goals.join(', ')}`;
-    }
-    if (contact?.objections) {
-      customerContext += `\nOBJECTIONS: ${contact.objections}`;
-    }
+🔴 CRITICAL - PRODUCTS OWNED (${productsOwned.length}):
+${hasProducts ? productsOwned.map((p: string) => `✓ ${p}`).join('\n') : '✗ NO PRODUCTS OWNED (This is a LEAD, not a customer)'}
 
-    // Behavioral insights
-    if (contact?.personality_type) {
-      customerContext += `\n\nPERSONALITY: ${contact.personality_type}`;
-    }
-    if (contact?.behavioral_tags && contact.behavioral_tags.length > 0) {
-      customerContext += `\nBEHAVIORS: ${contact.behavioral_tags.join(', ')}`;
-    }
-    if (contact?.sentiment) {
-      customerContext += `\nSENTIMENT: ${contact.sentiment}`;
-    }
+${!hasProducts ? `
+⚠️ CRITICAL: This contact has NOT purchased any products. They are a ${customerProfile.financial.tier}.
+- DO NOT say they own products
+- DO NOT mention "your purchase" or "the product you bought"  
+- DO NOT offer product support
+- FOCUS on nurturing and converting this lead
+- Your role is to educate and build interest
+` : `
+✅ VERIFIED CUSTOMER: Owns ${productsOwned.length} product(s)
+- You CAN provide support for their products
+- You CAN reference their purchases
+- Focus on helping them maximize value from owned products
+- Consider upselling complementary products
+`}
 
-    // AI-generated profile
-    if (contact?.ai_profile && typeof contact.ai_profile === 'object') {
-      const profile = contact.ai_profile as any;
-      if (profile.summary) {
-        customerContext += `\n\nAI SUMMARY: ${profile.summary}`;
-      }
-      if (profile.communication_style) {
-        customerContext += `\nCommunication Style: ${profile.communication_style}`;
-      }
-    }
+TRADING PROFILE:
+Experience: ${customerProfile.trading.experience || 'Unknown'}
+Trading Style: ${customerProfile.trading.style || 'Not specified'}
+Account Size: ${customerProfile.trading.accountSize || 'Unknown'}
+Risk Tolerance: ${customerProfile.trading.riskTolerance || 'Not assessed'}
+Interests: ${customerProfile.trading.interests.join(', ') || 'None specified'}
+Goals: ${customerProfile.trading.goals.join(', ') || 'None specified'}
+Sectors: ${customerProfile.trading.sectors.join(', ') || 'None specified'}
 
-    // Recent engagement
-    if (contact?.last_engagement_action) {
-      customerContext += `\n\nLAST ACTION: ${contact.last_engagement_action}`;
-    }
+BEHAVIORAL PROFILE:
+Personality Type: ${customerProfile.behavioral.personalityType || 'Not analyzed'}
+Communication Style: ${customerProfile.behavioral.communicationStyle}
+Tags: ${customerProfile.behavioral.regularTags.join(', ') || 'None'}
+Behavioral Tags: ${customerProfile.behavioral.tags.join(', ') || 'None'}
+${customerProfile.behavioral.objections ? `Objections: ${customerProfile.behavioral.objections}` : ''}
 
-    // Lead status
-    if (contact?.lead_status) {
-      customerContext += `\nSTATUS: ${contact.lead_status}`;
-    }
+AI INSIGHTS:
+${customerProfile.insights.summary}`;
 
     // Log what context we're sending to the AI
     console.log('🔍 Customer Context for AI:', {
       contactId,
       agentType: effectiveAgentType,
       helpModeActive: isHelpMode,
-      name: customerName,
-      tier: customerTier,
+      name: customerProfile.identity.name,
+      tier: customerProfile.financial.tier,
       productsCount: productsOwned.length,
       productsOwned,
       contextLength: customerContext.length
@@ -354,15 +336,15 @@ RESPONSE GUIDELINES:
      : `✅ Customer OWNS ${productsOwned.length} PRODUCT(S) - They are an ACTIVE CUSTOMER.`}
 
 3. 💰 CUSTOMER TIER & SPENDING:
-   - Total Spent: $${totalSpent.toFixed(2)}
-   - Customer Tier: ${customerTier}
+   - Total Spent: $${customerProfile.financial.totalSpent.toFixed(2)}
+   - Customer Tier: ${customerProfile.financial.tier}
    
    🚨 CRITICAL TIER RULES:
-   ${customerTier === 'VIP' || customerTier === 'Premium' 
-     ? `   - This customer is ${customerTier.toUpperCase()} tier with $${totalSpent.toFixed(2)} spent
+   ${customerProfile.financial.tier === 'VIP' || customerProfile.financial.tier === 'Premium' 
+     ? `   - This customer is ${customerProfile.financial.tier.toUpperCase()} tier with $${customerProfile.financial.totalSpent.toFixed(2)} spent
    - NEVER refer to them as a "LEAD" or suggest they haven't purchased
    - They are a VALUED CUSTOMER who deserves premium treatment`
-     : customerTier === 'Lead' && productsOwned.length > 0
+     : customerProfile.financial.tier === 'Lead' && productsOwned.length > 0
      ? `   - ⚠️ DATA INCONSISTENCY: Tier shows "Lead" but customer owns ${productsOwned.length} product(s)
    - ALWAYS prioritize the PRODUCTS OWNED data over the tier label
    - Treat them as an ACTIVE CUSTOMER, not a lead`
@@ -370,7 +352,7 @@ RESPONSE GUIDELINES:
 
 4. NEVER CLAIM "I don't have access to your account/products/information"
 5. ALL DATA IN "CUSTOMER CONTEXT" BELOW IS ACCESSIBLE TO YOU
-6. REFERENCE ACTUAL DATA (name: ${customerName}, tier: ${customerTier}, products: ${productsOwned.join(', ') || 'none'})
+6. REFERENCE ACTUAL DATA (name: ${customerProfile.identity.name}, tier: ${customerProfile.financial.tier}, products: ${productsOwned.join(', ') || 'none'})
 ---
 
 Tone: ${tone}
@@ -384,7 +366,7 @@ ${responseGuidelines}`;
       contactId,
       agentType: effectiveAgentType,
       helpModeActive: isHelpMode,
-      productsOwned: contact?.products_owned || [],
+      productsOwned: customerProfile.financial.productsOwned || [],
       hasCustomerContext: customerContext.length > 0,
       systemPromptLength: systemMessage.length,
       contextPreview: customerContext.substring(0, 200)
@@ -475,7 +457,7 @@ ${responseGuidelines}`;
       lowerResponse.includes("you don't have any")
     );
     
-    const hasTierHallucination = (customerTier === 'VIP' || customerTier === 'Premium' || productsOwned.length > 0) && (
+    const hasTierHallucination = (customerProfile.financial.tier === 'VIP' || customerProfile.financial.tier === 'Premium' || productsOwned.length > 0) && (
       lowerResponse.includes("lead tier") ||
       lowerResponse.includes("you're a lead") ||
       lowerResponse.includes("as a lead")
@@ -484,8 +466,8 @@ ${responseGuidelines}`;
     if (hasProductHallucination || hasTierHallucination) {
       console.error('🚨 AI HALLUCINATION DETECTED:');
       console.error(`   - Products owned: ${productsOwned.length} (${productsOwned.join(', ')})`);
-      console.error(`   - Customer tier: ${customerTier}`);
-      console.error(`   - Total spent: $${totalSpent}`);
+      console.error(`   - Customer tier: ${customerProfile.financial.tier}`);
+      console.error(`   - Total spent: $${customerProfile.financial.totalSpent}`);
       console.error(`   - AI response claimed: ${hasProductHallucination ? 'NO PRODUCTS' : 'LEAD TIER'}`);
       console.error(`   - Original response: ${aiMessage}`);
       
@@ -493,7 +475,7 @@ ${responseGuidelines}`;
       if (hasProductHallucination) {
         aiMessage = `I can see you own ${productsOwned.length} product(s) with us: ${productsOwned.join(', ')}. How can I help you with these today?`;
       } else if (hasTierHallucination) {
-        aiMessage = `As a valued ${customerTier} customer who has invested $${totalSpent.toFixed(2)} with us, you deserve excellent support. How can I assist you today?`;
+        aiMessage = `As a valued ${customerProfile.financial.tier} customer who has invested $${customerProfile.financial.totalSpent.toFixed(2)} with us, you deserve excellent support. How can I assist you today?`;
       }
       
       console.log(`✅ Corrected response: ${aiMessage}`);
@@ -539,7 +521,7 @@ ${responseGuidelines}`;
         content: message,
         token_count: message.split(/\s+/).length,
         embedding: userEmbedding,
-        customer_context: { tier: customerTier, products: productsOwned },
+        customer_context: { tier: customerProfile.financial.tier, products: productsOwned },
       },
       {
         conversation_id: conversationId,
