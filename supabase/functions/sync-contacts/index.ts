@@ -109,12 +109,36 @@ serve(async (req) => {
           }
         };
 
-        // Upsert contact
-        const { data: existingContact } = await supabase
+        // Check for existing by monday_item_id, email, or phone (in that priority order)
+        let existingContact = null;
+        
+        // First try monday_item_id
+        const { data: mondayContact } = await supabase
           .from('contacts')
           .select('id')
           .eq('monday_item_id', item.id)
-          .single();
+          .maybeSingle();
+        
+        if (mondayContact) {
+          existingContact = mondayContact;
+        } else if (email || phone) {
+          // Try email or phone, prefer highest total_spent (VIP priority)
+          const orCondition = [];
+          if (email) orCondition.push(`email.eq.${email}`);
+          if (phone) orCondition.push(`phone_number.eq.${phone}`);
+          
+          const { data: matchedContact } = await supabase
+            .from('contacts')
+            .select('id')
+            .or(orCondition.join(','))
+            .order('total_spent', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (matchedContact) {
+            existingContact = matchedContact;
+          }
+        }
 
         if (existingContact) {
           await supabase

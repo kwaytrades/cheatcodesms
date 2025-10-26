@@ -170,14 +170,51 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
           return contact;
         }).filter(contact => contact.email); // Only import contacts with email
 
-        // Insert batch with upsert to handle duplicates
-        const { data, error } = await supabase
-          .from('contacts')
-          .upsert(contacts, { 
-            onConflict: 'email',
-            ignoreDuplicates: false 
-          })
-          .select();
+        // Process each contact individually to check for email OR phone duplicates
+        const processedContacts = [];
+        
+        for (const contact of contacts) {
+          try {
+            // Check for existing contact by email OR normalized phone
+            const { data: existing } = await supabase
+              .from('contacts')
+              .select('id, email, phone_number, total_spent')
+              .or(`email.eq.${contact.email}${contact.phone_number ? `,phone_number.eq.${contact.phone_number}` : ''}`)
+              .order('total_spent', { ascending: false, nullsFirst: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existing) {
+              // Update existing contact
+              const { data: updated, error: updateError } = await supabase
+                .from('contacts')
+                .update(contact)
+                .eq('id', existing.id)
+                .select()
+                .single();
+              
+              if (!updateError && updated) {
+                processedContacts.push(updated);
+              }
+            } else {
+              // Insert new contact (trigger will normalize phone automatically)
+              const { data: inserted, error: insertError } = await supabase
+                .from('contacts')
+                .insert(contact)
+                .select()
+                .single();
+              
+              if (!insertError && inserted) {
+                processedContacts.push(inserted);
+              }
+            }
+          } catch (err) {
+            console.error('Error processing contact:', contact.email, err);
+          }
+        }
+
+        const data = processedContacts;
+        const error = processedContacts.length === 0 ? new Error('No contacts processed') : null;
 
         if (error) {
           console.error("Batch insert error:", error);

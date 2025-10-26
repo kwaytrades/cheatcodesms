@@ -26,38 +26,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find or create contact
-    let { data: contact, error: contactError } = await supabase
+    // Find or create contact using database function (handles deduplication)
+    const { data: contactIdData, error: contactError } = await supabase.rpc(
+      'find_or_create_contact',
+      {
+        p_email: email || null,
+        p_phone: phone || null,
+        p_name: name || 'Unknown',
+        p_metadata: {}
+      }
+    );
+
+    if (contactError) {
+      console.error('Error finding/creating contact:', contactError);
+      throw contactError;
+    }
+
+    const contactId = contactIdData;
+    console.log('Contact ID:', contactId);
+
+    // Fetch full contact details
+    const { data: contact, error: fetchError } = await supabase
       .from('contacts')
       .select('*')
-      .or(email ? `email.eq.${email}` : `phone_number.eq.${phone}`)
-      .maybeSingle();
+      .eq('id', contactId)
+      .single();
 
-    if (!contact) {
-      // Create new contact
-      const contactData: any = {
-        full_name: name || 'Unknown',
-        lead_status: 'new',
-      };
-      
-      if (email) contactData.email = email;
-      if (phone) contactData.phone_number = phone;
-
-      const { data: newContact, error: createError } = await supabase
-        .from('contacts')
-        .insert(contactData)
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating contact:', createError);
-        throw createError;
-      }
-      contact = newContact;
-      console.log('Created new contact:', contact.id);
-    } else {
-      console.log('Found existing contact:', contact.id);
+    if (fetchError || !contact) {
+      console.error('Error fetching contact:', fetchError);
+      throw fetchError || new Error('Contact not found');
     }
+
+    console.log('Using contact:', contact.id, '- VIP status:', contact.customer_tier);
 
     // Update all visits with this session to link to contact
     const { error: updateVisitsError } = await supabase
