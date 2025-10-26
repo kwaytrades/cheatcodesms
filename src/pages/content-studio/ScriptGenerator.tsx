@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,11 +84,11 @@ const ScriptGenerator = () => {
   }, [styleGuide]);
 
   // Auto-select first available tone when format changes
-  useMemo(() => {
+  useEffect(() => {
     if (availableTones.length > 0 && !availableTones.find(t => t.value === tone)) {
       setTone(availableTones[0].value);
     }
-  }, [availableTones]);
+  }, [availableTones, tone]);
 
   const generateScript = useMutation({
     mutationFn: async () => {
