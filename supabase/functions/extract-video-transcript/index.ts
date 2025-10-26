@@ -17,6 +17,12 @@ serve(async (req) => {
     const { url, platform } = await req.json();
 
     console.log('Extracting transcript from:', { url, platform });
+    console.log('SUPADATA_API_KEY available:', !!SUPADATA_API_KEY);
+    console.log('SUPADATA_API_KEY length:', SUPADATA_API_KEY?.length || 0);
+    
+    if (!SUPADATA_API_KEY) {
+      throw new Error('SUPADATA_API_KEY environment variable is not set');
+    }
 
     if (!url || !platform) {
       throw new Error('URL and platform are required');
