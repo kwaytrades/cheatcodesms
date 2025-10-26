@@ -4,16 +4,23 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { useState } from "react";
 
-export const GlobalScoreRefreshButton = () => {
+interface GlobalScoreRefreshButtonProps {
+  onRefreshComplete?: () => void;
+}
+
+export const GlobalScoreRefreshButton = ({ onRefreshComplete }: GlobalScoreRefreshButtonProps) => {
   const [loading, setLoading] = useState(false);
 
   const handleGlobalRefresh = async () => {
     try {
       setLoading(true);
-      toast.info("Starting global score refresh for all active contacts...");
+      toast.info("Starting global score refresh for all contacts...");
 
       const { data, error } = await supabase.functions.invoke('recalculate-all-scores', {
-        body: { limit: 50000 }
+        body: { 
+          limit: 50000,
+          force: true
+        }
       });
 
       if (error) throw error;
@@ -22,6 +29,10 @@ export const GlobalScoreRefreshButton = () => {
       
       if (data.failed > 0) {
         toast.warning(`${data.failed} contacts failed to update. Check logs for details.`);
+      }
+
+      if (onRefreshComplete) {
+        onRefreshComplete();
       }
       
     } catch (error: any) {

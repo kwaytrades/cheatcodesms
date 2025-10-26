@@ -17,21 +17,28 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const { limit = 5000 } = await req.json().catch(() => ({}));
+    const { limit = 5000, force = false } = await req.json().catch(() => ({}));
     
-    console.log(`🔄 Starting batch score recalculation (limit: ${limit})`);
+    console.log(`🔄 Starting batch score recalculation (limit: ${limit}, force: ${force})`);
 
-    // Fetch contacts with recent activity (last 7 days)
-    // Skip contacts updated in last 30 minutes to avoid duplicates
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { data: activeContacts, error: fetchError } = await supabase
+    let query = supabase
       .from('contacts')
-      .select('id, full_name, last_engagement_date, last_score_update')
-      .gte('last_engagement_date', sevenDaysAgo)
-      .or(`last_score_update.is.null,last_score_update.lt.${thirtyMinutesAgo}`)
-      .limit(limit);
+      .select('id, full_name, last_engagement_date, last_score_update');
+
+    if (!force) {
+      // Smart filtering: only active contacts, skip recently updated
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      query = query
+        .gte('last_engagement_date', sevenDaysAgo)
+        .or(`last_score_update.is.null,last_score_update.lt.${thirtyMinutesAgo}`);
+    } else {
+      console.log('🔥 FORCE MODE: Processing all contacts');
+    }
+
+    query = query.limit(limit);
+    const { data: activeContacts, error: fetchError } = await query;
 
     if (fetchError) {
       throw fetchError;

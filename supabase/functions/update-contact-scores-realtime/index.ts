@@ -174,7 +174,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const { contactId, messageBody } = await req.json();
+    const { contactId, messageBody, force = false } = await req.json();
     
     if (!contactId) {
       return new Response(JSON.stringify({ error: 'contactId required' }), {
@@ -196,20 +196,24 @@ serve(async (req) => {
       throw new Error('Contact not found');
     }
 
-    // Check if score was updated recently (< 5 minutes ago) - avoid duplicate processing
-    const lastUpdate = contact.last_score_update ? new Date(contact.last_score_update) : null;
-    if (lastUpdate && (Date.now() - lastUpdate.getTime()) < 5 * 60 * 1000) {
-      console.log('⏭️  Score updated recently, skipping to avoid duplicate processing');
-      return new Response(
-        JSON.stringify({
-          success: true,
-          cached: true,
-          leadScore: contact.lead_score,
-          leadStatus: contact.lead_status,
-          engagementScore: contact.engagement_score,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Check if score was updated recently (< 5 minutes ago) - avoid duplicate processing (unless forced)
+    if (!force) {
+      const lastUpdate = contact.last_score_update ? new Date(contact.last_score_update) : null;
+      if (lastUpdate && (Date.now() - lastUpdate.getTime()) < 5 * 60 * 1000) {
+        console.log('⏭️  Score updated recently, skipping to avoid duplicate processing');
+        return new Response(
+          JSON.stringify({
+            success: true,
+            cached: true,
+            leadScore: contact.lead_score,
+            leadStatus: contact.lead_status,
+            engagementScore: contact.engagement_score,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      console.log('🔥 FORCE MODE: Bypassing cache check');
     }
 
     // Get recent conversation history - fetch last 50 messages for analysis

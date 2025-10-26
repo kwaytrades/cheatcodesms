@@ -50,7 +50,8 @@ export const KeyMetrics = ({
       const { data, error } = await supabase.functions.invoke('update-contact-scores-realtime', {
         body: { 
           contactId,
-          messageBody: null // Analyze full message history
+          messageBody: null, // Analyze full message history
+          force: true
         }
       });
 

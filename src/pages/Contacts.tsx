@@ -119,21 +119,41 @@ const Contacts = () => {
 
   // Real-time subscription for contact updates
   useEffect(() => {
-    const channel = supabase
-      .channel('contacts-changes')
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'contacts' },
-        (payload) => {
-          // Update local state with new contact data
-          setContacts(prev => prev.map(c => 
-            c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
-          ));
-          setFilteredContacts(prev => prev.map(c => 
-            c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
-          ));
-        }
-      )
-      .subscribe();
+    let reconnectAttempts = 0;
+    const maxReconnects = 5;
+
+    const setupChannel = () => {
+      const channel = supabase
+        .channel('contacts-changes')
+        .on('postgres_changes', 
+          { event: 'UPDATE', schema: 'public', table: 'contacts' },
+          (payload) => {
+            console.log('📡 Realtime contact update:', payload.new.id);
+            
+            // Update local state with new contact data
+            setContacts(prev => prev.map(c => 
+              c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
+            ));
+            setFilteredContacts(prev => prev.map(c => 
+              c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
+            ));
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('✅ Realtime subscription active');
+            reconnectAttempts = 0;
+          } else if (status === 'CLOSED' && reconnectAttempts < maxReconnects) {
+            reconnectAttempts++;
+            console.log(`🔄 Reconnecting... (${reconnectAttempts}/${maxReconnects})`);
+            setTimeout(() => setupChannel(), 2000 * reconnectAttempts);
+          }
+        });
+
+      return channel;
+    };
+
+    const channel = setupChannel();
 
     return () => {
       supabase.removeChannel(channel);
@@ -593,7 +613,7 @@ const Contacts = () => {
                 </p>
               </div>
               <div className="flex gap-2">
-                <GlobalScoreRefreshButton />
+                <GlobalScoreRefreshButton onRefreshComplete={loadContacts} />
                 <CSVImportDialog onImportComplete={loadContacts} />
                 <ImportContactsDialog onImportComplete={loadContacts} />
                 <AddContactDialog onContactAdded={loadContacts} />
