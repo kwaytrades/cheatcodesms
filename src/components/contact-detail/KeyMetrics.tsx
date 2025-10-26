@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TierBadge } from "@/components/ui/tier-badge";
-import { LikelihoodScore } from "@/components/ui/likelihood-score";
+import { LeadStatusBadge } from "@/components/ui/lead-status-badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RefreshCw, Pencil } from "lucide-react";
@@ -201,21 +201,10 @@ export const KeyMetrics = ({
           </div>
         )}
 
-        {likelihoodScore !== null && likelihoodScore !== undefined && (
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-muted-foreground">Likelihood</span>
-              <LikelihoodScore score={likelihoodScore} showLabel={true} />
-            </div>
-          </div>
-        )}
-        
         <div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-muted-foreground">Status</span>
-            <Badge className={getStatusColor(leadStatus)}>
-              {leadStatus}
-            </Badge>
+            <LeadStatusBadge score={leadScore} status={leadStatus} />
           </div>
         </div>
         

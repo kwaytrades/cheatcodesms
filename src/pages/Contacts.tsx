@@ -20,6 +20,7 @@ import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { RecalculateScoresButton } from "@/components/RecalculateScoresButton";
 import { GlobalScoreRefreshButton } from "@/components/GlobalScoreRefreshButton";
+import { LeadStatusBadge } from "@/components/ui/lead-status-badge";
 
 interface Contact {
   id: string;
@@ -59,9 +60,9 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'email', label: 'Email', visible: true },
   { key: 'phone_number', label: 'Phone', visible: true },
   { key: 'customer_tier', label: 'Tier', visible: true },
-  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: true },
-  { key: 'lead_status', label: 'Status', visible: false },
-  { key: 'lead_score', label: 'Score', visible: false },
+  { key: 'lead_status', label: 'Status', visible: true },
+  { key: 'lead_score', label: 'Score', visible: true },
+  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: false },
   { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
@@ -468,11 +469,12 @@ const Contacts = () => {
   };
 
   const getScoreColor = (score: number | null) => {
-    if (!score) return 'bg-status-cold/10 text-status-cold';
-    if (score >= 80) return 'bg-score-hot/10 text-score-hot';
-    if (score >= 51) return 'bg-score-warm/10 text-score-warm';
-    if (score >= 21) return 'bg-score-cool/10 text-score-cool';
-    return 'bg-score-cold/10 text-score-cold';
+    if (!score) return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30';
+    if (score >= 80) return 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30';
+    if (score >= 70) return 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/30';
+    if (score >= 50) return 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30';
+    if (score >= 30) return 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30';
+    return 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30';
   };
 
   const renderCellContent = (contact: Contact, columnKey: ColumnKey) => {
@@ -513,10 +515,8 @@ const Contacts = () => {
           </div>
         ) : '-';
       case 'lead_status':
-        return contact.lead_status ? (
-          <Badge className={STATUS_COLORS[contact.lead_status] || 'bg-muted'}>
-            {contact.lead_status}
-          </Badge>
+        return contact.lead_status && contact.lead_score !== null ? (
+          <LeadStatusBadge score={contact.lead_score} status={contact.lead_status} />
         ) : '-';
       case 'lead_score':
         return contact.lead_score !== null ? (
