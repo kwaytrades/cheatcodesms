@@ -138,7 +138,13 @@ Deno.serve(async (req) => {
       // B. Customer profile
       supabase
         .from('contacts')
-        .select('full_name, email, customer_tier, products_owned, total_spent, lead_score')
+        .select(`
+          full_name, email, customer_tier, products_owned, products_interested,
+          total_spent, lead_score, lead_status, sentiment, personality_type,
+          trading_experience, trading_style, account_size, risk_tolerance,
+          goals, objections, behavioral_tags, last_engagement_action,
+          ai_profile, customer_profile, webinar_attendance, form_responses
+        `)
         .eq('id', contactId)
         .single()
     ]);
@@ -191,7 +197,67 @@ Deno.serve(async (req) => {
     const customerTier = contact?.customer_tier || 'Standard';
     const productsOwned = contact?.products_owned || [];
 
-    const customerContext = `Customer: ${customerName} (${customerTier} tier, ${productsOwned.length} products, $${contact?.total_spent || 0} spent)`;
+    // Build detailed customer context
+    let customerContext = `CUSTOMER PROFILE:
+Name: ${customerName}
+Tier: ${customerTier} | Spent: $${contact?.total_spent || 0} | Lead Score: ${contact?.lead_score || 'N/A'}`;
+
+    // Trading profile
+    if (contact?.trading_experience || contact?.trading_style || contact?.account_size) {
+      customerContext += `\n\nTRADING PROFILE:`;
+      if (contact.trading_experience) customerContext += `\nExperience: ${contact.trading_experience}`;
+      if (contact.trading_style) customerContext += `\nStyle: ${contact.trading_style}`;
+      if (contact.account_size) customerContext += `\nAccount Size: ${contact.account_size}`;
+      if (contact.risk_tolerance) customerContext += `\nRisk Tolerance: ${contact.risk_tolerance}`;
+    }
+
+    // Products & interests
+    if (productsOwned.length > 0) {
+      customerContext += `\n\nOWNS: ${productsOwned.join(', ')}`;
+    }
+    if (contact?.products_interested && contact.products_interested.length > 0) {
+      customerContext += `\nINTERESTED IN: ${contact.products_interested.join(', ')}`;
+    }
+
+    // Goals & objections
+    if (contact?.goals && contact.goals.length > 0) {
+      customerContext += `\n\nGOALS: ${contact.goals.join(', ')}`;
+    }
+    if (contact?.objections) {
+      customerContext += `\nOBJECTIONS: ${contact.objections}`;
+    }
+
+    // Behavioral insights
+    if (contact?.personality_type) {
+      customerContext += `\n\nPERSONALITY: ${contact.personality_type}`;
+    }
+    if (contact?.behavioral_tags && contact.behavioral_tags.length > 0) {
+      customerContext += `\nBEHAVIORS: ${contact.behavioral_tags.join(', ')}`;
+    }
+    if (contact?.sentiment) {
+      customerContext += `\nSENTIMENT: ${contact.sentiment}`;
+    }
+
+    // AI-generated profile
+    if (contact?.ai_profile && typeof contact.ai_profile === 'object') {
+      const profile = contact.ai_profile as any;
+      if (profile.summary) {
+        customerContext += `\n\nAI SUMMARY: ${profile.summary}`;
+      }
+      if (profile.communication_style) {
+        customerContext += `\nCommunication Style: ${profile.communication_style}`;
+      }
+    }
+
+    // Recent engagement
+    if (contact?.last_engagement_action) {
+      customerContext += `\n\nLAST ACTION: ${contact.last_engagement_action}`;
+    }
+
+    // Lead status
+    if (contact?.lead_status) {
+      customerContext += `\nSTATUS: ${contact.lead_status}`;
+    }
 
     // Build conversation history (chronological order)
     const conversationHistory: any[] = [];
