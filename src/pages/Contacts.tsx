@@ -21,6 +21,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { RecalculateScoresButton } from "@/components/RecalculateScoresButton";
 import { GlobalScoreRefreshButton } from "@/components/GlobalScoreRefreshButton";
 import { LeadStatusBadge } from "@/components/ui/lead-status-badge";
+import { TierBadge } from "@/components/ui/tier-badge";
 
 interface Contact {
   id: string;
@@ -76,15 +77,6 @@ const STATUS_COLORS: Record<string, string> = {
   'warm': 'bg-warning/20 text-warning border-warning/30',
   'hot': 'bg-destructive/20 text-destructive border-destructive/30',
   'customer': 'bg-status-customer/10 text-status-customer border-status-customer/20',
-};
-
-const TIER_COLORS: Record<string, string> = {
-  'LEAD': 'bg-muted text-muted-foreground border-muted',
-  'Level 1': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  'Level 2': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-  'Level 3': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  'VIP': 'bg-status-vip/10 text-status-vip border-status-vip/20',
-  'SHITLIST': 'bg-status-churned/10 text-status-churned border-status-churned/20',
 };
 
 const Contacts = () => {
@@ -497,9 +489,12 @@ const Contacts = () => {
         ) : '-';
       case 'customer_tier':
         return contact.customer_tier ? (
-          <Badge className={TIER_COLORS[contact.customer_tier] || 'bg-muted'}>
-            {contact.customer_tier}
-          </Badge>
+          <TierBadge 
+            tier={contact.customer_tier}
+            disputedAmount={contact.disputed_amount || 0}
+            hasDisputed={contact.has_disputed || false}
+            showIcon={true}
+          />
         ) : '-';
       case 'likelihood_to_buy_score':
         return contact.likelihood_to_buy_score !== null ? (

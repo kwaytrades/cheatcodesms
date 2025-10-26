@@ -20,7 +20,7 @@ export const LeadStatusBadge = ({
   const getScoreConfig = (scoreValue: number) => {
     if (scoreValue >= 80) {
       return {
-        label: '$ READY',
+        label: 'READY',
         color: 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30',
         glow: 'glow-green',
         icon: DollarSign

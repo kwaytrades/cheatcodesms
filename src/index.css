@@ -82,6 +82,18 @@ All colors MUST be HSL.
     --format-carousel: 210 100% 40%;
     --format-tiktok: 180 100% 47%;
     
+    /* Tier Colors - Bright, Vibrant, High Contrast */
+    --tier-vip: 45 100% 55%;
+    --tier-vip-foreground: 0 0% 0%;
+    --tier-level-3: 150 100% 45%;
+    --tier-level-3-foreground: 0 0% 0%;
+    --tier-level-2: 180 100% 45%;
+    --tier-level-2-foreground: 0 0% 100%;
+    --tier-level-1: 210 100% 55%;
+    --tier-level-1-foreground: 0 0% 100%;
+    --tier-lead: 220 15% 50%;
+    --tier-lead-foreground: 0 0% 100%;
+    
     /* Lead Score Gradient Colors (Blue → Yellow → Orange → Red) */
     --score-cold: 210 100% 50%;
     --score-cool: 210 100% 55%;
@@ -156,6 +168,14 @@ All colors MUST be HSL.
   
   .glow-cyan {
     box-shadow: 0 0 20px hsl(180 100% 50% / 0.3);
+  }
+  
+  .glow-gold {
+    box-shadow: 0 0 25px hsl(45 100% 55% / 0.5), 0 0 50px hsl(45 100% 55% / 0.2);
+  }
+  
+  .glow-teal {
+    box-shadow: 0 0 20px hsl(180 100% 45% / 0.4);
   }
   
   /* Colored accents */

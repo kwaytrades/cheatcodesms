@@ -27,49 +27,49 @@ export const TierBadge = ({
       case 'SHITLIST':
         return {
           label: 'SHITLIST',
-          color: 'bg-black text-white border-black',
+          color: 'bg-black text-white border-red-600',
           glow: 'glow-red',
           icon: AlertTriangle
         };
       case 'LEAD':
         return {
           label: 'Lead',
-          color: 'bg-muted text-muted-foreground border-muted',
+          color: 'bg-gray-700 text-gray-100 border-gray-600',
           glow: 'glow-blue',
           icon: null
         };
       case 'LEVEL 1':
         return {
           label: 'Level 1',
-          color: 'bg-muted text-muted-foreground border-muted',
+          color: 'bg-blue-600 text-white border-blue-500 font-semibold',
           glow: 'glow-blue',
           icon: null
         };
       case 'LEVEL 2':
         return {
           label: 'Level 2',
-          color: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30',
-          glow: 'glow-blue',
+          color: 'bg-teal-500 text-white border-teal-400 font-semibold',
+          glow: 'glow-teal',
           icon: null
         };
       case 'LEVEL 3':
         return {
           label: 'Level 3',
-          color: 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30',
+          color: 'bg-green-500 text-black border-green-400 font-bold',
           glow: 'glow-green',
           icon: Shield
         };
       case 'VIP':
         return {
           label: 'VIP',
-          color: 'bg-amber-400/20 text-amber-600 dark:text-amber-400 border-amber-500/40 font-bold',
-          glow: 'glow-orange',
+          color: 'bg-yellow-400 text-black border-yellow-300 font-extrabold',
+          glow: 'glow-gold',
           icon: Crown
         };
       default:
         return {
           label: tierValue,
-          color: 'bg-muted text-muted-foreground border-muted',
+          color: 'bg-gray-700 text-gray-100 border-gray-600',
           glow: 'glow-blue',
           icon: null
         };
