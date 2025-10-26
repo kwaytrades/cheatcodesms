@@ -971,6 +971,21 @@ NEVER say this customer is a "new lead" or "doesn't own products". They are a ${
       lovableApiKey
     ).catch((error: any) => console.error('Profile update failed:', error));
 
+    // Update scores after AI response is sent
+    if (contactId) {
+      try {
+        await supabase.functions.invoke('update-contact-scores-realtime', {
+          body: {
+            contactId: contactId,
+            messageBody: cleanResponse
+          }
+        });
+        console.log('✅ Real-time scores updated after AI response');
+      } catch (scoreError) {
+        console.error('⚠️ Failed to update scores after AI response:', scoreError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         response: cleanResponse,

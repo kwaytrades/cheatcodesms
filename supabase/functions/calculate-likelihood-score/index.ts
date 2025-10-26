@@ -16,6 +16,8 @@ interface ContactData {
   last_purchase_date?: string;
   customer_tier?: string;
   has_disputed: boolean;
+  last_engagement_date?: string;
+  lead_status?: string;
 }
 
 interface ScoreBreakdown {
@@ -93,6 +95,33 @@ function calculateLikelihoodScore(contact: ContactData): ScoreResult {
       breakdown.engagement += 10;
       score += 10;
     }
+  }
+
+  // REAL-TIME BOOST: Recent engagement heavily increases score
+  if (contact.last_engagement_date) {
+    const minutesSinceEngagement = Math.floor(
+      (Date.now() - new Date(contact.last_engagement_date).getTime()) / (1000 * 60)
+    );
+    
+    // Active right now or within last hour = +20 points
+    if (minutesSinceEngagement <= 60) {
+      breakdown.engagement += 20;
+      score += 20;
+      console.log(`🔥 ACTIVE NOW: +20 points (${minutesSinceEngagement}min ago)`);
+    }
+    // Within last 24 hours = +10 points
+    else if (minutesSinceEngagement <= 1440) {
+      breakdown.engagement += 10;
+      score += 10;
+      console.log(`📱 ACTIVE TODAY: +10 points (${Math.floor(minutesSinceEngagement / 60)}h ago)`);
+    }
+  }
+
+  // BUYING SIGNAL BOOST: Check lead_status for ready_to_buy
+  if (contact.lead_status === 'ready_to_buy') {
+    breakdown.engagement += 30;
+    score += 30;
+    console.log('💰 READY TO BUY: +30 points');
   }
 
   // 3. NEGATIVE SIGNALS (-50 points max)

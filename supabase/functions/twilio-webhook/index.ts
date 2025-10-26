@@ -143,6 +143,25 @@ serve(async (req) => {
     });
 
     // ============================================
+    // REAL-TIME SCORE UPDATE - Update contact scores immediately
+    // ============================================
+    if (existingContact) {
+      try {
+        console.log(`📊 Updating real-time scores for contact: ${existingContact.id}`);
+        await supabase.functions.invoke('update-contact-scores-realtime', {
+          body: {
+            contactId: existingContact.id,
+            messageBody: body
+          }
+        });
+        console.log('✅ Real-time scores updated');
+      } catch (scoreError) {
+        console.error('⚠️ Failed to update real-time scores (non-blocking):', scoreError);
+        // Don't block message processing if scoring fails
+      }
+    }
+
+    // ============================================
     // TRADE ANALYSIS AGENT ROUTING
     // ============================================
     

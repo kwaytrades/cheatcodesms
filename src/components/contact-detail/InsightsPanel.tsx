@@ -53,13 +53,22 @@ export const InsightsPanel = ({ contact, purchases = [], messages = [], aiMessag
         insights.push(`Tags: ${profile.behavioral.regularTags.join(', ')}`);
       }
 
-      // Engagement level
-      if (profile.engagement.engagementScore !== undefined) {
-        if (profile.engagement.engagementScore > 70) {
-          insights.push("🔥 Highly engaged - ready for upsell");
-        } else if (profile.engagement.engagementScore < 30) {
-          insights.push("❄️ Low engagement - needs nurturing campaign");
-        }
+      // Engagement level - CHECK BOTH SCORE AND RECENCY
+      const lastEngagementDate = profile.engagement.lastEngagement 
+        ? new Date(profile.engagement.lastEngagement)
+        : null;
+      
+      const isRecentlyActive = lastEngagementDate 
+        ? (Date.now() - lastEngagementDate.getTime()) < 24 * 60 * 60 * 1000 // 24 hours
+        : false;
+
+      // High message count (127 communications) = highly engaged
+      const isHighVolume = totalMessages > 50;
+
+      if (isRecentlyActive || profile.engagement.engagementScore > 70 || isHighVolume) {
+        insights.push("🔥 Highly engaged - ready for upsell");
+      } else if (profile.engagement.engagementScore < 30 && !isRecentlyActive && !isHighVolume) {
+        insights.push("❄️ Low engagement - needs nurturing campaign");
       }
 
       // Chargeback warning
