@@ -9,8 +9,9 @@ const Progress = React.forwardRef<
     indicatorClassName?: string;
     useGradient?: boolean;
     useSentimentGradient?: boolean;
+    isReady?: boolean;
   }
->(({ className, value, indicatorClassName, useGradient = false, useSentimentGradient = false, ...props }, ref) => (
+>(({ className, value, indicatorClassName, useGradient = false, useSentimentGradient = false, isReady = false, ...props }, ref) => (
   <ProgressPrimitive.Root
     ref={ref}
     className={cn("relative h-4 w-full overflow-hidden rounded-full bg-muted", className)}
@@ -19,7 +20,13 @@ const Progress = React.forwardRef<
     <ProgressPrimitive.Indicator
       className={cn(
         "h-full w-full flex-1 transition-all",
-        useSentimentGradient ? "sentiment-gradient" : useGradient ? "score-gradient" : "bg-primary",
+        isReady 
+          ? "bg-green-500 glow-green" 
+          : useSentimentGradient 
+            ? "sentiment-gradient" 
+            : useGradient 
+              ? "score-gradient" 
+              : "bg-primary",
         indicatorClassName
       )}
       style={{ transform: `translateX(-${100 - (value || 0)}%)` }}

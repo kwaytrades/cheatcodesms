@@ -220,7 +220,7 @@ export const KeyMetrics = ({
               )}
             </div>
           </div>
-          <Progress value={leadScore} className="h-2" useGradient />
+          <Progress value={leadScore} className="h-2" useGradient isReady={leadScore >= 80} />
         </div>
         
         <div>

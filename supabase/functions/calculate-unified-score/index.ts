@@ -233,11 +233,32 @@ serve(async (req) => {
       else timeDecay = -30;
     }
 
+    // Purchase Recency Penalty (prevents "just purchased" customers from being READY)
+    let purchaseRecencyPenalty = 0;
+    const lastPurchaseDate = contact.last_purchase_date;
+
+    if (lastPurchaseDate) {
+      const daysSinceLastPurchase = (Date.now() - new Date(lastPurchaseDate).getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (daysSinceLastPurchase <= 30) {
+        purchaseRecencyPenalty = -30;
+        console.log(`📉 [Purchase Recency] Recent purchase (${Math.floor(daysSinceLastPurchase)} days) → -30 pts`);
+      } else if (daysSinceLastPurchase <= 60) {
+        purchaseRecencyPenalty = -20;
+        console.log(`📉 [Purchase Recency] Purchase within 60 days (${Math.floor(daysSinceLastPurchase)} days) → -20 pts`);
+      } else if (daysSinceLastPurchase <= 90) {
+        purchaseRecencyPenalty = -10;
+        console.log(`📉 [Purchase Recency] Purchase within 90 days (${Math.floor(daysSinceLastPurchase)} days) → -10 pts`);
+      } else {
+        console.log(`✅ [Purchase Recency] Last purchase ${Math.floor(daysSinceLastPurchase)} days ago → No penalty`);
+      }
+    }
+
     // Calculate final score
-    const rawScore = messageIntelligenceScore + purchaseScore + activityScore + timeDecay - negativePoints;
+    const rawScore = messageIntelligenceScore + purchaseScore + activityScore + timeDecay - negativePoints + purchaseRecencyPenalty;
     const finalScore = Math.max(0, Math.min(100, rawScore));
 
-    console.log(`📊 [Score Breakdown] Messages: ${messageIntelligenceScore.toFixed(1)}, Purchase: ${purchaseScore}, Activity: ${activityScore}, Decay: ${timeDecay}, Negative: ${-negativePoints}`);
+    console.log(`📊 [Score Breakdown] Messages: ${messageIntelligenceScore.toFixed(1)}, Purchase: ${purchaseScore}, Activity: ${activityScore}, Decay: ${timeDecay}, Negative: ${-negativePoints}, Recency: ${purchaseRecencyPenalty}`);
 
     // Determine status
     let status = 'cold';
@@ -272,6 +293,7 @@ serve(async (req) => {
         activityEngagement: activityScore,
         timeDecay,
         negativeSignals: -negativePoints,
+        purchaseRecencyPenalty,
         llm_analysis: intent
       }
     }), {
