@@ -12,16 +12,15 @@ export const RecalculateScoresButton = () => {
       setLoading(true);
       toast.info("Starting score recalculation...");
 
-      // Get all contact IDs with NULL scores
+      // Get ALL contact IDs to force full recalculation
       const { data: contacts, error: fetchError } = await supabase
         .from('contacts')
-        .select('id')
-        .is('lead_score', null);
+        .select('id');
 
       if (fetchError) throw fetchError;
 
       if (!contacts || contacts.length === 0) {
-        toast.success("All contacts already have scores!");
+        toast.info("No contacts found!");
         return;
       }
 

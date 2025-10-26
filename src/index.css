@@ -221,19 +221,15 @@ All colors MUST be HSL.
     color: hsl(var(--warning));
   }
   
-  /* Score gradient (blue → green → yellow → orange → red) smooth blend */
+  /* Score gradient - matches LEAD SCORE badge colors */
   .score-gradient {
     background: linear-gradient(
       to right,
-      hsl(210, 100%, 50%) 0%,
-      hsl(200, 100%, 50%) 20%,
-      hsl(180, 80%, 45%) 35%,
-      hsl(150, 70%, 45%) 50%,
-      hsl(60, 100%, 50%) 60%,
-      hsl(45, 100%, 55%) 70%,
-      hsl(30, 100%, 55%) 80%,
-      hsl(10, 90%, 60%) 90%,
-      hsl(355, 85%, 60%) 100%
+      hsl(210, 100%, 55%) 0%,      /* Blue - Cold Lead (0-29) */
+      hsl(180, 100%, 45%) 30%,      /* Cyan - Nurture (30-49) */
+      hsl(30, 100%, 55%) 50%,       /* Orange - Warm (50-69) */
+      hsl(0, 100%, 60%) 70%,        /* Red - Hot (70-79) */
+      hsl(150, 100%, 45%) 80%       /* Green - READY (80-100) */
     );
   }
   

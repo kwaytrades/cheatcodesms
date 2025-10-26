@@ -44,6 +44,8 @@ serve(async (req) => {
       throw new Error('Contact not found');
     }
 
+    console.log(`🎯 [Unified Scorer] Processing contact: ${contactId}`);
+
     // Fetch recent messages for intent analysis
     const { data: messages, error: messagesError } = await supabase
       .from('messages')
@@ -81,6 +83,8 @@ serve(async (req) => {
       key_signals: [],
       sentiment: 'neutral'
     };
+
+    console.log(`🤖 [LLM Intent] Level: ${intent.intent_level}, Score: ${intent.intent_score}, Confidence: ${intent.confidence}`);
 
     // Calculate negative signals first (can override boost)
     let negativePoints = 0;
@@ -233,6 +237,8 @@ serve(async (req) => {
     const rawScore = messageIntelligenceScore + purchaseScore + activityScore + timeDecay - negativePoints;
     const finalScore = Math.max(0, Math.min(100, rawScore));
 
+    console.log(`📊 [Score Breakdown] Messages: ${messageIntelligenceScore.toFixed(1)}, Purchase: ${purchaseScore}, Activity: ${activityScore}, Decay: ${timeDecay}, Negative: ${-negativePoints}`);
+
     // Determine status
     let status = 'cold';
     let category = 'cold';
@@ -254,6 +260,8 @@ serve(async (req) => {
       category = 'cold';
     }
 
+    console.log(`✅ [Final Score] Contact: ${contactId}, Score: ${finalScore}, Status: ${status}, Category: ${category}`);
+
     return new Response(JSON.stringify({
       lead_score: finalScore,
       lead_status: status,
@@ -271,7 +279,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in calculate-unified-score:', error);
+    console.error('❌ [Unified Scorer Error]:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error' 
     }), {

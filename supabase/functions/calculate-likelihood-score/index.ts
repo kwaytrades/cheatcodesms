@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ⚠️ DEPRECATED: This function is replaced by calculate-unified-score
+// The unified scorer provides LLM-based intent analysis for more accurate scoring
+// This function remains for backwards compatibility only and should not be called
+console.warn('⚠️ DEPRECATED FUNCTION CALLED: calculate-likelihood-score - Use calculate-unified-score instead');
+
 interface ContactData {
   total_spent: number;
   tags: string[];

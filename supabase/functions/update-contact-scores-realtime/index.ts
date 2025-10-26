@@ -98,16 +98,6 @@ serve(async (req) => {
       breakdown
     });
 
-    // Optionally trigger likelihood score recalculation
-    try {
-      await supabase.functions.invoke('calculate-likelihood-score', {
-        body: { contactId }
-      });
-    } catch (likelihoodError) {
-      console.error('Error calculating likelihood score:', likelihoodError);
-      // Don't fail the main request if this fails
-    }
-
     return new Response(
       JSON.stringify({
         success: true,

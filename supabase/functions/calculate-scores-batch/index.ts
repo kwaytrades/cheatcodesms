@@ -20,17 +20,6 @@ interface ContactData {
   form_submissions?: any[];
 }
 
-// DEPRECATED: Replaced by calculate-unified-score function
-// This local calculation is no longer used
-function calculateScore(contact: ContactData): { 
-  score: number; 
-  status: string; 
-  category: string;
-} {
-  // Fallback only - should not be called
-  return { score: 0, status: 'cold', category: 'cold' };
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });

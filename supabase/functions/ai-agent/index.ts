@@ -65,7 +65,8 @@ function detectIntentSignals(text: string): number {
   return Math.max(0, signals);
 }
 
-// Calculate dynamic lead score
+// ⚠️ DEPRECATED: Use calculate-unified-score instead for consistent scoring
+// This local calculation is maintained for legacy AI agent conversations only
 async function calculateDynamicLeadScore(
   contactId: string,
   aiProfile: any,
