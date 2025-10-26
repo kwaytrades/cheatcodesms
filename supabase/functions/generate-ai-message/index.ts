@@ -27,7 +27,7 @@ const AGENT_NAMES = {
 
 const AGENT_PRIORITIES = {
   sales_agent: 10,      // Highest priority in normal mode
-  webinar: 6,           // Highest product agent
+  webinar: 8,           // Highest product agent (UPDATED: was 6, now 8)
   textbook: 5,
   flashcards: 4,
   algo_monthly: 4,

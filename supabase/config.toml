@@ -1,5 +1,8 @@
 project_id = "kkzqhkrcjwktttsntooz"
 
+[functions.activate-help-mode]
+verify_jwt = false
+
 [functions.agent-chat]
 verify_jwt = false
 

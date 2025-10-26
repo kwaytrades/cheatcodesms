@@ -85,28 +85,45 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if contact is in help mode FIRST
+    const { data: helpModeData } = await supabase
+      .from('conversation_state')
+      .select('help_mode_until')
+      .eq('contact_id', contactId)
+      .maybeSingle();
+
+    const isHelpMode = helpModeData?.help_mode_until && 
+      new Date(helpModeData.help_mode_until) > new Date();
+
+    // Override agentType if in help mode
+    let effectiveAgentType = agentType;
+    if (isHelpMode) {
+      console.log('🚨 HELP MODE ACTIVE - Routing to customer_service');
+      effectiveAgentType = 'customer_service';
+    }
+
     // 1. Get or create agent conversation (using safe DB function)
     let conversationId: string;
     
     if (requestConversationId) {
       conversationId = requestConversationId;
     } else {
-      // Use database function to safely get or create conversation
+      // Use database function to safely get or create conversation (using effectiveAgentType)
       const { data: convId, error: convError } = await supabase
         .rpc('get_or_create_agent_conversation', {
           p_contact_id: contactId,
-          p_agent_type: agentType
+          p_agent_type: effectiveAgentType
         });
 
       if (convError) throw convError;
       conversationId = convId;
     }
 
-    // 2. Fetch agent configuration
+    // 2. Fetch agent configuration (using effectiveAgentType)
     const { data: agentConfig, error: configError } = await supabase
       .from('agent_type_configs')
       .select('*')
-      .eq('agent_type', agentType)
+      .eq('agent_type', effectiveAgentType)
       .maybeSingle();
 
     if (configError) throw configError;
@@ -141,11 +158,11 @@ Deno.serve(async (req) => {
         .single()
     ]);
 
-    // C. Knowledge base search (with error handling)
+    // C. Knowledge base search (with error handling, using effectiveAgentType)
     let kbResults: any = null;
     try {
       // Map agent type to knowledge base category
-      const kbCategory = KB_CATEGORY_MAP[agentType] || agentType;
+      const kbCategory = KB_CATEGORY_MAP[effectiveAgentType] || effectiveAgentType;
       
       const kbResponse = await supabase.functions.invoke('search-knowledge-base', {
         body: { 
@@ -254,12 +271,20 @@ Tier: ${customerTier} | Spent: $${contact?.total_spent || 0} | Lead Score: ${con
     // Log what context we're sending to the AI
     console.log('🔍 Customer Context for AI:', {
       contactId,
+      agentType: effectiveAgentType,
+      helpModeActive: isHelpMode,
       name: customerName,
       tier: customerTier,
       productsCount: productsOwned.length,
       productsOwned,
       contextLength: customerContext.length
     });
+
+    // CRITICAL: Log if products exist but AI might miss them
+    if (productsOwned.length > 0) {
+      console.log('✅ PRODUCTS OWNED DETECTED:', productsOwned);
+      console.log('⚠️ AI MUST acknowledge these products exist!');
+    }
 
     // Build conversation history (chronological order)
     const conversationHistory: any[] = [];
@@ -290,22 +315,27 @@ Tier: ${customerTier} | Spent: $${contact?.total_spent || 0} | Lead Score: ${con
         kbResults.results.map((kb: any) => kb.content).join('\n\n');
     }
 
-    // Get agent-specific response guidelines
-    const responseGuidelines = RESPONSE_GUIDELINES[agentType] || `
+    // Get agent-specific response guidelines (using effectiveAgentType)
+    const responseGuidelines = RESPONSE_GUIDELINES[effectiveAgentType] || `
 RESPONSE GUIDELINES:
 - Keep responses focused and relevant
 - Reference past context naturally when relevant
 - Match the customer's communication style`;
 
-    // Construct system message
+    // Construct system message with STRONGER product context enforcement
     const systemMessage = `${systemPrompt}
 
 ---
-⚠️ CRITICAL INSTRUCTIONS - READ FIRST:
-- You HAVE FULL ACCESS to the customer's profile data below
-- Always reference actual customer data when relevant (name, products owned, tier, etc.)
-- NEVER claim "I don't have access" to information provided in your context
-- The CUSTOMER CONTEXT section contains their complete account information
+🚨 CRITICAL INSTRUCTIONS - MANDATORY - READ FIRST:
+
+1. YOU HAVE COMPLETE ACCESS TO ALL CUSTOMER DATA BELOW
+2. CUSTOMER OWNS THESE PRODUCTS: ${productsOwned.length > 0 ? productsOwned.join(', ') : 'NONE'}
+3. NEVER CLAIM "I don't have access to your account/products/information"
+4. IF THE CUSTOMER ASKS ABOUT THEIR PRODUCTS:
+   - If productsOwned array has items → Reference them specifically by name
+   - If productsOwned array is empty → Say "I don't see any products purchased yet"
+5. ALL DATA IN "CUSTOMER CONTEXT" BELOW IS ACCESSIBLE TO YOU
+6. REFERENCE ACTUAL DATA (name: ${customerName}, tier: ${customerTier}, products: ${productsOwned.join(', ') || 'none'})
 ---
 
 Tone: ${tone}
@@ -314,14 +344,21 @@ ${customerContext}${memoryContext}${kbContext}
 
 ${responseGuidelines}`;
 
-    // Log what we're sending to the AI
+    // Log what we're sending to the AI with DETAILED validation
     console.log('🔍 Context sent to AI:', {
       contactId,
-      agentType,
+      agentType: effectiveAgentType,
+      helpModeActive: isHelpMode,
       productsOwned: contact?.products_owned || [],
       hasCustomerContext: customerContext.length > 0,
+      systemPromptLength: systemMessage.length,
       contextPreview: customerContext.substring(0, 200)
     });
+
+    // Validate that products are in the system message
+    if (productsOwned.length > 0 && !systemMessage.includes(productsOwned[0])) {
+      console.error('❌ CRITICAL: Products owned but NOT in system message!');
+    }
 
     // Build messages for LLM
     const llmMessages = [
@@ -397,11 +434,28 @@ ${responseGuidelines}`;
     // Validate character count (don't truncate, just log)
     const charCount = aiMessage.length;
     if (charCount < 160) {
-      console.warn(`⚠️ Response too short for ${agentType}: ${charCount} chars`);
+      console.warn(`⚠️ Response too short for ${effectiveAgentType}: ${charCount} chars`);
     } else if (charCount > 480) {
-      console.warn(`⚠️ Response too long for ${agentType}: ${charCount} chars (exceeded by ${charCount - 480})`);
+      console.warn(`⚠️ Response too long for ${effectiveAgentType}: ${charCount} chars (exceeded by ${charCount - 480})`);
     } else {
-      console.log(`✅ Response length OK for ${agentType}: ${charCount} chars`);
+      console.log(`✅ Response length OK for ${effectiveAgentType}: ${charCount} chars`);
+    }
+
+    // CRITICAL: Validate response doesn't hallucinate missing products
+    if (productsOwned.length > 0) {
+      const hasDenialPhrases = 
+        aiMessage.toLowerCase().includes("don't have access") ||
+        aiMessage.toLowerCase().includes("cannot see") ||
+        aiMessage.toLowerCase().includes("don't see any product") ||
+        aiMessage.toLowerCase().includes("unable to access");
+
+      if (hasDenialPhrases) {
+        console.error('❌ AI HALLUCINATION DETECTED: Denying product access despite products_owned:', productsOwned);
+        console.error('❌ Response:', aiMessage);
+        // Override with correction
+        aiMessage = `I can see you own: ${productsOwned.join(', ')}. How can I help you with these products?`;
+        console.log('✅ CORRECTED response:', aiMessage);
+      }
     }
 
     const latency = Date.now() - startTime;

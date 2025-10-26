@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     // Define agent priorities (normal mode - no /help)
     const AGENT_PRIORITIES_NORMAL = {
       sales_agent: 10,
-      webinar: 6,        // Highest product agent
+      webinar: 8,        // Highest product agent (UPDATED: was 6, now 8)
       textbook: 5,
       flashcards: 4,
       algo_monthly: 4,
@@ -107,29 +107,24 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (existingState) {
-      // UPDATE existing record (force override)
+      // UPDATE: Reset conversation state but don't force override active agent
       const { error: stateError } = await supabase
         .from('conversation_state')
         .update({
-          active_agent_id: agent.id,
-          agent_priority: agentPriority,
           last_message_sent_at: null,
           messages_sent_today: 0,
           messages_sent_this_week: 0,
           current_conversation_phase: 'onboarding',
           waiting_for_reply: false,
-          last_engagement_at: new Date().toISOString(),
-          help_mode_until: null  // Clear any help mode override
+          last_engagement_at: new Date().toISOString()
         })
         .eq('contact_id', contact_id);
 
       if (stateError) {
         console.error('Error updating conversation state:', stateError);
-      } else {
-        console.log('✅ Conversation state UPDATED with new active agent');
       }
     } else {
-      // INSERT new record
+      // INSERT new record (will use the new agent as active by default)
       const { error: stateError } = await supabase
         .from('conversation_state')
         .insert({
@@ -146,9 +141,18 @@ Deno.serve(async (req) => {
 
       if (stateError) {
         console.error('Error creating conversation state:', stateError);
-      } else {
-        console.log('✅ Conversation state CREATED with new active agent');
       }
+    }
+
+    // Recalculate which agent should be active based on priorities
+    const { error: recalcError } = await supabase.rpc('recalculate_active_agent', {
+      p_contact_id: contact_id
+    });
+
+    if (recalcError) {
+      console.error('Error recalculating active agent:', recalcError);
+    } else {
+      console.log('✅ Active agent recalculated based on priorities');
     }
 
     // Load contact data for first message

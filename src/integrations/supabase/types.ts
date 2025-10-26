@@ -2469,6 +2469,10 @@ export type Database = {
         }[]
       }
       normalize_phone: { Args: { phone: string }; Returns: string }
+      recalculate_active_agent: {
+        Args: { p_contact_id: string }
+        Returns: undefined
+      }
       reset_daily_message_counters: { Args: never; Returns: undefined }
       reset_weekly_message_counters: { Args: never; Returns: undefined }
       search_agent_memories: {
