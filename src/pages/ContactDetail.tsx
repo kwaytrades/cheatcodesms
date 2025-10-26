@@ -319,6 +319,7 @@ const ContactDetail = () => {
           <div className="border-r bg-muted/30 overflow-y-auto p-4 space-y-4">
             <ContactQuickInfo contact={contact} />
             <KeyMetrics
+              contactId={id!}
               leadScore={contact.lead_score}
               likelihoodScore={contact.likelihood_to_buy_score}
               engagementLevel={contact.likelihood_category}
@@ -329,6 +330,8 @@ const ContactDetail = () => {
               lastContactDate={contact.last_contact_date}
               productsCount={contact.products_owned?.length || 0}
               webinarCount={contact.webinar_attendance?.length || 0}
+              lastScoreUpdate={contact.last_score_update}
+              onScoreRefresh={() => loadContactData(id!)}
             />
             <ProductsList 
               productsOwned={contact.products_owned}
