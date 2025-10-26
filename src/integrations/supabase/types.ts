@@ -908,6 +908,7 @@ export type Database = {
           last_engagement_action: string | null
           last_engagement_date: string | null
           last_name: string | null
+          last_purchase_date: string | null
           last_score_update: string | null
           lead_score: number | null
           lead_source: string | null
@@ -975,6 +976,7 @@ export type Database = {
           last_engagement_action?: string | null
           last_engagement_date?: string | null
           last_name?: string | null
+          last_purchase_date?: string | null
           last_score_update?: string | null
           lead_score?: number | null
           lead_source?: string | null
@@ -1042,6 +1044,7 @@ export type Database = {
           last_engagement_action?: string | null
           last_engagement_date?: string | null
           last_name?: string | null
+          last_purchase_date?: string | null
           last_score_update?: string | null
           lead_score?: number | null
           lead_source?: string | null
