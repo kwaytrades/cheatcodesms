@@ -53,13 +53,15 @@ serve(async (req) => {
 
       console.log('Calling Supadata API for YouTube video:', videoId);
 
-      const response = await fetch('https://api.supadata.ai/v1/youtube/transcript', {
-        method: 'POST',
+      // Encode the URL for the query parameter
+      const encodedUrl = encodeURIComponent(url);
+      const apiUrl = `https://api.supadata.ai/v1/transcript?url=${encodedUrl}&text=true&mode=auto`;
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
         headers: {
           'x-api-key': SUPADATA_API_KEY,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url })
       });
 
       if (!response.ok) {
@@ -81,25 +83,27 @@ serve(async (req) => {
 
       const data = await response.json();
       
-      if (!data.transcript) {
+      if (!data.content) {
         throw new Error('No transcript found for this video');
       }
 
-      transcript = data.transcript;
-      title = data.title || `YouTube Video ${videoId}`;
-      duration = data.duration || 0;
+      transcript = data.content;
+      title = `YouTube Video ${videoId}`;
+      duration = 0; // Duration not provided by Supadata API
       thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
 
     } else if (platform === 'tiktok') {
       console.log('Calling Supadata API for TikTok video');
 
-      const response = await fetch('https://api.supadata.ai/v1/tiktok/transcript', {
-        method: 'POST',
+      // Encode the URL for the query parameter
+      const encodedUrl = encodeURIComponent(url);
+      const apiUrl = `https://api.supadata.ai/v1/transcript?url=${encodedUrl}&text=true&mode=auto`;
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
         headers: {
           'x-api-key': SUPADATA_API_KEY,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url })
       });
 
       if (!response.ok) {
@@ -121,14 +125,14 @@ serve(async (req) => {
 
       const data = await response.json();
       
-      if (!data.transcript) {
+      if (!data.content) {
         throw new Error('No transcript found for this video');
       }
 
-      transcript = data.transcript;
-      title = data.title || 'TikTok Video';
-      duration = data.duration || 0;
-      thumbnail = data.thumbnail || '';
+      transcript = data.content;
+      title = 'TikTok Video';
+      duration = 0; // Duration not provided by Supadata API
+      thumbnail = '';
     }
 
     console.log('Transcription completed successfully');
