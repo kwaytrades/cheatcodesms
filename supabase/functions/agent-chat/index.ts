@@ -202,9 +202,25 @@ Deno.serve(async (req) => {
     }
 
     // 5. Construct LLM prompt
+    console.log(`📊 Gathering context for contact ${contactId}...`);
     const customerName = contact?.full_name || 'Customer';
     const customerTier = contact?.customer_tier || 'Standard';
     const productsOwned = contact?.products_owned || [];
+    const totalSpent = contact?.total_spent || 0;
+    
+    // CRITICAL VALIDATION: Verify products data
+    console.log(`🔍 Products validation for ${customerName}:`);
+    console.log(`   - Products owned count: ${productsOwned.length}`);
+    console.log(`   - Products list: ${JSON.stringify(productsOwned)}`);
+    console.log(`   - Customer tier: ${customerTier}`);
+    console.log(`   - Total spent: $${totalSpent}`);
+    console.log(`   - Lead status: ${contact?.lead_status}`);
+    
+    if (productsOwned.length > 0 && customerTier !== 'Lead') {
+      console.log(`✅ Customer owns ${productsOwned.length} product(s) and is ${customerTier} tier`);
+    } else if (productsOwned.length > 0 && customerTier === 'Lead') {
+      console.warn(`⚠️ DATA MISMATCH: Customer owns products but tier is still "Lead"`);
+    }
 
     // Build detailed customer context
     let customerContext = `CUSTOMER PROFILE:
@@ -329,11 +345,30 @@ RESPONSE GUIDELINES:
 🚨 CRITICAL INSTRUCTIONS - MANDATORY - READ FIRST:
 
 1. YOU HAVE COMPLETE ACCESS TO ALL CUSTOMER DATA BELOW
-2. CUSTOMER OWNS THESE PRODUCTS: ${productsOwned.length > 0 ? productsOwned.join(', ') : 'NONE'}
-3. NEVER CLAIM "I don't have access to your account/products/information"
-4. IF THE CUSTOMER ASKS ABOUT THEIR PRODUCTS:
-   - If productsOwned array has items → Reference them specifically by name
-   - If productsOwned array is empty → Say "I don't see any products purchased yet"
+
+2. 🛒 PRODUCTS OWNED (COUNT: ${productsOwned.length}):
+   ${productsOwned.length > 0 ? productsOwned.map((p: string) => `   ✅ ${p}`).join('\n') : '   ⚠️ NONE - Customer has NOT purchased yet'}
+   
+   ${productsOwned.length === 0 
+     ? '⚠️ Customer has NOT purchased yet - focus on value proposition.' 
+     : `✅ Customer OWNS ${productsOwned.length} PRODUCT(S) - They are an ACTIVE CUSTOMER.`}
+
+3. 💰 CUSTOMER TIER & SPENDING:
+   - Total Spent: $${totalSpent.toFixed(2)}
+   - Customer Tier: ${customerTier}
+   
+   🚨 CRITICAL TIER RULES:
+   ${customerTier === 'VIP' || customerTier === 'Premium' 
+     ? `   - This customer is ${customerTier.toUpperCase()} tier with $${totalSpent.toFixed(2)} spent
+   - NEVER refer to them as a "LEAD" or suggest they haven't purchased
+   - They are a VALUED CUSTOMER who deserves premium treatment`
+     : customerTier === 'Lead' && productsOwned.length > 0
+     ? `   - ⚠️ DATA INCONSISTENCY: Tier shows "Lead" but customer owns ${productsOwned.length} product(s)
+   - ALWAYS prioritize the PRODUCTS OWNED data over the tier label
+   - Treat them as an ACTIVE CUSTOMER, not a lead`
+     : '   - This is a prospective customer - focus on building value'}
+
+4. NEVER CLAIM "I don't have access to your account/products/information"
 5. ALL DATA IN "CUSTOMER CONTEXT" BELOW IS ACCESSIBLE TO YOU
 6. REFERENCE ACTUAL DATA (name: ${customerName}, tier: ${customerTier}, products: ${productsOwned.join(', ') || 'none'})
 ---
@@ -430,6 +465,39 @@ ${responseGuidelines}`;
       .replace(/You've asked about:?/gi, '')
       .replace(/Let me help you with that\.?/gi, '')
       .trim();
+
+    // 🚨 CRITICAL: Detect AI hallucinations about products/tier
+    const lowerResponse = aiMessage.toLowerCase();
+    const hasProductHallucination = productsOwned.length > 0 && (
+      lowerResponse.includes("don't own any products") ||
+      lowerResponse.includes("haven't purchased") ||
+      lowerResponse.includes("no products") ||
+      lowerResponse.includes("you don't have any")
+    );
+    
+    const hasTierHallucination = (customerTier === 'VIP' || customerTier === 'Premium' || productsOwned.length > 0) && (
+      lowerResponse.includes("lead tier") ||
+      lowerResponse.includes("you're a lead") ||
+      lowerResponse.includes("as a lead")
+    );
+    
+    if (hasProductHallucination || hasTierHallucination) {
+      console.error('🚨 AI HALLUCINATION DETECTED:');
+      console.error(`   - Products owned: ${productsOwned.length} (${productsOwned.join(', ')})`);
+      console.error(`   - Customer tier: ${customerTier}`);
+      console.error(`   - Total spent: $${totalSpent}`);
+      console.error(`   - AI response claimed: ${hasProductHallucination ? 'NO PRODUCTS' : 'LEAD TIER'}`);
+      console.error(`   - Original response: ${aiMessage}`);
+      
+      // Override with factual correction
+      if (hasProductHallucination) {
+        aiMessage = `I can see you own ${productsOwned.length} product(s) with us: ${productsOwned.join(', ')}. How can I help you with these today?`;
+      } else if (hasTierHallucination) {
+        aiMessage = `As a valued ${customerTier} customer who has invested $${totalSpent.toFixed(2)} with us, you deserve excellent support. How can I assist you today?`;
+      }
+      
+      console.log(`✅ Corrected response: ${aiMessage}`);
+    }
 
     // Validate character count (don't truncate, just log)
     const charCount = aiMessage.length;

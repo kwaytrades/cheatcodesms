@@ -124,13 +124,12 @@ Deno.serve(async (req) => {
         console.error('Error updating conversation state:', stateError);
       }
     } else {
-      // INSERT new record (will use the new agent as active by default)
+      // INSERT new record WITHOUT forcing active_agent_id
+      // Let recalculate_active_agent determine the highest priority agent
       const { error: stateError } = await supabase
         .from('conversation_state')
         .insert({
           contact_id,
-          active_agent_id: agent.id,
-          agent_priority: agentPriority,
           last_message_sent_at: null,
           messages_sent_today: 0,
           messages_sent_this_week: 0,
@@ -145,14 +144,33 @@ Deno.serve(async (req) => {
     }
 
     // Recalculate which agent should be active based on priorities
-    const { error: recalcError } = await supabase.rpc('recalculate_active_agent', {
+    console.log(`🔄 Calling recalculate_active_agent for contact ${contact_id}...`);
+    const { data: recalcData, error: recalcError } = await supabase.rpc('recalculate_active_agent', {
       p_contact_id: contact_id
     });
 
     if (recalcError) {
-      console.error('Error recalculating active agent:', recalcError);
+      console.error('❌ Error recalculating active agent:', recalcError);
+      console.error('Full error details:', JSON.stringify(recalcError));
     } else {
       console.log('✅ Active agent recalculated based on priorities');
+      
+      // Verify which agent is now active
+      const { data: finalState } = await supabase
+        .from('conversation_state')
+        .select('active_agent_id, agent_priority')
+        .eq('contact_id', contact_id)
+        .single();
+      
+      if (finalState) {
+        const { data: activeAgent } = await supabase
+          .from('product_agents')
+          .select('product_type')
+          .eq('id', finalState.active_agent_id)
+          .single();
+        
+        console.log(`📍 Final active agent: ${activeAgent?.product_type} (priority: ${finalState.agent_priority})`);
+      }
     }
 
     // Load contact data for first message
