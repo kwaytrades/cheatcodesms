@@ -19,6 +19,7 @@ import { AddContactDialog } from "@/components/AddContactDialog";
 import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { RecalculateScoresButton } from "@/components/RecalculateScoresButton";
+import { GlobalScoreRefreshButton } from "@/components/GlobalScoreRefreshButton";
 
 interface Contact {
   id: string;
@@ -115,6 +116,29 @@ const Contacts = () => {
   useEffect(() => {
     applyFiltersAndSearch();
   }, [searchQuery, contacts, selectedSegment]);
+
+  // Real-time subscription for contact updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('contacts-changes')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'contacts' },
+        (payload) => {
+          // Update local state with new contact data
+          setContacts(prev => prev.map(c => 
+            c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
+          ));
+          setFilteredContacts(prev => prev.map(c => 
+            c.id === payload.new.id ? { ...c, ...payload.new as Contact } : c
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const loadContacts = async () => {
     try {
@@ -569,6 +593,7 @@ const Contacts = () => {
                 </p>
               </div>
               <div className="flex gap-2">
+                <GlobalScoreRefreshButton />
                 <CSVImportDialog onImportComplete={loadContacts} />
                 <ImportContactsDialog onImportComplete={loadContacts} />
                 <AddContactDialog onContactAdded={loadContacts} />

@@ -128,11 +128,41 @@ serve(async (req) => {
     if (contact_id) {
       const { data: contact, error } = await supabaseClient
         .from('contacts')
-        .select('email, total_spent, disputed_amount, has_disputed, products_owned')
+        .select('email, total_spent, disputed_amount, has_disputed, products_owned, metadata')
         .eq('id', contact_id)
         .single();
 
       if (error) throw error;
+
+      // Check if tier was manually set - if so, return current tier without recalculating
+      if (contact.metadata?.tier_manually_set) {
+        console.log('Tier manually set for contact:', contact.email, '- skipping auto-calculation');
+        
+        const { data: currentContact } = await supabaseClient
+          .from('contacts')
+          .select('customer_tier')
+          .eq('id', contact_id)
+          .single();
+        
+        if (currentContact?.customer_tier) {
+          const tierMap: Record<string, number> = {
+            'SHITLIST': -1,
+            'LEAD': 0,
+            'Level 1': 1,
+            'Level 2': 2,
+            'Level 3': 3,
+            'VIP': 4
+          };
+          
+          return new Response(JSON.stringify({
+            tier: currentContact.customer_tier,
+            badge_color: 'manual',
+            tier_number: tierMap[currentContact.customer_tier] || 0
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
 
       tierInput = {
         email: contact.email,

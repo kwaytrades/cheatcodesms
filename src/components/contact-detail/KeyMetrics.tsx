@@ -4,7 +4,8 @@ import { Progress } from "@/components/ui/progress";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { LikelihoodScore } from "@/components/ui/likelihood-score";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw, Pencil } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -41,6 +42,7 @@ export const KeyMetrics = ({
   onScoreRefresh
 }: KeyMetricsProps) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isEditingTier, setIsEditingTier] = useState(false);
 
   const handleRefreshScores = async () => {
     setIsRefreshing(true);
@@ -65,6 +67,44 @@ export const KeyMetrics = ({
       toast.error('Failed to refresh scores');
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleTierChange = async (newTier: string) => {
+    try {
+      const { data: contact, error: fetchError } = await supabase
+        .from('contacts')
+        .select('metadata')
+        .eq('id', contactId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const currentMetadata = (contact?.metadata as any) || {};
+
+      const { error } = await supabase
+        .from('contacts')
+        .update({ 
+          customer_tier: newTier,
+          metadata: { 
+            ...currentMetadata, 
+            tier_manually_set: true,
+            tier_set_at: new Date().toISOString()
+          }
+        })
+        .eq('id', contactId);
+      
+      if (error) throw error;
+      
+      toast.success(`Tier updated to ${newTier}`);
+      setIsEditingTier(false);
+      
+      if (onScoreRefresh) {
+        onScoreRefresh();
+      }
+    } catch (error) {
+      console.error('Error updating tier:', error);
+      toast.error('Failed to update tier');
     }
   };
 
@@ -127,7 +167,35 @@ export const KeyMetrics = ({
           <div>
             <div className="flex justify-between items-center mb-1">
               <span className="text-muted-foreground">Tier</span>
-              <TierBadge tier={customerTier} />
+              <div className="flex items-center gap-2">
+                {!isEditingTier ? (
+                  <>
+                    <TierBadge tier={customerTier} />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingTier(true)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </>
+                ) : (
+                  <Select value={customerTier} onValueChange={handleTierChange}>
+                    <SelectTrigger className="h-7 w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LEAD">LEAD</SelectItem>
+                      <SelectItem value="Level 1">Level 1</SelectItem>
+                      <SelectItem value="Level 2">Level 2</SelectItem>
+                      <SelectItem value="Level 3">Level 3</SelectItem>
+                      <SelectItem value="VIP">VIP</SelectItem>
+                      <SelectItem value="SHITLIST">SHITLIST</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
           </div>
         )}
