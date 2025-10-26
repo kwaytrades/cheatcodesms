@@ -167,3 +167,6 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+[functions.extract-video-transcript]
+verify_jwt = false

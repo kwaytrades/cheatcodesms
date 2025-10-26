@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ASSEMBLYAI_API_KEY = Deno.env.get('ASSEMBLYAI_API_KEY');
+const SUPADATA_API_KEY = Deno.env.get('SUPADATA_API_KEY');
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -28,78 +28,101 @@ serve(async (req) => {
       throw new Error('Invalid platform. Must be youtube, tiktok, or instagram');
     }
 
-    // Step 1: Submit video URL to AssemblyAI for transcription
-    const uploadResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
-      method: 'POST',
-      headers: {
-        'Authorization': ASSEMBLYAI_API_KEY!,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        audio_url: url,
-        language_code: 'en'
-      })
-    });
-
-    if (!uploadResponse.ok) {
-      const errorData = await uploadResponse.text();
-      console.error('AssemblyAI upload error:', errorData);
-      throw new Error('Failed to submit video for transcription');
+    // Handle Instagram - not supported yet
+    if (platform === 'instagram') {
+      throw new Error('Instagram transcript extraction coming soon. Please use YouTube or TikTok for now.');
     }
 
-    const uploadData = await uploadResponse.json();
-    const transcriptId = uploadData.id;
-
-    console.log('Transcription started:', transcriptId);
-
-    // Step 2: Poll for completion
-    let transcript = null;
-    let attempts = 0;
-    const maxAttempts = 60; // 5 minutes max (5s intervals)
-
-    while (attempts < maxAttempts) {
-      const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
-        headers: {
-          'Authorization': ASSEMBLYAI_API_KEY!,
-        }
-      });
-
-      const statusData = await statusResponse.json();
-      
-      console.log('Transcription status:', statusData.status);
-
-      if (statusData.status === 'completed') {
-        transcript = statusData.text;
-        break;
-      } else if (statusData.status === 'error') {
-        throw new Error(`Transcription failed: ${statusData.error}`);
-      }
-
-      // Wait 5 seconds before next poll
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      attempts++;
-    }
-
-    if (!transcript) {
-      throw new Error('Transcription timeout - video too long or processing failed');
-    }
-
-    // Extract metadata based on platform
+    // Extract transcript using Supadata API
+    let transcript = '';
     let title = '';
     let thumbnail = '';
     let duration = 0;
 
-    // For YouTube, we can extract metadata
     if (platform === 'youtube') {
       const videoId = extractYouTubeVideoId(url);
-      if (videoId) {
-        title = `YouTube Video ${videoId}`;
-        thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      if (!videoId) {
+        throw new Error('Invalid YouTube URL');
       }
+
+      console.log('Calling Supadata API for YouTube video:', videoId);
+
+      const response = await fetch('https://api.supadata.ai/v1/youtube/transcript', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPADATA_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Supadata API error:', response.status, errorText);
+        
+        if (response.status === 404) {
+          throw new Error('This video doesn\'t have captions/transcript available');
+        } else if (response.status === 403) {
+          throw new Error('Unable to access private video');
+        } else if (response.status === 429) {
+          throw new Error('Too many requests, please try again later');
+        } else if (response.status === 402) {
+          throw new Error('API quota exceeded. Please contact support.');
+        }
+        
+        throw new Error('Failed to extract transcript');
+      }
+
+      const data = await response.json();
+      
+      if (!data.transcript) {
+        throw new Error('No transcript found for this video');
+      }
+
+      transcript = data.transcript;
+      title = data.title || `YouTube Video ${videoId}`;
+      duration = data.duration || 0;
+      thumbnail = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+
     } else if (platform === 'tiktok') {
-      title = 'TikTok Video';
-    } else if (platform === 'instagram') {
-      title = 'Instagram Video';
+      console.log('Calling Supadata API for TikTok video');
+
+      const response = await fetch('https://api.supadata.ai/v1/tiktok/transcript', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPADATA_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Supadata API error:', response.status, errorText);
+        
+        if (response.status === 404) {
+          throw new Error('This video doesn\'t have captions/transcript available');
+        } else if (response.status === 403) {
+          throw new Error('Unable to access private video');
+        } else if (response.status === 429) {
+          throw new Error('Too many requests, please try again later');
+        } else if (response.status === 402) {
+          throw new Error('API quota exceeded. Please contact support.');
+        }
+        
+        throw new Error('Failed to extract transcript');
+      }
+
+      const data = await response.json();
+      
+      if (!data.transcript) {
+        throw new Error('No transcript found for this video');
+      }
+
+      transcript = data.transcript;
+      title = data.title || 'TikTok Video';
+      duration = data.duration || 0;
+      thumbnail = data.thumbnail || '';
     }
 
     console.log('Transcription completed successfully');
@@ -107,7 +130,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         transcript,
-        title: title || `${platform} Video`,
+        title,
         thumbnail,
         duration,
         platform

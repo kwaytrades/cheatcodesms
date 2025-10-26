@@ -79,17 +79,39 @@ export const ImportVideoDialog = ({ open, onOpenChange, mode = 'library' }: Impo
       if (!user) throw new Error('Not authenticated');
 
       if (mode === 'news') {
-        // Save to news_stories table
+        // Analyze transcript with AI first
+        let aiAnalysis = null;
+        let viralScore = 50;
+        let category = null;
+        let tickers: string[] = [];
+
+        try {
+          const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-article', {
+            body: { article_text: extractedData.transcript }
+          });
+
+          if (!analysisError && analysisData) {
+            aiAnalysis = analysisData;
+            viralScore = analysisData.viral_potential || 50;
+            category = analysisData.category || null;
+            tickers = analysisData.tickers_mentioned || [];
+          }
+        } catch (error) {
+          console.error('AI analysis error:', error);
+          // Continue with default values if analysis fails
+        }
+
+        // Save to news_stories table with AI insights
         const { data, error } = await supabase.from('news_stories').insert({
           user_id: user.id,
-          title: extractedData.title,
+          title: aiAnalysis?.headline || extractedData.title,
           content: extractedData.transcript,
           url,
           source: platform === 'youtube' ? 'YouTube' : platform === 'tiktok' ? 'TikTok' : 'Instagram',
-          viral_score: 50,
-          category: null,
-          tags: [`${platform} video`],
-          ai_analysis: null
+          viral_score: viralScore,
+          category: category,
+          tags: tickers.length > 0 ? tickers : null,
+          ai_analysis: aiAnalysis
         }).select().single();
 
         if (error) throw error;
@@ -257,7 +279,7 @@ export const ImportVideoDialog = ({ open, onOpenChange, mode = 'library' }: Impo
                   {saveToLibrary.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
+                      {mode === 'news' ? 'Analyzing & Saving...' : 'Saving...'}
                     </>
                   ) : mode === 'news' ? (
                     'Save to News'

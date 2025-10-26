@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Plus, Search, FileText, Sparkles, Trash2, Video } from "lucide-react";
+import { Loader2, Plus, Search, FileText, Sparkles, Trash2, Video, Youtube, Instagram } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -216,7 +216,20 @@ const NewsDiscovery = () => {
                   <div>
                     <h3 className="text-xl font-bold mb-2">{story.title}</h3>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Badge variant="outline">{story.source}</Badge>
+                      <Badge 
+                        variant="outline" 
+                        className={
+                          story.source === 'YouTube' ? 'border-red-500 text-red-600' :
+                          story.source === 'TikTok' ? 'border-[#00F2EA] text-[#00F2EA]' :
+                          story.source === 'Instagram' ? 'border-[#E4405F] text-[#E4405F]' :
+                          ''
+                        }
+                      >
+                        {story.source === 'YouTube' && <Youtube className="h-3 w-3 mr-1" />}
+                        {story.source === 'TikTok' && <Video className="h-3 w-3 mr-1" />}
+                        {story.source === 'Instagram' && <Instagram className="h-3 w-3 mr-1" />}
+                        {story.source}
+                      </Badge>
                       {story.category && <Badge variant="secondary">{story.category}</Badge>}
                       <span>•</span>
                       <span>{new Date(story.created_at).toLocaleDateString()}</span>
