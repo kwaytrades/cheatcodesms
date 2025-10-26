@@ -117,10 +117,11 @@ export const KeyMetrics = ({
     return 'text-destructive';
   };
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-score-hot';
-    if (score >= 51) return 'text-score-warm';
-    if (score >= 21) return 'text-score-cool';
-    return 'text-score-cold';
+    if (score >= 80) return 'text-[hsl(120,100%,50%)]'; // Lime green - READY
+    if (score >= 70) return 'text-[hsl(0,100%,60%)]'; // Red - Hot
+    if (score >= 50) return 'text-[hsl(30,100%,55%)]'; // Orange - Warm
+    if (score >= 30) return 'text-[hsl(180,100%,45%)]'; // Cyan - Nurture
+    return 'text-[hsl(210,100%,55%)]'; // Blue - Cold
   };
 
   const getStatusColor = (status: string) => {
