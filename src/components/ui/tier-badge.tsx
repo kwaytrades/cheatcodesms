@@ -28,42 +28,49 @@ export const TierBadge = ({
         return {
           label: 'SHITLIST',
           color: 'bg-black text-white border-black',
+          glow: 'glow-red',
           icon: AlertTriangle
         };
       case 'LEAD':
         return {
           label: 'Lead',
           color: 'bg-muted text-muted-foreground border-muted',
+          glow: 'glow-blue',
           icon: null
         };
       case 'LEVEL 1':
         return {
           label: 'Level 1',
           color: 'bg-muted text-muted-foreground border-muted',
+          glow: 'glow-blue',
           icon: null
         };
       case 'LEVEL 2':
         return {
           label: 'Level 2',
           color: 'bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-500/30',
+          glow: 'glow-blue',
           icon: null
         };
       case 'LEVEL 3':
         return {
           label: 'Level 3',
           color: 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30',
+          glow: 'glow-green',
           icon: Shield
         };
       case 'VIP':
         return {
           label: 'VIP',
           color: 'bg-amber-400/20 text-amber-600 dark:text-amber-400 border-amber-500/40 font-bold',
+          glow: 'glow-orange',
           icon: Crown
         };
       default:
         return {
           label: tierValue,
           color: 'bg-muted text-muted-foreground border-muted',
+          glow: 'glow-blue',
           icon: null
         };
     }
@@ -79,7 +86,7 @@ export const TierBadge = ({
         <HoverCardTrigger asChild>
           <Badge 
             variant="outline" 
-            className={cn(config.color, 'font-medium cursor-pointer hover:opacity-80 transition-opacity', className)}
+            className={cn(config.color, config.glow, 'font-medium cursor-pointer hover:opacity-80 transition-opacity', className)}
             onClick={onShitlistClick}
           >
             {showIcon && Icon && <Icon className="w-3 h-3 mr-1" />}
@@ -110,7 +117,7 @@ export const TierBadge = ({
   return (
     <Badge 
       variant="outline" 
-      className={cn(config.color, 'font-medium', className)}
+      className={cn(config.color, config.glow, 'font-medium', className)}
     >
       {showIcon && Icon && <Icon className="w-3 h-3 mr-1" />}
       {config.label}

@@ -20,103 +20,15 @@ interface ContactData {
   form_submissions?: any[];
 }
 
-// NEW SCORING LOGIC: Separate engagement-based status from tier
-// This calculates "Hot/Warm/Cold" status based on recent engagement, not spending
-function calculateScore(contact: ContactData): { score: number; status: string; category: string } {
-  let score = 0;
-  
-  const tags = contact.tags || [];
-  const products = contact.products_owned || [];
-  const revenue = contact.total_spent || 0;
-
-  // 1. ENGAGEMENT FACTORS (+40 points max)
-  let engagementPoints = 0;
-  
-  // Active engagement tags
-  if (tags.some(t => t.includes('Active Engaged'))) engagementPoints += 15;
-  if (tags.some(t => t.includes('Daily SMS'))) engagementPoints += 10;
-  
-  // Email/SMS engagement
-  const engagement = contact.engagement_score || 0;
-  if (engagement > 50) engagementPoints += 15;
-  else if (engagement > 20) engagementPoints += 10;
-  
-  // Webinar attendance (recent activity signal)
-  const webinars = contact.webinar_attendance?.length || 0;
-  if (webinars >= 3) engagementPoints += 15;
-  else if (webinars >= 1) engagementPoints += 5;
-  
-  // Form submissions (interest signals)
-  const forms = contact.form_submissions?.length || 0;
-  if (forms >= 2) engagementPoints += 10;
-  else if (forms >= 1) engagementPoints += 5;
-  
-  score += Math.min(engagementPoints, 40);
-
-  // 2. PURCHASE BEHAVIOR (+35 points max)
-  let purchasePoints = 0;
-  
-  // Multiple products = committed customer
-  if (products.length >= 3) purchasePoints += 10;
-  else if (products.length >= 1) purchasePoints += 5;
-  
-  // Premium products (shows high commitment)
-  if (products.some(p => p.includes('EYL Bundle'))) purchasePoints += 10;
-  if (products.some(p => p.includes('Algo Lifetime'))) purchasePoints += 8;
-  if (products.some(p => p.includes('Premium Membership'))) purchasePoints += 8;
-  if (products.some(p => p.includes('Masterclass') || p.includes('4-Week Masterclass'))) purchasePoints += 6;
-  
-  // Recent purchase (TODO: Would need purchase_date to properly calculate recency)
-  // For now, having products + engagement suggests recent activity
-  if (products.length > 0 && engagement > 30) purchasePoints += 15;
-  
-  score += Math.min(purchasePoints, 35);
-
-  // 3. NEGATIVE SIGNALS (-50 points max)
-  let negativePoints = 0;
-  
-  // HARD STOP for disputes - forces to Cold/Frozen
-  if (contact.has_disputed || (contact.disputed_amount && contact.disputed_amount > 0)) {
-    negativePoints += 50;
-  }
-  
-  // Cancellations
-  if (tags.some(t => t.includes('Cancelled CCA') || t.includes('Cancelled'))) negativePoints += 15;
-  
-  // Inactive/Cold signals
-  if (tags.some(t => t.includes('Inactive'))) negativePoints += 20;
-  if (tags.some(t => t.includes('Cold Contact'))) negativePoints += 15;
-  
-  // Problematic product
-  if (products.some(p => p.includes('10k Challenge'))) negativePoints += 10;
-  
-  score -= negativePoints;
-
-  // 4. VIP/HIGH-VALUE BONUS (+15 points max)
-  // Based on revenue tier (separate from engagement)
-  if (revenue >= 3000) score += 15; // VIP tier gets engagement bonus
-  else if (revenue >= 1000) score += 10; // Level 3 tier
-  else if (revenue >= 500) score += 5; // Level 2 tier
-
-  // Cap score between 0-100
-  score = Math.max(0, Math.min(100, score));
-
-  // Determine category based on ENGAGEMENT likelihood to buy
-  let category = 'cold';
-  if (score >= 75) category = 'hot';
-  else if (score >= 50) category = 'warm';
-  else if (score >= 30) category = 'neutral';
-  else if (score >= 15) category = 'cold';
-  else category = 'frozen';
-
-  // Determine status (for lead_status field) - simplified
-  let status = 'cold';
-  if (score >= 75) status = 'hot';
-  else if (score >= 50) status = 'warm';
-  else if (score >= 30) status = 'neutral';
-  else status = 'cold';
-
-  return { score, status, category };
+// DEPRECATED: Replaced by calculate-unified-score function
+// This local calculation is no longer used
+function calculateScore(contact: ContactData): { 
+  score: number; 
+  status: string; 
+  category: string;
+} {
+  // Fallback only - should not be called
+  return { score: 0, status: 'cold', category: 'cold' };
 }
 
 serve(async (req) => {
@@ -166,15 +78,27 @@ serve(async (req) => {
       // Calculate scores for each contact
       for (const contact of contacts) {
         try {
-          const { score, status, category } = calculateScore(contact);
+          // Call unified scorer
+          const { data: scoreResult, error: scoreError } = await supabase.functions.invoke('calculate-unified-score', {
+            body: { contactId: contact.id }
+          });
+
+          if (scoreError) {
+            console.error(`Failed to calculate score for ${contact.id}:`, scoreError);
+            errors.push(`Score error for ${contact.email}: ${scoreError.message}`);
+            processed++;
+            continue;
+          }
+
+          const { lead_score, lead_status, likelihood_category } = scoreResult;
           
           const { error: updateError } = await supabase
             .from('contacts')
             .update({
-              lead_score: score,
-              likelihood_to_buy_score: score,
-              likelihood_category: category,
-              lead_status: status,
+              lead_score,
+              likelihood_to_buy_score: lead_score,
+              likelihood_category,
+              lead_status,
               last_score_update: new Date().toISOString(),
             })
             .eq('id', contact.id);
