@@ -610,6 +610,15 @@ serve(async (req) => {
 
   try {
     const { conversationId, agentType = 'sales', messages = [], type, contactId, context, campaignContext } = await req.json();
+    
+    console.log('🔍 ai-agent received parameters:', { 
+      conversationId, 
+      contactId, 
+      agentType,
+      type,
+      hasContactId: !!contactId,
+      hasConversationId: !!conversationId
+    });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -649,6 +658,14 @@ serve(async (req) => {
       
       conversation = conversationData;
       contact = conversationData.contacts;
+      
+      console.log('📋 Conversation fetched:', {
+        conversationId: conversation.id,
+        contact_id: conversation.contact_id,
+        hasContact: !!conversation.contacts,
+        contactIdParam: contactId,
+        contactsId: conversation.contacts?.id
+      });
     } else {
       // Test mode: use contact info from context
       contact = context?.contact || {
@@ -668,9 +685,11 @@ serve(async (req) => {
 
     // Fetch fresh customer profile using contactId
     let customerProfile = null;
-    if (contactId || conversation?.contact_id) {
-      const profileContactId = contactId || conversation.contact_id;
-      console.log(`Fetching customer profile for contactId: ${profileContactId}`);
+    // Ensure we have a contact ID to work with
+    const profileContactId = contactId || conversation?.contact_id || conversation?.contacts?.id;
+    
+    if (profileContactId) {
+      console.log(`✅ Fetching customer profile for contactId: ${profileContactId}`);
       
       const { data: profileData } = await supabase.rpc('get_customer_profile', {
         p_contact_id: profileContactId
@@ -696,6 +715,12 @@ serve(async (req) => {
           totalSpent: customerProfile?.financial?.totalSpent || customerProfile?.total_spent
         });
       }
+    } else {
+      console.error('❌ No contact ID available - cannot fetch customer profile', {
+        contactIdParam: contactId,
+        conversationContactId: conversation?.contact_id,
+        conversationContactsId: conversation?.contacts?.id
+      });
     }
 
     const incomingMessage = messages[messages.length - 1]?.content || '';
