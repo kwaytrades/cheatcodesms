@@ -194,7 +194,7 @@ ${include_broll ? '[B-roll: relevant visual]' : ''}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -205,7 +205,7 @@ ${include_broll ? '[B-roll: relevant visual]' : ''}
             content: `Create a video script based on this article:\n\n${article_text.substring(0, 3000)}`
           }
         ],
-        temperature: 0.8,
+        temperature: 0.9,
         max_tokens: 4000
       }),
     });
