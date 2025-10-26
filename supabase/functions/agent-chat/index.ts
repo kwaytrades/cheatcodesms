@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     console.log(`📊 Fetching unified customer profile for contact ${contactId}...`);
     const [
       { data: recentMessages },
-      { data: customerProfile, error: profileError }
+      { data: customerProfileData, error: profileError }
     ] = await Promise.all([
       // A. Recent messages (last 10)
       supabase
@@ -149,9 +149,65 @@ Deno.serve(async (req) => {
       supabase.rpc('get_customer_profile', { p_contact_id: contactId })
     ]);
 
+    let customerProfile = customerProfileData;
+
     if (profileError || !customerProfile) {
-      console.error('Failed to fetch customer profile:', profileError);
-      throw new Error('Failed to fetch customer profile');
+      console.error('⚠️ Profile fetch failed, using direct query fallback:', profileError);
+      
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('full_name, customer_tier, total_spent, products_owned, email, phone_number, lead_score, engagement_score')
+        .eq('id', contactId)
+        .single();
+      
+      if (!contact) {
+        throw new Error('Contact not found');
+      }
+      
+      customerProfile = {
+        identity: { 
+          name: contact.full_name, 
+          email: contact.email, 
+          phone: contact.phone_number 
+        },
+        financial: {
+          tier: contact.customer_tier || 'Lead',
+          totalSpent: contact.total_spent || 0,
+          productsOwned: contact.products_owned || [],
+          productsCount: (contact.products_owned || []).length,
+          hasDisputed: false,
+          disputedAmount: 0
+        },
+        engagement: { 
+          leadScore: contact.lead_score || 0, 
+          engagementScore: contact.engagement_score || 0,
+          likelihoodScore: 0,
+          sentiment: null,
+          lastEngagement: null
+        },
+        trading: {
+          experience: null,
+          style: null,
+          accountSize: null,
+          riskTolerance: null,
+          interests: [],
+          goals: [],
+          sectors: []
+        },
+        behavioral: {
+          personalityType: null,
+          tags: [],
+          regularTags: [],
+          communicationStyle: 'Not analyzed',
+          objections: null
+        },
+        insights: { 
+          summary: '',
+          lastUpdated: new Date().toISOString()
+        }
+      };
+      
+      console.log('✅ Built fallback profile:', customerProfile.financial);
     }
 
     console.log(`✅ Profile loaded: ${customerProfile.identity.name}`);
