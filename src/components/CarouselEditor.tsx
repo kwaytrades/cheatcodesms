@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { Upload, Twitter, Loader2, X, Palette } from "lucide-react";
+import { Upload, Twitter, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface CarouselSlide {
@@ -43,10 +43,6 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
   });
 
   const [exporting, setExporting] = useState(false);
-  const [globalFont, setGlobalFont] = useState('Roboto');
-  const [globalFontSize, setGlobalFontSize] = useState(24);
-  const [globalTextColor, setGlobalTextColor] = useState('#ffffff');
-  const [globalBackgroundColor, setGlobalBackgroundColor] = useState('#1a1a1a');
 
   const handleImageUpload = (index: number, file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -86,67 +82,6 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
     onSlidesChange?.(newSlides);
   };
 
-  const applyGlobalStyling = () => {
-    const newSlides = slides.map(slide => ({
-      ...slide,
-      fontFamily: globalFont,
-      fontSize: globalFontSize,
-      textColor: globalTextColor,
-      backgroundColor: globalBackgroundColor
-    }));
-    setSlides(newSlides);
-    onSlidesChange?.(newSlides);
-    toast.success('Applied styling to all slides');
-  };
-
-  const generateTextImage = async (slide: CarouselSlide): Promise<string> => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 1200;
-      canvas.height = 675; // Twitter optimal image size
-      const ctx = canvas.getContext('2d')!;
-
-      // Background
-      ctx.fillStyle = slide.backgroundColor || '#1a1a1a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Text
-      ctx.fillStyle = slide.textColor || '#ffffff';
-      ctx.font = `${slide.fontSize || 24}px ${slide.fontFamily || 'Roboto'}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Word wrap
-      const maxWidth = canvas.width - 100;
-      const lineHeight = (slide.fontSize || 24) * 1.4;
-      const words = slide.text.split(' ');
-      const lines: string[] = [];
-      let currentLine = '';
-
-      words.forEach(word => {
-        const testLine = currentLine + word + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && currentLine !== '') {
-          lines.push(currentLine);
-          currentLine = word + ' ';
-        } else {
-          currentLine = testLine;
-        }
-      });
-      lines.push(currentLine);
-
-      // Center text vertically
-      const totalHeight = lines.length * lineHeight;
-      let y = (canvas.height - totalHeight) / 2 + lineHeight / 2;
-
-      lines.forEach(line => {
-        ctx.fillText(line.trim(), canvas.width / 2, y);
-        y += lineHeight;
-      });
-
-      resolve(canvas.toDataURL('image/png'));
-    });
-  };
 
   const exportToTwitter = async () => {
     setExporting(true);
@@ -165,11 +100,7 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
             });
           }
 
-          // If no image, generate text image with styling
-          if (!imageData) {
-            imageData = await generateTextImage(slide);
-          }
-
+          // Only include imageData if user explicitly uploaded an image
           return {
             text: slide.text,
             imageData: imageData || null,
@@ -201,66 +132,6 @@ export const CarouselEditor = ({ scriptText, onSlidesChange }: CarouselEditorPro
 
   return (
     <div className="space-y-6">
-      {/* Global Styling Controls */}
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Palette className="h-5 w-5" />
-          <h3 className="text-lg font-semibold">Text Styling (for Twitter Export)</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <Label>Font Family</Label>
-            <Select value={globalFont} onValueChange={setGlobalFont}>
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Roboto">Roboto</SelectItem>
-                <SelectItem value="Open Sans">Open Sans</SelectItem>
-                <SelectItem value="Lato">Lato</SelectItem>
-                <SelectItem value="Montserrat">Montserrat</SelectItem>
-                <SelectItem value="Playfair Display">Playfair Display</SelectItem>
-                <SelectItem value="Oswald">Oswald</SelectItem>
-                <SelectItem value="Arial">Arial</SelectItem>
-                <SelectItem value="Georgia">Georgia</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Font Size</Label>
-            <Input
-              type="number"
-              value={globalFontSize}
-              onChange={(e) => setGlobalFontSize(Number(e.target.value))}
-              min={16}
-              max={72}
-              className="mt-2"
-            />
-          </div>
-          <div>
-            <Label>Text Color</Label>
-            <Input
-              type="color"
-              value={globalTextColor}
-              onChange={(e) => setGlobalTextColor(e.target.value)}
-              className="mt-2 h-10"
-            />
-          </div>
-          <div>
-            <Label>Background Color</Label>
-            <Input
-              type="color"
-              value={globalBackgroundColor}
-              onChange={(e) => setGlobalBackgroundColor(e.target.value)}
-              className="mt-2 h-10"
-            />
-          </div>
-        </div>
-        <Button onClick={applyGlobalStyling} className="w-full">
-          Apply Styling to All Slides
-        </Button>
-      </Card>
-
       {/* Carousel Preview */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
