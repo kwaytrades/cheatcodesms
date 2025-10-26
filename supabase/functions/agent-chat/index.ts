@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { contactId, agentType = 'customer_service', message, conversationId } = await req.json();
+    const { contactId, agentType = 'customer_service', message, conversationId: requestConversationId } = await req.json();
 
     if (!contactId || !message) {
       throw new Error('contactId and message are required');
@@ -85,29 +85,21 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Get or create agent conversation
-    let { data: conversation, error: convError } = await supabase
-      .from('agent_conversations')
-      .select('*')
-      .eq('contact_id', contactId)
-      .eq('agent_type', agentType)
-      .maybeSingle();
+    // 1. Get or create agent conversation (using safe DB function)
+    let conversationId: string;
+    
+    if (requestConversationId) {
+      conversationId = requestConversationId;
+    } else {
+      // Use database function to safely get or create conversation
+      const { data: convId, error: convError } = await supabase
+        .rpc('get_or_create_agent_conversation', {
+          p_contact_id: contactId,
+          p_agent_type: agentType
+        });
 
-    if (convError) throw convError;
-
-    if (!conversation) {
-      const { data: newConv, error: createError } = await supabase
-        .from('agent_conversations')
-        .insert({
-          contact_id: contactId,
-          agent_type: agentType,
-          status: 'active',
-        })
-        .select()
-        .single();
-
-      if (createError) throw createError;
-      conversation = newConv;
+      if (convError) throw convError;
+      conversationId = convId;
     }
 
     // 2. Fetch agent configuration
@@ -131,7 +123,7 @@ Deno.serve(async (req) => {
       supabase
         .from('agent_messages')
         .select('role, content, created_at')
-        .eq('conversation_id', conversation.id)
+        .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .limit(10),
       
@@ -180,7 +172,7 @@ Deno.serve(async (req) => {
       const { data: memories, error: memError } = await supabase.rpc(
         'search_agent_memories',
         {
-          p_conversation_id: conversation.id,
+          p_conversation_id: conversationId,
           query_embedding: embeddingData.embedding,
           match_threshold: 0.7,
           match_count: 3
@@ -259,6 +251,16 @@ Tier: ${customerTier} | Spent: $${contact?.total_spent || 0} | Lead Score: ${con
       customerContext += `\nSTATUS: ${contact.lead_status}`;
     }
 
+    // Log what context we're sending to the AI
+    console.log('🔍 Customer Context for AI:', {
+      contactId,
+      name: customerName,
+      tier: customerTier,
+      productsCount: productsOwned.length,
+      productsOwned,
+      contextLength: customerContext.length
+    });
+
     // Build conversation history (chronological order)
     const conversationHistory: any[] = [];
     
@@ -298,11 +300,28 @@ RESPONSE GUIDELINES:
     // Construct system message
     const systemMessage = `${systemPrompt}
 
+---
+⚠️ CRITICAL INSTRUCTIONS - READ FIRST:
+- You HAVE FULL ACCESS to the customer's profile data below
+- Always reference actual customer data when relevant (name, products owned, tier, etc.)
+- NEVER claim "I don't have access" to information provided in your context
+- The CUSTOMER CONTEXT section contains their complete account information
+---
+
 Tone: ${tone}
 
 ${customerContext}${memoryContext}${kbContext}
 
 ${responseGuidelines}`;
+
+    // Log what we're sending to the AI
+    console.log('🔍 Context sent to AI:', {
+      contactId,
+      agentType,
+      productsOwned: contact?.products_owned || [],
+      hasCustomerContext: customerContext.length > 0,
+      contextPreview: customerContext.substring(0, 200)
+    });
 
     // Build messages for LLM
     const llmMessages = [
@@ -393,7 +412,7 @@ ${responseGuidelines}`;
     // 9. Save messages to database
     const messagesToInsert = [
       {
-        conversation_id: conversation.id,
+        conversation_id: conversationId,
         role: 'user',
         content: message,
         token_count: message.split(/\s+/).length,
@@ -401,7 +420,7 @@ ${responseGuidelines}`;
         customer_context: { tier: customerTier, products: productsOwned },
       },
       {
-        conversation_id: conversation.id,
+        conversation_id: conversationId,
         role: 'assistant',
         content: aiMessage,
         token_count: aiMessage.split(/\s+/).length,
@@ -428,7 +447,7 @@ ${responseGuidelines}`;
           await supabase
             .from('agent_messages')
             .update({ embedding: aiEmbedding.embedding })
-            .eq('conversation_id', conversation.id)
+            .eq('conversation_id', conversationId)
             .eq('role', 'assistant')
             .eq('content', aiMessage);
         }
@@ -444,7 +463,7 @@ ${responseGuidelines}`;
     return new Response(
       JSON.stringify({
         response: aiMessage,
-        conversationId: conversation.id,
+        conversationId: conversationId,
         latency,
         needsHuman: aiMessage.toLowerCase().includes('specialist') || 
                     aiMessage.toLowerCase().includes('connect you with'),
