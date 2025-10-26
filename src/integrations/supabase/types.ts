@@ -2435,6 +2435,15 @@ export type Database = {
       archive_inactive_agents: { Args: never; Returns: undefined }
       calculate_lead_score: { Args: { p_contact_id: string }; Returns: number }
       expire_old_agents: { Args: never; Returns: undefined }
+      find_or_create_contact: {
+        Args: {
+          p_email: string
+          p_metadata?: Json
+          p_name: string
+          p_phone: string
+        }
+        Returns: string
+      }
       get_customer_context: { Args: { p_contact_id: string }; Returns: Json }
       match_documents: {
         Args: {
@@ -2451,6 +2460,7 @@ export type Database = {
           title: string
         }[]
       }
+      normalize_phone: { Args: { phone: string }; Returns: string }
       reset_daily_message_counters: { Args: never; Returns: undefined }
       reset_weekly_message_counters: { Args: never; Returns: undefined }
       search_agent_memories: {
