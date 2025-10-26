@@ -1631,6 +1631,48 @@ export type Database = {
         }
         Relationships: []
       }
+      imported_videos: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number | null
+          external_url: string
+          id: string
+          metadata: Json | null
+          platform: string
+          thumbnail_url: string | null
+          title: string | null
+          transcript: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          external_url: string
+          id?: string
+          metadata?: Json | null
+          platform: string
+          thumbnail_url?: string | null
+          title?: string | null
+          transcript?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          external_url?: string
+          id?: string
+          metadata?: Json | null
+          platform?: string
+          thumbnail_url?: string | null
+          title?: string | null
+          transcript?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       knowledge_base: {
         Row: {
           category: string
