@@ -27,8 +27,11 @@ const ScriptGenerator = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const storyFromState = location.state?.story;
+  const transcriptFromState = location.state?.transcript;
 
-  const [articleText, setArticleText] = useState(storyFromState?.content || '');
+  const [articleText, setArticleText] = useState(
+    transcriptFromState || storyFromState?.content || ''
+  );
   const [format, setFormat] = useState('youtube_long');
   const [lengthSeconds, setLengthSeconds] = useState(300);
   const [tone, setTone] = useState('educational');
@@ -208,7 +211,15 @@ const ScriptGenerator = () => {
         {/* Left Panel - Article Input and Settings */}
         <div className="space-y-4">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Article Source</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Article Source</h2>
+              {transcriptFromState && (
+                <Badge variant="secondary">
+                  <Video className="h-3 w-3 mr-1" />
+                  Imported Video Transcript
+                </Badge>
+              )}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="article">Article Text</Label>
               <Textarea

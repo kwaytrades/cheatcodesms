@@ -7,10 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download, Scissors } from "lucide-react";
+import { Search, Grid3x3, List, FolderOpen, FileText, Video, Trash2, Loader2, Download, Scissors, Upload, Edit } from "lucide-react";
 import { toast } from "sonner";
 import ReactPlayer from "react-player";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImportVideoDialog } from "@/components/ImportVideoDialog";
 
 const FORMATS = {
   youtube_long: { label: 'YouTube Long', color: 'bg-red-500' },
@@ -34,6 +35,7 @@ const ContentLibrary = () => {
   const [filterFormat, setFilterFormat] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   // Fetch scripts
   const { data: scripts, isLoading: scriptsLoading } = useQuery({
@@ -55,6 +57,20 @@ const ContentLibrary = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('content_videos')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch imported videos
+  const { data: importedVideos, isLoading: importedLoading } = useQuery({
+    queryKey: ['imported-videos'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('imported_videos')
         .select('*')
         .order('created_at', { ascending: false });
       
@@ -111,7 +127,25 @@ const ContentLibrary = () => {
     },
   });
 
-  // Combine scripts and videos into content items
+  // Delete imported video mutation
+  const deleteImportedVideo = useMutation({
+    mutationFn: async (videoId: string) => {
+      const { error } = await supabase
+        .from('imported_videos')
+        .delete()
+        .eq('id', videoId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['imported-videos'] });
+      toast.success('Imported video deleted');
+    },
+    onError: () => {
+      toast.error('Failed to delete imported video');
+    },
+  });
+
+  // Combine scripts, videos, and imported videos into content items
   const contentItems = [
     ...(scripts?.map(script => ({
       id: script.id,
@@ -127,8 +161,18 @@ const ContentLibrary = () => {
       id: video.id,
       type: 'video' as const,
       title: `Video ${video.take_number}`,
-      format: 'youtube_long', // Default, could be linked to script
+      format: 'youtube_long',
       status: 'recorded' as const,
+      created_at: video.created_at,
+      duration: video.duration_seconds,
+      data: video
+    })) || []),
+    ...(importedVideos?.map(video => ({
+      id: video.id,
+      type: 'imported' as const,
+      title: video.title,
+      format: video.platform,
+      status: 'imported' as const,
       created_at: video.created_at,
       duration: video.duration_seconds,
       data: video
@@ -187,7 +231,7 @@ const ContentLibrary = () => {
     }
   };
 
-  const isLoading = scriptsLoading || videosLoading;
+  const isLoading = scriptsLoading || videosLoading || importedLoading;
 
   return (
     <div className="h-full flex gap-6 p-6 overflow-hidden">
@@ -220,6 +264,11 @@ const ContentLibrary = () => {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Filter Bar */}
         <div className="flex-none mb-4 flex items-center gap-3">
+          <Button onClick={() => setImportDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import Video
+          </Button>
+          
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -331,14 +380,39 @@ const ContentLibrary = () => {
                             </Button>
                           </>
                         )}
+                        {item.type === 'imported' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() => window.open(item.data.external_url, '_blank')}
+                            >
+                              <Video className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate('/content-studio/scripts', { 
+                                state: { transcript: item.data.transcript }
+                              })}
+                              title="Create script from transcript"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => {
                             if (item.type === 'script') {
                               deleteScript.mutate(item.id);
-                            } else {
+                            } else if (item.type === 'video') {
                               deleteVideo.mutate(item.id);
+                            } else {
+                              deleteImportedVideo.mutate(item.id);
                             }
                           }}
                         >
@@ -407,14 +481,37 @@ const ContentLibrary = () => {
                             </Button>
                           </>
                         )}
+                        {item.type === 'imported' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => window.open(item.data.external_url, '_blank')}
+                            >
+                              <Video className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => navigate('/content-studio/scripts', { 
+                                state: { transcript: item.data.transcript }
+                              })}
+                              title="Create script"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => {
                             if (item.type === 'script') {
                               deleteScript.mutate(item.id);
-                            } else {
+                            } else if (item.type === 'video') {
                               deleteVideo.mutate(item.id);
+                            } else {
+                              deleteImportedVideo.mutate(item.id);
                             }
                           }}
                         >
@@ -469,6 +566,12 @@ const ContentLibrary = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Import Video Dialog */}
+      <ImportVideoDialog 
+        open={importDialogOpen} 
+        onOpenChange={setImportDialogOpen}
+      />
     </div>
   );
 };
