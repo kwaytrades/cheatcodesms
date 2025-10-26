@@ -205,7 +205,7 @@ ${include_broll ? '[B-roll: relevant visual]' : ''}
             content: `Create a video script based on this article:\n\n${article_text.substring(0, 3000)}`
           }
         ],
-        temperature: 0.3,
+        temperature: 0.8,
         max_tokens: 4000
       }),
     });
