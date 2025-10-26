@@ -666,6 +666,38 @@ serve(async (req) => {
       };
     }
 
+    // Fetch fresh customer profile using contactId
+    let customerProfile = null;
+    if (contactId || conversation?.contact_id) {
+      const profileContactId = contactId || conversation.contact_id;
+      console.log(`Fetching customer profile for contactId: ${profileContactId}`);
+      
+      const { data: profileData } = await supabase.rpc('get_customer_profile', {
+        p_contact_id: profileContactId
+      });
+      customerProfile = profileData;
+      
+      // Fallback to direct contact query if RPC fails
+      if (!customerProfile) {
+        console.log('RPC failed, falling back to direct contact query');
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .select('customer_profile, customer_tier, total_spent, products_owned, lead_score, full_name')
+          .eq('id', profileContactId)
+          .single();
+        
+        customerProfile = contactData?.customer_profile || contactData;
+      }
+      
+      if (customerProfile) {
+        console.log('Customer profile fetched:', {
+          tier: customerProfile?.financial?.tier || customerProfile?.customer_tier,
+          productsCount: customerProfile?.financial?.productsOwned?.length || customerProfile?.products_owned?.length || 0,
+          totalSpent: customerProfile?.financial?.totalSpent || customerProfile?.total_spent
+        });
+      }
+    }
+
     const incomingMessage = messages[messages.length - 1]?.content || '';
     
     // Map normalized agent type back to database format for knowledge base filtering
@@ -779,13 +811,30 @@ BELOW IS YOUR CORE AGENT PERSONALITY - Use this for tone and style:
       }
     }
 
+    // Build customer context from fresh profile data
+    const tierInfo = customerProfile?.financial?.tier || customerProfile?.customer_tier || 'Lead';
+    const totalSpent = customerProfile?.financial?.totalSpent || customerProfile?.total_spent || 0;
+    const productsOwned = customerProfile?.financial?.productsOwned || customerProfile?.products_owned || [];
+    const leadScore = customerProfile?.engagement?.leadScore || customerProfile?.lead_score || 0;
+    
     const customerInfo = `
 CUSTOMER CONTEXT:
 - Name: ${customerName}
-- Tier: ${conversation.contacts?.customer_tier || 'LEAD'}
-- Total Spent: $${conversation.contacts?.total_spent || 0}
-- Products Owned: ${conversation.contacts?.products_owned?.join(', ') || 'None'}
-- Lead Score: ${conversation.contacts?.lead_score || 0}/100${knowledgeContext}`;
+- Tier: ${tierInfo}
+- Total Spent: $${totalSpent}
+- Products Owned: ${productsOwned.length > 0 ? productsOwned.join(', ') : 'None'}
+- Products Count: ${productsOwned.length}
+- Lead Score: ${leadScore}/100${knowledgeContext}`;
+
+    // Add critical product ownership enforcement if customer owns products
+    const productEnforcement = productsOwned.length > 0 ? `
+
+⚠️ CRITICAL PRODUCT OWNERSHIP:
+This customer OWNS ${productsOwned.length} product(s). When asked about their products, you MUST accurately list:
+${productsOwned.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n')}
+
+NEVER say this customer is a "new lead" or "doesn't own products". They are a ${tierInfo} customer with $${totalSpent} spent.
+` : '';
 
     // Build conversation history from messages array
     // All AI agents (ai_sales, ai_cs, etc.) map to 'assistant' role for the AI model
@@ -820,7 +869,7 @@ CUSTOMER CONTEXT:
 
     // Build messages array with system message first (OpenAI-compatible format for Lovable AI Gateway)
     const aiMessages = [
-      { role: 'system', content: `${systemPrompt}\n\n${conversationContext}\n\n${customerInfo}` },
+      { role: 'system', content: `${systemPrompt}\n\n${conversationContext}\n\n${customerInfo}${productEnforcement}` },
       ...conversationHistory
     ];
 
