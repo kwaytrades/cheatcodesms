@@ -69,12 +69,11 @@ export default function SalesCampaignDetail() {
       
       if (contactsError) throw contactsError;
       
-      const agentIds = campaignContacts?.map(cc => cc.agent_id).filter(Boolean) || [];
       const contactIds = campaignContacts?.map(cc => cc.contact_id).filter(Boolean) || [];
       
       if (contactIds.length === 0) return [];
       
-      // Fetch outbound messages (campaign messages)
+      // Fetch outbound messages (campaign messages) by contact_id
       const { data: outboundMessages, error: outboundError } = await supabase
         .from('scheduled_messages')
       .select(`
@@ -92,7 +91,7 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .in('agent_id', agentIds)
+      .in('contact_id', contactIds)
       .gte('created_at', campaignStartDate);
       
       if (outboundError) throw outboundError;
