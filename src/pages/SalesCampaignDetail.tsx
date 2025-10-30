@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingU
 export default function SalesCampaignDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ['sales-campaign', id],
@@ -36,6 +38,57 @@ export default function SalesCampaignDetail() {
       
       if (error) throw error;
       return data;
+    },
+  });
+
+  const pauseCampaignMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('pause-sales-campaign', {
+        body: { campaign_id: id }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign paused successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to pause campaign: ${error.message}`);
+    },
+  });
+
+  const resumeCampaignMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('resume-sales-campaign', {
+        body: { campaign_id: id }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign resumed successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to resume campaign: ${error.message}`);
+    },
+  });
+
+  const launchCampaignMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('activate-sales-campaign', {
+        body: { campaign_id: id }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign launched successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to launch campaign: ${error.message}`);
     },
   });
 
@@ -87,17 +140,35 @@ export default function SalesCampaignDetail() {
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate(`/sales-campaigns/${id}/edit`)}>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/sales-campaigns/${id}/edit`)}
+              disabled={campaign.status === 'active'}
+            >
               <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
             {campaign.status === 'active' ? (
-              <Button>
+              <Button 
+                onClick={() => pauseCampaignMutation.mutate()}
+                disabled={pauseCampaignMutation.isPending}
+              >
                 <Pause className="h-4 w-4 mr-2" />
                 Pause
               </Button>
+            ) : campaign.status === 'paused' ? (
+              <Button 
+                onClick={() => resumeCampaignMutation.mutate()}
+                disabled={resumeCampaignMutation.isPending}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Resume
+              </Button>
             ) : campaign.status === 'draft' ? (
-              <Button>
+              <Button 
+                onClick={() => launchCampaignMutation.mutate()}
+                disabled={launchCampaignMutation.isPending}
+              >
                 <Play className="h-4 w-4 mr-2" />
                 Launch
               </Button>

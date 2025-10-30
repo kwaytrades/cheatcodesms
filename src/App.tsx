@@ -17,6 +17,7 @@ import CampaignDetail from "./pages/CampaignDetail";
 import SalesCampaigns from "./pages/SalesCampaigns";
 import SalesCampaignBuilder from "./pages/SalesCampaignBuilder";
 import SalesCampaignDetail from "./pages/SalesCampaignDetail";
+import SalesCampaignEdit from "./pages/SalesCampaignEdit";
 import Inbox from "./pages/Inbox";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -65,6 +66,7 @@ const App = () => (
             <Route path="sales-campaigns" element={<SalesCampaigns />} />
             <Route path="sales-campaigns/new" element={<SalesCampaignBuilder />} />
             <Route path="sales-campaigns/:id" element={<SalesCampaignDetail />} />
+            <Route path="sales-campaigns/:id/edit" element={<SalesCampaignEdit />} />
             <Route path="inbox" element={<Inbox />} />
             <Route path="automation" element={<AutomationTriggers />} />
             <Route path="agents" element={<AIAgents />} />
