@@ -14,6 +14,9 @@ import ContactDetail from "./pages/ContactDetail";
 import Campaigns from "./pages/Campaigns";
 import CampaignBuilder from "./pages/CampaignBuilder";
 import CampaignDetail from "./pages/CampaignDetail";
+import SalesCampaigns from "./pages/SalesCampaigns";
+import SalesCampaignBuilder from "./pages/SalesCampaignBuilder";
+import SalesCampaignDetail from "./pages/SalesCampaignDetail";
 import Inbox from "./pages/Inbox";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -59,6 +62,9 @@ const App = () => (
             <Route path="campaigns" element={<Campaigns />} />
             <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="campaigns/:id" element={<CampaignDetail />} />
+            <Route path="sales-campaigns" element={<SalesCampaigns />} />
+            <Route path="sales-campaigns/new" element={<SalesCampaignBuilder />} />
+            <Route path="sales-campaigns/:id" element={<SalesCampaignDetail />} />
             <Route path="inbox" element={<Inbox />} />
             <Route path="automation" element={<AutomationTriggers />} />
             <Route path="agents" element={<AIAgents />} />

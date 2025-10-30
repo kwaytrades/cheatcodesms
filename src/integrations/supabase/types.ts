@@ -453,6 +453,129 @@ export type Database = {
           },
         ]
       }
+      ai_sales_campaign_contacts: {
+        Row: {
+          agent_assigned_at: string | null
+          agent_id: string | null
+          campaign_day: number | null
+          campaign_id: string | null
+          contact_id: string | null
+          converted: boolean | null
+          created_at: string | null
+          id: string
+          last_outreach_at: string | null
+          messages_received: number | null
+          responded: boolean | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_assigned_at?: string | null
+          agent_id?: string | null
+          campaign_day?: number | null
+          campaign_id?: string | null
+          contact_id?: string | null
+          converted?: boolean | null
+          created_at?: string | null
+          id?: string
+          last_outreach_at?: string | null
+          messages_received?: number | null
+          responded?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_assigned_at?: string | null
+          agent_id?: string | null
+          campaign_day?: number | null
+          campaign_id?: string | null
+          contact_id?: string | null
+          converted?: boolean | null
+          created_at?: string | null
+          id?: string
+          last_outreach_at?: string | null
+          messages_received?: number | null
+          responded?: boolean | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_sales_campaign_contacts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sales_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_sales_campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_sales_campaigns: {
+        Row: {
+          agent_type: string
+          audience_filter: Json
+          campaign_config: Json
+          contact_count: number | null
+          contacts_engaged: number | null
+          conversions: number | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          messages_sent: number | null
+          name: string
+          responses_received: number | null
+          start_date: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_type: string
+          audience_filter?: Json
+          campaign_config?: Json
+          contact_count?: number | null
+          contacts_engaged?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          messages_sent?: number | null
+          name: string
+          responses_received?: number | null
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_type?: string
+          audience_filter?: Json
+          campaign_config?: Json
+          contact_count?: number | null
+          contacts_engaged?: number | null
+          conversions?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          messages_sent?: number | null
+          name?: string
+          responses_received?: number | null
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_video_clips: {
         Row: {
           clip_url: string | null

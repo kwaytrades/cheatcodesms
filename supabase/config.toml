@@ -170,3 +170,15 @@ verify_jwt = false
 
 [functions.extract-video-transcript]
 verify_jwt = false
+
+[functions.filter-contacts]
+verify_jwt = false
+
+[functions.create-sales-campaign]
+verify_jwt = false
+
+[functions.activate-sales-campaign]
+verify_jwt = false
+
+[functions.simulate-agent-campaign]
+verify_jwt = false
