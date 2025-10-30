@@ -433,22 +433,67 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
       }
     }
     
+    // Fetch full product details if campaign has products
+    let productDetails: any[] = [];
+    if (campaignStrategy?.products && Array.isArray(campaignStrategy.products) && campaignStrategy.products.length > 0) {
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .in('id', campaignStrategy.products);
+      
+      if (!productsError && productsData) {
+        productDetails = productsData;
+      }
+    }
+
     // Build campaign context if strategy is available
     if (campaignStrategy) {
+      // Build product details string
+      let productContextString = '';
+      if (productDetails.length > 0) {
+        productContextString = productDetails.map(product => `
+
+📦 PRODUCT: ${product.name}
+${product.description ? `Description: ${product.description}` : ''}
+${product.sku ? `SKU: ${product.sku}` : ''}
+${product.price ? `Price: $${product.price}` : ''}
+
+${product.features?.length ? `FEATURES:\n${product.features.map((f: string) => `• ${f}`).join('\n')}` : ''}
+
+${product.benefits?.length ? `BENEFITS:\n${product.benefits.map((b: string) => `• ${b}`).join('\n')}` : ''}
+
+${product.value_propositions?.length ? `VALUE PROPOSITIONS:\n${product.value_propositions.map((vp: string) => `• ${vp}`).join('\n')}` : ''}
+
+${product.key_talking_points?.length ? `KEY TALKING POINTS:\n${product.key_talking_points.map((tp: string) => `✓ ${tp}`).join('\n')}` : ''}
+
+${product.target_audience ? `TARGET AUDIENCE:\n${product.target_audience}` : ''}
+
+${product.competitive_positioning ? `COMPETITIVE POSITIONING:\n${product.competitive_positioning}` : ''}
+
+${product.objection_responses && Object.keys(product.objection_responses).length ? `OBJECTION RESPONSES:\n${Object.entries(product.objection_responses).map(([obj, res]) => `Q: "${obj}"\nA: ${res}`).join('\n\n')}` : ''}
+
+${product.document_content ? `
+📄 DETAILED PRODUCT INFORMATION (from uploaded document):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${product.document_content}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
+
+═══════════════════════════════════════════════════════
+`).join('\n');
+      }
+
       campaignContext = `
 ═══════════════════════════════════════════════════════
 🎯 CAMPAIGN STRATEGY - CRITICAL CONTEXT
 ═══════════════════════════════════════════════════════
 
 PRIMARY OBJECTIVE: ${campaignStrategy.primary_objective?.replace('_', ' ').toUpperCase() || 'Not specified'}
-PRODUCTS: ${campaignStrategy.products?.join(', ') || 'Not specified'}
 SALES INTENSITY: ${campaignStrategy.sales_intensity}/10 ${campaignStrategy.sales_intensity >= 8 ? '(HIGH - AGGRESSIVE)' : campaignStrategy.sales_intensity >= 5 ? '(MODERATE - BALANCED)' : '(LOW - SOFT TOUCH)'}
 
-VALUE PROPOSITIONS:
-${campaignStrategy.value_propositions?.map((vp: string) => `• ${vp}`).join('\n') || 'None specified'}
+${productContextString}
 
-${campaignStrategy.pricing?.base_price ? `PRICING: ${campaignStrategy.pricing.base_price}` : ''}
-${campaignStrategy.pricing?.special_offer ? `SPECIAL OFFER: ${campaignStrategy.pricing.special_offer}` : ''}
+${campaignStrategy.campaign_context ? `CAMPAIGN CONTEXT:\n${campaignStrategy.campaign_context}\n` : ''}
 
 DISCOUNT STRATEGY: ${campaignStrategy.discount_strategy?.approach?.replace('_', ' ').toUpperCase() || 'No discounts'}
 ${campaignStrategy.discount_strategy?.amount ? `Discount Amount: ${campaignStrategy.discount_strategy.amount}` : ''}
@@ -456,13 +501,7 @@ ${campaignStrategy.discount_strategy?.expiration ? `Expires: ${campaignStrategy.
 
 OBJECTION HANDLING: ${campaignStrategy.objection_handling?.replace('_', ' ') || 'Address with education'}
 
-${campaignStrategy.campaign_context ? `CAMPAIGN CONTEXT:\n${campaignStrategy.campaign_context}\n` : ''}
-
-${campaignStrategy.key_talking_points?.length ? `KEY TALKING POINTS (MUST MENTION):\n${campaignStrategy.key_talking_points.map((tp: string) => `✓ ${tp}`).join('\n')}\n` : ''}
-
 ${campaignStrategy.avoid_topics?.length ? `⚠️ TOPICS TO AVOID:\n${campaignStrategy.avoid_topics.map((at: string) => `✗ ${at}`).join('\n')}\n` : ''}
-
-${campaignStrategy.competitive_positioning ? `COMPETITIVE POSITIONING:\n${campaignStrategy.competitive_positioning}\n` : ''}
 
 ═══════════════════════════════════════════════════════
 `;

@@ -129,6 +129,9 @@ verify_jwt = false
 [functions.parse-pdf]
 verify_jwt = false
 
+[functions.parse-product-document]
+verify_jwt = false
+
 [functions.assign-product-agent]
 verify_jwt = false
 

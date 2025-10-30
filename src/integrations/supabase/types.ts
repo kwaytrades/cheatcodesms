@@ -2155,6 +2155,10 @@ export type Database = {
           created_at: string | null
           description: string | null
           discount_options: Json | null
+          document_content: string | null
+          document_filename: string | null
+          document_parsed_at: string | null
+          document_url: string | null
           features: Json | null
           id: string
           is_active: boolean | null
@@ -2178,6 +2182,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_options?: Json | null
+          document_content?: string | null
+          document_filename?: string | null
+          document_parsed_at?: string | null
+          document_url?: string | null
           features?: Json | null
           id?: string
           is_active?: boolean | null
@@ -2201,6 +2209,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           discount_options?: Json | null
+          document_content?: string | null
+          document_filename?: string | null
+          document_parsed_at?: string | null
+          document_url?: string | null
           features?: Json | null
           id?: string
           is_active?: boolean | null

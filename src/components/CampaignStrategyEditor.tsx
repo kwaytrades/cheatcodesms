@@ -10,7 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { X, Plus, Package } from "lucide-react";
+import { X, Plus, Package, FileText } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -201,6 +201,12 @@ export function CampaignStrategyEditor({ strategy, onChange }: CampaignStrategyE
                         <span className="font-medium">{product.name}</span>
                         {product.price && (
                           <Badge variant="secondary">${product.price}</Badge>
+                        )}
+                        {product.document_filename && (
+                          <Badge variant="outline" className="gap-1">
+                            <FileText className="h-3 w-3" />
+                            Doc
+                          </Badge>
                         )}
                       </div>
                       {product.description && (

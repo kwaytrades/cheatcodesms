@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus } from "lucide-react";
+import { X, Plus, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProductEditorProps {
@@ -24,24 +24,48 @@ interface ProductEditorProps {
   onClose: () => void;
 }
 
+interface ProductFormData {
+  name: string;
+  description: string;
+  sku: string;
+  product_type: string;
+  price: string;
+  is_active: boolean;
+  features: string[];
+  benefits: string[];
+  value_propositions: string[];
+  key_talking_points: string[];
+  target_audience: string;
+  competitive_positioning: string;
+  objection_responses: Record<string, string>;
+  document_url: string;
+  document_content: string;
+  document_filename: string;
+  document_parsed_at: string | null;
+}
+
 export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
   const queryClient = useQueryClient();
   const isEditing = !!product;
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductFormData>({
     name: "",
     sku: "",
     product_type: "course",
     description: "",
     price: "",
     is_active: true,
-    features: [] as string[],
-    benefits: [] as string[],
-    value_propositions: [] as string[],
-    key_talking_points: [] as string[],
+    features: [],
+    benefits: [],
+    value_propositions: [],
+    key_talking_points: [],
     target_audience: "",
     competitive_positioning: "",
-    objection_responses: {} as Record<string, string>,
+    objection_responses: {},
+    document_url: "",
+    document_content: "",
+    document_filename: "",
+    document_parsed_at: null,
   });
 
   const [newFeature, setNewFeature] = useState("");
@@ -50,6 +74,8 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
   const [newTalkingPoint, setNewTalkingPoint] = useState("");
   const [newObjection, setNewObjection] = useState("");
   const [newResponse, setNewResponse] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -67,6 +93,10 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
         target_audience: product.target_audience || "",
         competitive_positioning: product.competitive_positioning || "",
         objection_responses: product.objection_responses || {},
+        document_url: product.document_url || "",
+        document_content: product.document_content || "",
+        document_filename: product.document_filename || "",
+        document_parsed_at: product.document_parsed_at || null,
       });
     }
   }, [product]);
@@ -107,7 +137,7 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
     saveMutation.mutate(formData);
   };
 
-  const addArrayItem = (field: keyof typeof formData, value: string, setter: (val: string) => void) => {
+  const addArrayItem = (field: keyof ProductFormData, value: string, setter: (val: string) => void) => {
     if (!value.trim()) return;
     setFormData(prev => ({
       ...prev,
@@ -116,7 +146,7 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
     setter("");
   };
 
-  const removeArrayItem = (field: keyof typeof formData, index: number) => {
+  const removeArrayItem = (field: keyof ProductFormData, index: number) => {
     setFormData(prev => ({
       ...prev,
       [field]: (prev[field] as string[]).filter((_, i) => i !== index),
@@ -143,6 +173,102 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
     });
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!isEditing || !product?.id) {
+      toast.error("Please save the product first before uploading documents");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const filePath = `${product.id}/${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('product-documents')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: parseData, error: parseError } = await supabase.functions.invoke(
+        'parse-product-document',
+        { body: { filePath } }
+      );
+
+      if (parseError) throw parseError;
+      if (!parseData.success) throw new Error(parseData.error);
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-documents')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          document_url: publicUrl,
+          document_content: parseData.content,
+          document_filename: file.name,
+          document_parsed_at: new Date().toISOString()
+        })
+        .eq('id', product.id);
+
+      if (updateError) throw updateError;
+
+      setFormData(prev => ({
+        ...prev,
+        document_url: publicUrl,
+        document_content: parseData.content,
+        document_filename: file.name,
+        document_parsed_at: new Date().toISOString()
+      }));
+
+      toast.success("Document uploaded and parsed successfully");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error(`Failed to upload document: ${error.message}`);
+    } finally {
+      setIsUploading(false);
+      setUploadedFile(null);
+    }
+  };
+
+  const handleRemoveDocument = async () => {
+    if (!product?.id) return;
+
+    try {
+      if (formData.document_url) {
+        const filePath = `${product.id}/${formData.document_filename}`;
+        await supabase.storage
+          .from('product-documents')
+          .remove([filePath]);
+      }
+
+      const { error } = await supabase
+        .from('products')
+        .update({
+          document_url: null,
+          document_content: null,
+          document_filename: null,
+          document_parsed_at: null
+        })
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      setFormData(prev => ({
+        ...prev,
+        document_url: "",
+        document_content: "",
+        document_filename: "",
+        document_parsed_at: null
+      }));
+
+      toast.success("Document removed successfully");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    } catch (error: any) {
+      toast.error(`Failed to remove document: ${error.message}`);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -151,11 +277,12 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="mt-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="sales">Sales Content</TabsTrigger>
             <TabsTrigger value="positioning">Positioning</TabsTrigger>
             <TabsTrigger value="objections">Objections</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
           </TabsList>
 
           <TabsContent value="basic" className="space-y-4 mt-4">
@@ -403,6 +530,91 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="documents" className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <Label>Product Documentation</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload a document with detailed product information. Supported formats: TXT, PDF, DOC, DOCX
+                </p>
+
+                {formData.document_filename ? (
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-medium">{formData.document_filename}</p>
+                          {formData.document_parsed_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Parsed {new Date(formData.document_parsed_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRemoveDocument}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {formData.document_content && (
+                      <div className="mt-3 p-3 bg-muted rounded-md">
+                        <p className="text-xs font-medium mb-2">Content Preview:</p>
+                        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                          {formData.document_content.slice(0, 500)}
+                          {formData.document_content.length > 500 ? '...' : ''}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Total: {formData.document_content.length} characters
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {isEditing 
+                        ? "No document uploaded yet"
+                        : "Save the product first to upload documents"
+                      }
+                    </p>
+                    {isEditing && (
+                      <div>
+                        <input
+                          type="file"
+                          accept=".txt,.pdf,.doc,.docx"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setUploadedFile(file);
+                              handleFileUpload(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="document-upload"
+                          disabled={isUploading}
+                        />
+                        <Label
+                          htmlFor="document-upload"
+                          className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                        >
+                          <Upload className="h-4 w-4" />
+                          {isUploading ? "Uploading..." : "Choose File"}
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
         </Tabs>
