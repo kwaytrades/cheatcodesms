@@ -121,18 +121,24 @@ serve(async (req) => {
           .single();
 
         let previousAgentType: string | null = null;
+        let shouldHandoff = false;
         
-        // If there's an active agent, get its type and queue it
+        // If there's an active agent, check if it's a product agent (not customer_service)
         if (existingState?.active_agent_id) {
           // Try to find in product_agents first
           const { data: productAgent } = await supabase
             .from('product_agents')
             .select('product_type')
             .eq('id', existingState.active_agent_id)
+            .eq('status', 'active')
             .single();
           
-          if (productAgent) {
+          if (productAgent && productAgent.product_type !== 'customer_service') {
             previousAgentType = productAgent.product_type;
+            shouldHandoff = true;
+            console.log(`🔄 Handoff needed from product agent: ${previousAgentType}`);
+          } else if (productAgent && productAgent.product_type === 'customer_service') {
+            console.log(`✅ Only customer_service active - proceeding with sales introduction`);
           } else {
             // Check agent_conversations
             const { data: convAgent } = await supabase
@@ -141,8 +147,10 @@ serve(async (req) => {
               .eq('id', existingState.active_agent_id)
               .single();
             
-            if (convAgent) {
+            if (convAgent && convAgent.agent_type !== 'customer_service') {
               previousAgentType = convAgent.agent_type;
+              shouldHandoff = true;
+              console.log(`🔄 Handoff needed from agent conversation: ${previousAgentType}`);
             }
           }
         }
@@ -280,7 +288,7 @@ serve(async (req) => {
             contact_id: cc.contact_id,
             agent_id: conversation.id,
             conversation_id: conversation.id,
-            message_type: previousAgentType ? 'handoff' : 'introduction',
+            message_type: shouldHandoff ? 'handoff' : 'introduction',
             trigger_context: {
               campaign_id: campaign_id,
               campaign_strategy: campaign.campaign_strategy || {},

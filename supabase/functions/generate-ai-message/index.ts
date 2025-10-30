@@ -370,6 +370,31 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
       console.error('Knowledge base search failed:', kbError);
     }
 
+    // Fetch customer profile for personalization
+    console.log('📊 Fetching customer profile...');
+    let customerProfile = null;
+    try {
+      const { data: profileData, error: profileError } = await supabase.rpc(
+        'get_customer_profile',
+        { p_contact_id: contact_id }
+      );
+
+      if (profileError) {
+        console.error('Error fetching customer profile:', profileError);
+      } else {
+        customerProfile = profileData;
+        console.log('Customer Profile:', {
+          tier: customerProfile?.financial?.tier,
+          productsOwned: customerProfile?.financial?.productsOwned,
+          leadScore: customerProfile?.engagement?.leadScore,
+          tradingExperience: customerProfile?.trading?.experience,
+          personalityType: customerProfile?.behavioral?.personalityType
+        });
+      }
+    } catch (profileError) {
+      console.error('Failed to fetch customer profile:', profileError);
+    }
+
     // Detect personality type or use existing
     const personalityType = contact?.personality_type || 'relationship_builder';
     const toneGuidelines = PERSONALITY_TONES[personalityType as keyof typeof PERSONALITY_TONES];
@@ -520,6 +545,9 @@ ADJUSTMENTS:
       personalityType: personalityType
     };
 
+    // Declare messageContent for use in handoff or ai-agent paths
+    let messageContent: { subject: string | null; message: string; reasoning: string };
+
     // HANDOFF MESSAGE - When sales agent takes over from another agent
     if (message_type === 'handoff' && trigger_context.previous_agent_type) {
       const previousAgentName = AGENT_NAMES[trigger_context.previous_agent_type as keyof typeof AGENT_NAMES] || 'your previous agent';
@@ -550,7 +578,7 @@ What questions can I answer for you? 🚀`;
       console.log('Generated handoff message for agent takeover');
       
       // Save message to database and schedule it
-      const messageContent = {
+      messageContent = {
         subject: null,
         message: handoffMessage,
         reasoning: 'Sales agent handoff from ' + trigger_context.previous_agent_type
@@ -570,57 +598,68 @@ What questions can I answer for you? 🚀`;
     console.log('Personality:', personalityType);
     console.log('═══════════════════════════════════════════════');
 
-    // Format conversation history for ai-agent
-    const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({
-      sender: msg.sender,
-      content: msg.body,
-      body: msg.body,
-      created_at: msg.created_at
-    }));
+    // Skip ai-agent call if we already generated a handoff message
+    if (message_type !== 'handoff') {
+      // Format conversation history for ai-agent
+      const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({
+        sender: msg.sender,
+        content: msg.body,
+        body: msg.body,
+        created_at: msg.created_at
+      }));
 
-    console.log(`Calling ai-agent with ${formattedMessages.length} messages and campaign context`);
+      console.log(`Calling ai-agent with ${formattedMessages.length} messages and campaign context`);
 
-    // Normalize agent type to match ai-agent expectations
-    const normalizedAgentType = agent.product_type === 'sales_agent' ? 'sales' : 
-                                agent.product_type === 'customer_service' ? 'cs' : 
-                                agent.product_type;
+      // Normalize agent type to match ai-agent expectations
+      const normalizedAgentType = agent.product_type === 'sales_agent' ? 'sales' : 
+                                  agent.product_type === 'customer_service' ? 'cs' : 
+                                  agent.product_type;
 
-    // Call ai-agent with campaign context
-    const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
-      body: {
-        ...(isTestMode ? {} : { conversationId: conversation_id }),
-        agentType: normalizedAgentType,
-        incomingMessage: trigger_context.last_customer_message || `Generate ${message_type} message`,
-        messages: formattedMessages,
-        isFirstMessage: formattedMessages.length === 0,
-        contactId: contact_id,
-        agentContext: agent.agent_context,
-        context: {
-          contact,
-          purchases,
-          messageType: message_type,
-          channel
-        },
-        // ✅ NEW: Pass campaign context to ai-agent
-        campaignContext: campaignContextPayload
+      // Call ai-agent with campaign context
+      const { data: aiAgentData, error: aiAgentError } = await supabase.functions.invoke('ai-agent', {
+        body: {
+          ...(isTestMode ? {} : { conversationId: conversation_id }),
+          agentType: normalizedAgentType,
+          incomingMessage: trigger_context.last_customer_message || `Generate ${message_type} message`,
+          messages: formattedMessages,
+          isFirstMessage: formattedMessages.length === 0,
+          contactId: contact_id,
+          agentContext: agent.agent_context,
+          context: {
+            contact,
+            purchases,
+            customerProfile, // Include customer profile for personalization
+            messageType: message_type,
+            channel
+          },
+          // ✅ NEW: Pass campaign context to ai-agent
+          campaignContext: campaignContextPayload
+        }
+      });
+
+      if (aiAgentError) {
+        console.error('ai-agent error:', aiAgentError);
+        throw new Error(`ai-agent failed: ${aiAgentError.message || 'Unknown error'}`);
       }
-    });
 
-    if (aiAgentError) {
-      console.error('ai-agent error:', aiAgentError);
-      throw new Error(`ai-agent failed: ${aiAgentError.message || 'Unknown error'}`);
+      console.log('✅ ai-agent response received');
+
+      // Extract message from response
+      messageContent = {
+        subject: null,
+        message: aiAgentData.response || aiAgentData.message,
+        reasoning: `Campaign Day ${campaignContextPayload.campaignDay} - ${messageGoal}`
+      };
+      
+      console.log('AI generated message:', messageContent);
+    } else {
+      console.log('✅ Using pre-generated handoff message, skipping ai-agent call');
     }
 
-    console.log('✅ ai-agent response received');
-
-    // Extract message from response
-    const messageContent = {
-      subject: null,
-      message: aiAgentData.response || aiAgentData.message,
-      reasoning: `Campaign Day ${campaignContextPayload.campaignDay} - ${messageGoal}`
-    };
-    
-    console.log('AI generated message:', messageContent);
+    // Ensure messageContent was assigned
+    if (!messageContent!) {
+      throw new Error('Failed to generate message content');
+    }
 
     if (isTestMode) {
       // If test mode, save messages to database for persistence
