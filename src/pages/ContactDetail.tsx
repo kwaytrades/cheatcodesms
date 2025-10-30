@@ -320,10 +320,8 @@ const ContactDetail = () => {
             <ContactQuickInfo contact={contact} />
             <KeyMetrics
               contactId={id!}
-              leadScore={contact.lead_score}
               likelihoodScore={contact.likelihood_to_buy_score}
               engagementLevel={contact.likelihood_category}
-              engagementScore={contact.engagement_score}
               totalSpent={contact.total_spent}
               leadStatus={contact.lead_status}
               customerTier={contact.customer_tier}

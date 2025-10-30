@@ -16,9 +16,21 @@ const KB_CATEGORY_MAP: Record<string, string> = {
 // Agent-specific response guidelines - CHARACTER LIMITS ONLY
 const RESPONSE_GUIDELINES: Record<string, string> = {
   'textbook': `
-CHARACTER LIMIT: Your response MUST be between 160-480 characters.
-- For complex topics, provide focused key points only
-- Example: "Chapter 3 covers risk management fundamentals: position sizing (how much to risk per trade), stop-loss placement (where to exit losing trades), and portfolio diversification (spreading risk across assets). These principles protect your capital while trading." (282 chars)`,
+CHARACTER LIMIT: Your response MUST be between 600-1500 characters.
+- Provide structured educational content with clear explanations
+- Break down complex concepts into digestible parts with numbered lists or bullet points
+- Include practical examples relevant to the chapter or topic
+- Always directly address the specific chapter or topic requested
+- Use clear, organized formatting for easy comprehension
+- Example: "Chapter 3 focuses on Risk Management, which is essential for preserving capital in trading. Here are the key concepts:
+
+1. Position Sizing: This determines how much capital to allocate per trade based on account size and risk tolerance. A standard rule is risking 1-2% per trade. For example, with a $10,000 account risking 1%, you'd risk $100 per trade.
+
+2. Stop-Loss Strategies: Setting predetermined exit points to limit losses. Always place stops below support levels for long positions, or above resistance for shorts. Factor in the asset's volatility when setting stops.
+
+3. Portfolio Diversification: Don't concentrate all risk in one asset or sector. Spread your trades across different markets and timeframes to protect capital.
+
+Would you like me to explore any of these concepts in more depth?" (842 chars)`,
   
   'customer_service': `
 CHARACTER LIMIT: Your response MUST be between 160-480 characters.
@@ -446,6 +458,13 @@ ${responseGuidelines}`;
       throw new Error('Lovable API key not configured');
     }
 
+    // Determine max_tokens based on agent type for optimal responses
+    const maxTokens = effectiveAgentType === 'textbook' ? 1000 : 
+                      effectiveAgentType === 'customer_service' ? 300 : 
+                      200;
+    
+    console.log(`🔍 LLM Request: agent=${effectiveAgentType}, max_tokens=${maxTokens}`);
+
     const llmResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -455,7 +474,7 @@ ${responseGuidelines}`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: llmMessages,
-        max_tokens: 150,
+        max_tokens: maxTokens,
         temperature: 0.7,
       }),
     });

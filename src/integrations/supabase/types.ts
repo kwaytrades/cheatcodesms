@@ -895,7 +895,6 @@ export type Database = {
           disputed_amount: number | null
           email: string | null
           engagement_level: string | null
-          engagement_score: number | null
           engagement_velocity: number | null
           first_name: string | null
           form_responses: Json | null
@@ -910,7 +909,6 @@ export type Database = {
           last_name: string | null
           last_purchase_date: string | null
           last_score_update: string | null
-          lead_score: number | null
           lead_source: string | null
           lead_status: string | null
           likelihood_category: string | null
@@ -963,7 +961,6 @@ export type Database = {
           disputed_amount?: number | null
           email?: string | null
           engagement_level?: string | null
-          engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
           form_responses?: Json | null
@@ -978,7 +975,6 @@ export type Database = {
           last_name?: string | null
           last_purchase_date?: string | null
           last_score_update?: string | null
-          lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
           likelihood_category?: string | null
@@ -1031,7 +1027,6 @@ export type Database = {
           disputed_amount?: number | null
           email?: string | null
           engagement_level?: string | null
-          engagement_score?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
           form_responses?: Json | null
@@ -1046,7 +1041,6 @@ export type Database = {
           last_name?: string | null
           last_purchase_date?: string | null
           last_score_update?: string | null
-          lead_score?: number | null
           lead_source?: string | null
           lead_status?: string | null
           likelihood_category?: string | null

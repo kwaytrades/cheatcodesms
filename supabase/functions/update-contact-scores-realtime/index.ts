@@ -71,17 +71,15 @@ serve(async (req) => {
       throw scoreError;
     }
 
-    const { lead_score, lead_status, likelihood_category, breakdown } = scoreResult;
+    const { likelihood_to_buy_score, lead_status, likelihood_category, breakdown } = scoreResult;
 
-    // Update the contact with new scores
+    // Update the contact with new scores (only likelihood_to_buy_score now)
     const { error: updateError } = await supabase
       .from('contacts')
       .update({
-        lead_score,
-        engagement_score: breakdown.messageIntelligence || 0,
+        likelihood_to_buy_score,
         lead_status,
         likelihood_category,
-        likelihood_to_buy_score: lead_score,
         last_score_update: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -93,7 +91,7 @@ serve(async (req) => {
 
     console.log('✅ Scores updated:', {
       contactId,
-      lead_score,
+      likelihood_to_buy_score,
       lead_status,
       breakdown
     });
@@ -103,8 +101,7 @@ serve(async (req) => {
         success: true,
         contactId,
         scores: {
-          lead_score,
-          engagement_score: breakdown.messageIntelligence || 0,
+          likelihood_to_buy_score,
           lead_status,
           likelihood_category
         },

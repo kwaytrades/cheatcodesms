@@ -284,7 +284,7 @@ serve(async (req) => {
     console.log(`✅ [Final Score] Contact: ${contactId}, Score: ${finalScore}, Status: ${status}, Category: ${category}`);
 
     return new Response(JSON.stringify({
-      lead_score: finalScore,
+      likelihood_to_buy_score: finalScore,
       lead_status: status,
       likelihood_category: category,
       breakdown: {
