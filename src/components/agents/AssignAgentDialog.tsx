@@ -48,13 +48,29 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
 
       if (!state?.active_agent_id) return null;
 
-      const { data: agent } = await supabase
+      // Check product_agents first
+      const { data: productAgent } = await supabase
         .from("product_agents")
         .select("product_type")
         .eq("id", state.active_agent_id)
         .single();
 
-      return agent;
+      if (productAgent) {
+        return { agentType: productAgent.product_type };
+      }
+
+      // If not found, check agent_conversations
+      const { data: conversationAgent } = await supabase
+        .from("agent_conversations")
+        .select("agent_type")
+        .eq("id", state.active_agent_id)
+        .single();
+
+      if (conversationAgent) {
+        return { agentType: conversationAgent.agent_type };
+      }
+
+      return null;
     },
     enabled: !!(selectedContact || contactId),
   });
@@ -115,10 +131,10 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
           <DialogDescription>
             Assign an AI concierge agent to guide this contact through their product journey
           </DialogDescription>
-          {activeAgent && (
+          {activeAgent?.agentType && (
             <div className="mt-2 p-2 bg-muted rounded text-sm">
               <span className="text-muted-foreground">Currently active: </span>
-              <span className="font-medium capitalize">{activeAgent.product_type.replace("_", " ")}</span>
+              <span className="font-medium capitalize">{activeAgent.agentType.replace(/_/g, " ")}</span>
             </div>
           )}
         </DialogHeader>
