@@ -2188,13 +2188,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "scheduled_messages_agent_id_fkey"
-            columns: ["agent_id"]
-            isOneToOne: false
-            referencedRelation: "product_agents"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "scheduled_messages_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
