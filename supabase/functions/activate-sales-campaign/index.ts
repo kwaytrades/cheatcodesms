@@ -325,6 +325,20 @@ serve(async (req) => {
 
     console.log(`Activated ${activatedCount} out of ${campaignContacts?.length || 0} contacts`);
 
+    // Process all scheduled messages immediately
+    console.log('Processing scheduled messages...');
+    const { data: processResult, error: processError } = await supabase.functions.invoke(
+      'process-scheduled-messages',
+      { body: {} }
+    );
+
+    if (processError) {
+      console.error('Error processing scheduled messages:', processError);
+      // Don't fail the campaign if message sending fails
+    } else {
+      console.log('Message processing result:', processResult);
+    }
+
     // Update campaign status
     await supabase
       .from('ai_sales_campaigns')

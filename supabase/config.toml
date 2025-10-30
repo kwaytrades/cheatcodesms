@@ -138,6 +138,9 @@ verify_jwt = false
 [functions.send-scheduled-message]
 verify_jwt = false
 
+[functions.process-scheduled-messages]
+verify_jwt = false
+
 [functions.detect-personality-type]
 verify_jwt = false
 
@@ -181,4 +184,19 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.simulate-agent-campaign]
+verify_jwt = false
+
+[functions.pause-sales-campaign]
+verify_jwt = false
+
+[functions.resume-sales-campaign]
+verify_jwt = false
+
+[functions.stop-sales-campaign]
+verify_jwt = false
+
+[functions.recalculate-all-scores]
+verify_jwt = false
+
+[functions.update-contact-scores-realtime]
 verify_jwt = false
