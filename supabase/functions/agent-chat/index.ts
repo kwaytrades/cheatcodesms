@@ -58,15 +58,7 @@ CHARACTER LIMIT: Your response MUST be between 160-480 characters.
   'lead_nurture': `
 CHARACTER LIMIT: Your response MUST be between 160-480 characters.
 - Build rapport briefly
-- Example: "That's a great question about risk management! Many traders struggle with position sizing at first. I have a free guide that breaks down the formula step-by-step. Would that be helpful?" (190 chars)`,
-  
-  'textbook': `
-CHARACTER LIMIT: Your response MUST be between 400-1200 characters.
-- Provide detailed, educational explanations
-- Break down complex concepts into digestible parts
-- Include examples, analogies, or step-by-step guidance
-- Use clear structure with bullet points or numbered lists when helpful
-- Example: "Great question about moving averages! The key difference is the timeframe sensitivity:\n\n1. Simple Moving Average (SMA): Takes the average of all prices equally. More stable but slower to react.\n\n2. Exponential Moving Average (EMA): Weights recent prices more heavily. Responds faster to price changes.\n\nFor day trading, most use the 9 and 21 EMA because they react quickly to momentum shifts. For swing trading, the 50 and 200 SMA work better since they filter out noise.\n\nThink of it like this: SMA is like looking at your entire semester grades, while EMA focuses more on your recent test scores. Which one you use depends on whether you want stability or responsiveness.\n\nWant me to show you how to set these up on your charts?" (800 chars)`
+- Example: "That's a great question about risk management! Many traders struggle with position sizing at first. I have a free guide that breaks down the formula step-by-step. Would that be helpful?" (190 chars)`
 };
 
 const corsHeaders = {
