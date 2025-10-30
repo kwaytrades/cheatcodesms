@@ -48,8 +48,9 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: agents } = useQuery({
-    queryKey: ["contact-agents", contactId],
+  // Query both product_agents AND agent_conversations to show all agents
+  const { data: productAgents } = useQuery({
+    queryKey: ["product-agents", contactId],
     queryFn: async () => {
       const { data } = await supabase
         .from("product_agents")
@@ -59,6 +60,45 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
       return data || [];
     },
   });
+
+  const { data: conversationAgents } = useQuery({
+    queryKey: ["agent-conversations", contactId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("agent_conversations")
+        .select("*")
+        .eq("contact_id", contactId)
+        .eq("status", "active")
+        .order("started_at", { ascending: false });
+      return data || [];
+    },
+  });
+
+  // Merge both types of agents into unified array
+  const agents = [
+    ...(productAgents || []).map(pa => ({
+      id: pa.id,
+      type: 'product_agent' as const,
+      agent_type: pa.product_type,
+      status: pa.status,
+      messages_sent: pa.messages_sent,
+      replies_received: pa.replies_received,
+      expiration_date: pa.expiration_date,
+      conversion_achieved: pa.conversion_achieved,
+      created_at: pa.assigned_date
+    })),
+    ...(conversationAgents || []).map(ca => ({
+      id: ca.id,
+      type: 'agent_conversation' as const,
+      agent_type: ca.agent_type,
+      status: ca.status,
+      messages_sent: ca.message_count,
+      replies_received: 0, // agent_conversations doesn't track replies separately yet
+      expiration_date: ca.expiration_date,
+      conversion_achieved: false,
+      created_at: ca.started_at
+    }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const { data: conversationState } = useQuery({
     queryKey: ["conversation-state", contactId],
@@ -73,15 +113,17 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
   });
 
   const pauseAgentMutation = useMutation({
-    mutationFn: async (agentId: string) => {
+    mutationFn: async ({ agentId, agentType }: { agentId: string; agentType: 'product_agent' | 'agent_conversation' }) => {
+      const table = agentType === 'product_agent' ? 'product_agents' : 'agent_conversations';
       const { error } = await supabase
-        .from('product_agents')
+        .from(table)
         .update({ status: 'paused', updated_at: new Date().toISOString() })
         .eq('id', agentId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contact-agents", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["product-agents", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["agent-conversations", contactId] });
       toast.success("Agent paused");
     },
     onError: () => {
@@ -90,15 +132,17 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
   });
 
   const deleteAgentMutation = useMutation({
-    mutationFn: async (agentId: string) => {
+    mutationFn: async ({ agentId, agentType }: { agentId: string; agentType: 'product_agent' | 'agent_conversation' }) => {
+      const table = agentType === 'product_agent' ? 'product_agents' : 'agent_conversations';
       const { error } = await supabase
-        .from('product_agents')
+        .from(table)
         .delete()
         .eq('id', agentId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["contact-agents", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["product-agents", contactId] });
+      queryClient.invalidateQueries({ queryKey: ["agent-conversations", contactId] });
       toast.success("Agent removed");
     },
     onError: () => {
@@ -132,15 +176,18 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
               return (
                 <div 
                   key={agent.id} 
-                  className={`border rounded-lg p-4 space-y-4 transition-all ${getAgentBackgroundColor(agent.product_type, isActive)}`}
+                  className={`border rounded-lg p-4 space-y-4 transition-all ${getAgentBackgroundColor(agent.agent_type, isActive)}`}
                 >
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <AgentTypeIcon type={agent.product_type} className="w-10 h-10 flex-shrink-0" />
+                      <AgentTypeIcon type={agent.agent_type} className="w-10 h-10 flex-shrink-0" />
                       <div className="flex flex-col gap-2 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <AgentNameBadge agentType={agent.product_type} className="text-sm font-semibold" />
+                          <AgentNameBadge agentType={agent.agent_type} className="text-sm font-semibold" />
                           <AgentStatusBadge status={agent.status} />
+                          {agent.type === 'agent_conversation' && (
+                            <Badge variant="outline" className="text-xs">Sales Campaign</Badge>
+                          )}
                         </div>
                         <AgentConflictIndicator 
                           isActive={isActive}
@@ -161,10 +208,10 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
                     </div>
                     <div className="flex flex-col items-center flex-1">
                       <span className="text-2xl font-bold text-foreground">
-                        {formatDaysRemaining(agent.expiration_date, agent.product_type)}
+                        {formatDaysRemaining(agent.expiration_date, agent.agent_type)}
                       </span>
                       <span className="text-xs text-muted-foreground mt-1">
-                        {agent.product_type === 'customer_service' ? 'Indefinite' : 'Days Left'}
+                        {agent.agent_type === 'customer_service' ? 'Indefinite' : 'Days Left'}
                       </span>
                     </div>
                   </div>
@@ -175,12 +222,12 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
                     </Badge>
                   )}
 
-                  {agent.product_type !== 'customer_service' && (
+                  {agent.agent_type !== 'customer_service' && (
                     <div className="flex gap-2 pt-3 border-t">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => pauseAgentMutation.mutate(agent.id)}
+                        onClick={() => pauseAgentMutation.mutate({ agentId: agent.id, agentType: agent.type })}
                         disabled={agent.status === 'paused' || pauseAgentMutation.isPending}
                         className="flex-1"
                       >
@@ -204,7 +251,7 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction 
-                              onClick={() => deleteAgentMutation.mutate(agent.id)}
+                              onClick={() => deleteAgentMutation.mutate({ agentId: agent.id, agentType: agent.type })}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Remove Agent

@@ -73,6 +73,7 @@ export type Database = {
           conversation_summary: string | null
           created_at: string | null
           discussed_topics: Json | null
+          expiration_date: string | null
           id: string
           key_entities: Json | null
           last_knowledge_refresh: string | null
@@ -90,6 +91,7 @@ export type Database = {
           conversation_summary?: string | null
           created_at?: string | null
           discussed_topics?: Json | null
+          expiration_date?: string | null
           id?: string
           key_entities?: Json | null
           last_knowledge_refresh?: string | null
@@ -107,6 +109,7 @@ export type Database = {
           conversation_summary?: string | null
           created_at?: string | null
           discussed_topics?: Json | null
+          expiration_date?: string | null
           id?: string
           key_entities?: Json | null
           last_knowledge_refresh?: string | null

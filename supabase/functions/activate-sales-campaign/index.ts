@@ -48,6 +48,40 @@ serve(async (req) => {
       try {
         console.log(`Creating agent conversation for contact: ${cc.contact_id}`);
         
+        // Check if there's an existing active agent
+        const { data: existingState } = await supabase
+          .from('conversation_state')
+          .select('active_agent_id, agent_queue')
+          .eq('contact_id', cc.contact_id)
+          .single();
+
+        let previousAgentType: string | null = null;
+        
+        // If there's an active agent, get its type and queue it
+        if (existingState?.active_agent_id) {
+          // Try to find in product_agents first
+          const { data: productAgent } = await supabase
+            .from('product_agents')
+            .select('product_type')
+            .eq('id', existingState.active_agent_id)
+            .single();
+          
+          if (productAgent) {
+            previousAgentType = productAgent.product_type;
+          } else {
+            // Check agent_conversations
+            const { data: convAgent } = await supabase
+              .from('agent_conversations')
+              .select('agent_type')
+              .eq('id', existingState.active_agent_id)
+              .single();
+            
+            if (convAgent) {
+              previousAgentType = convAgent.agent_type;
+            }
+          }
+        }
+        
         // Create agent conversation
         const { data: conversation, error: convError } = await supabase
           .from('agent_conversations')
@@ -97,13 +131,25 @@ serve(async (req) => {
           console.error('Error updating conversation metadata:', metadataError);
         }
 
-        // Update or create conversation_state
+        // Update or create conversation_state with priority and queue management
+        const agentQueue = existingState?.agent_queue || [];
+        
+        // If there was a previous agent, add it to the queue
+        if (existingState?.active_agent_id && previousAgentType) {
+          agentQueue.push({
+            agent_id: existingState.active_agent_id,
+            agent_type: previousAgentType,
+            queued_at: new Date().toISOString()
+          });
+        }
+
         const { error: stateError } = await supabase
           .from('conversation_state')
           .upsert({
             contact_id: cc.contact_id,
             active_agent_id: conversation.id,
             agent_priority: campaign.agent_type === 'sales_agent' ? 10 : 3,
+            agent_queue: agentQueue,
             last_engagement_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, {
@@ -114,6 +160,31 @@ serve(async (req) => {
           console.error('Error updating conversation state:', stateError);
         } else {
           console.log(`Conversation state updated for contact: ${cc.contact_id}`);
+        }
+
+        // Generate handoff or introduction message
+        console.log(`Generating ${previousAgentType ? 'handoff' : 'introduction'} message for contact: ${cc.contact_id}`);
+        
+        const { error: messageError } = await supabase.functions.invoke('generate-ai-message', {
+          body: {
+            contact_id: cc.contact_id,
+            agent_id: conversation.id,
+            conversation_id: conversation.id,
+            message_type: previousAgentType ? 'handoff' : 'introduction',
+            trigger_context: {
+              campaign_id: campaign_id,
+              campaign_strategy: campaign.campaign_strategy || {},
+              previous_agent_type: previousAgentType,
+              is_sales_campaign: true
+            },
+            channel: 'sms'
+          }
+        });
+
+        if (messageError) {
+          console.error('Error generating message:', messageError);
+        } else {
+          console.log(`Message generated for contact: ${cc.contact_id}`);
         }
 
         activatedCount++;

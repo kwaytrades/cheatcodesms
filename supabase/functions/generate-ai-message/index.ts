@@ -9,7 +9,7 @@ interface GenerateMessageRequest {
   contact_id: string;
   agent_id: string;
   conversation_id?: string; // ✅ Optional conversation ID for persistent history
-  message_type: 'introduction' | 'check_in' | 'upsell' | 'retention' | 'expiration_notice' | 'onboarding';
+  message_type: 'introduction' | 'check_in' | 'upsell' | 'retention' | 'expiration_notice' | 'onboarding' | 'handoff';
   trigger_context: Record<string, any>;
   channel?: 'sms' | 'email';
 }
@@ -483,6 +483,81 @@ ADJUSTMENTS:
       stage: trigger_context.stage || 'active',
       personalityType: personalityType
     };
+
+    // HANDOFF MESSAGE - When sales agent takes over from another agent
+    if (message_type === 'handoff' && trigger_context.previous_agent_type) {
+      const previousAgentName = AGENT_NAMES[trigger_context.previous_agent_type as keyof typeof AGENT_NAMES] || 'your previous agent';
+      const commandMap: Record<string, string> = {
+        textbook: '/textbook',
+        flashcards: '/flashcards',
+        webinar: '/webinar',
+        algo_monthly: '/algo',
+        ccta: '/ccta',
+        lead_nurture: '/nurture',
+        customer_service: '/help'
+      };
+      const switchCommand = commandMap[trigger_context.previous_agent_type] || '/help';
+      
+      const campaignGoal = campaignStrategy?.primary_objective?.replace('_', ' ') || 'help you succeed';
+      const products = campaignStrategy?.products?.join(' and ') || 'our products';
+      
+      const handoffMessage = `Hey ${contact?.first_name || 'there'}! 👋 This is ${agentName} from Cheat Code's sales team.
+
+I noticed you've been working with ${previousAgentName} - that's awesome! I'm jumping in to help you with ${campaignGoal} and make sure you're getting the most out of ${products}.
+
+${campaignStrategy?.campaign_context || 'I wanted to reach out personally to see how I can support your journey.'} 
+
+If you'd like to continue your conversation with ${previousAgentName}, just reply with ${switchCommand} anytime. 
+
+What questions can I answer for you? 🚀`;
+
+      console.log('Generated handoff message for agent takeover');
+      
+      // Save message to database and schedule it
+      const messageContent = {
+        subject: null,
+        message: handoffMessage,
+        reasoning: 'Sales agent handoff from ' + trigger_context.previous_agent_type
+      };
+
+      if (!isTestMode) {
+        const { data: scheduledMessage, error: scheduleError } = await supabase
+          .from('scheduled_messages')
+          .insert({
+            contact_id,
+            agent_id,
+            message_body: messageContent.message,
+            subject: null,
+            channel,
+            scheduled_for: new Date().toISOString(),
+            status: 'pending'
+          })
+          .select()
+          .single();
+
+        if (scheduleError) {
+          throw scheduleError;
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message_id: scheduledMessage.id,
+            scheduled_for: scheduledMessage.scheduled_for
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            test_mode: true,
+            message: messageContent
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+    }
 
     console.log('═══════════════════════════════════════════════');
     console.log('CAMPAIGN MESSAGE REQUEST');
