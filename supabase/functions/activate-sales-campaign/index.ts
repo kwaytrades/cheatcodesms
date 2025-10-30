@@ -37,7 +37,7 @@ serve(async (req) => {
     }
 
     // Get all pending contacts in campaign
-    const { data: campaignContacts, error: contactsError } = await supabase
+    let { data: campaignContacts, error: contactsError } = await supabase
       .from('ai_sales_campaign_contacts')
       .select('*, contacts(*)')
       .eq('campaign_id', campaign_id)
@@ -45,6 +45,65 @@ serve(async (req) => {
 
     if (contactsError) {
       throw contactsError;
+    }
+
+    // Safety check: If no contacts exist, populate them from audience_filter
+    if (!campaignContacts || campaignContacts.length === 0) {
+      console.log('No contacts found, populating from audience_filter...');
+      
+      if (campaign.audience_filter && Array.isArray(campaign.audience_filter)) {
+        // Clean filters by removing id field
+        const filters = campaign.audience_filter.map((filter: any) => {
+          const { id, ...rest } = filter;
+          return rest;
+        });
+
+        // Invoke filter-contacts to get matching contacts
+        const filterResponse = await fetch(`${supabaseUrl}/functions/v1/filter-contacts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ filters, limit: 10000 })
+        });
+
+        if (filterResponse.ok) {
+          const filterData = await filterResponse.json();
+          
+          if (filterData.contacts && filterData.contacts.length > 0) {
+            const contactsToInsert = filterData.contacts.map((contact: any) => ({
+              campaign_id: campaign_id,
+              contact_id: contact.id,
+              status: 'pending'
+            }));
+
+            const { error: insertError } = await supabase
+              .from('ai_sales_campaign_contacts')
+              .insert(contactsToInsert);
+
+            if (insertError) {
+              console.error('Error inserting campaign contacts:', insertError);
+            } else {
+              // Update contact count
+              await supabase
+                .from('ai_sales_campaigns')
+                .update({ contact_count: filterData.total })
+                .eq('id', campaign_id);
+
+              // Refetch campaign contacts
+              const { data: newContacts } = await supabase
+                .from('ai_sales_campaign_contacts')
+                .select('*, contacts(*)')
+                .eq('campaign_id', campaign_id)
+                .in('status', ['pending', 'active']);
+
+              campaignContacts = newContacts || [];
+              console.log(`Populated ${campaignContacts.length} contacts for campaign`);
+            }
+          }
+        }
+      }
     }
 
     let activatedCount = 0;

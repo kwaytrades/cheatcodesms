@@ -24,8 +24,72 @@ serve(async (req) => {
 
     console.log('Resuming sales campaign:', campaign_id)
 
+    // Get campaign first
+    const { data: campaign, error: fetchError } = await supabase
+      .from('ai_sales_campaigns')
+      .select('*')
+      .eq('id', campaign_id)
+      .single()
+
+    if (fetchError || !campaign) {
+      console.error('Error fetching campaign:', fetchError)
+      throw new Error('Campaign not found')
+    }
+
+    // Safety check: If no contacts exist, populate them from audience_filter
+    const { data: existingContacts } = await supabase
+      .from('ai_sales_campaign_contacts')
+      .select('id')
+      .eq('campaign_id', campaign_id)
+      .limit(1)
+
+    if (!existingContacts || existingContacts.length === 0) {
+      console.log('No contacts found, populating from audience_filter...')
+      
+      if (campaign.audience_filter && Array.isArray(campaign.audience_filter)) {
+        const filters = campaign.audience_filter.map((filter: any) => {
+          const { id, ...rest } = filter;
+          return rest;
+        });
+
+        const filterResponse = await fetch(`${supabaseUrl}/functions/v1/filter-contacts`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ filters, limit: 10000 })
+        });
+
+        if (filterResponse.ok) {
+          const filterData = await filterResponse.json();
+          
+          if (filterData.contacts && filterData.contacts.length > 0) {
+            const contactsToInsert = filterData.contacts.map((contact: any) => ({
+              campaign_id: campaign_id,
+              contact_id: contact.id,
+              status: 'pending'
+            }));
+
+            const { error: insertError } = await supabase
+              .from('ai_sales_campaign_contacts')
+              .insert(contactsToInsert);
+
+            if (insertError) {
+              console.error('Error inserting campaign contacts:', insertError)
+            } else {
+              await supabase
+                .from('ai_sales_campaigns')
+                .update({ contact_count: filterData.total })
+                .eq('id', campaign_id)
+            }
+          }
+        }
+      }
+    }
+
     // Update campaign status to active
-    const { data: campaign, error: campaignError } = await supabase
+    const { data: updatedCampaign, error: campaignError } = await supabase
       .from('ai_sales_campaigns')
       .update({ 
         status: 'active',
@@ -61,7 +125,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        campaign,
+        campaign: updatedCampaign,
         contacts_updated: contacts?.length || 0
       }),
       { 

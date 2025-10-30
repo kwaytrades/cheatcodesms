@@ -159,6 +159,39 @@ export default function SalesCampaigns() {
         .single();
 
       if (createError) throw createError;
+
+      // Populate contacts for the duplicated campaign
+      if (original.audience_filter && Array.isArray(original.audience_filter)) {
+        const filters = original.audience_filter as any[];
+        const cleanedFilters = filters.map(({ id, ...rest }) => rest);
+        
+        const { data: contactsData, error: contactsError } = await supabase.functions.invoke('filter-contacts', {
+          body: { filters: cleanedFilters, limit: 10000 }
+        });
+
+        if (!contactsError && contactsData?.contacts) {
+          const contactsToInsert = contactsData.contacts.map((contact: any) => ({
+            campaign_id: duplicate.id,
+            contact_id: contact.id,
+            status: 'pending'
+          }));
+
+          const { error: insertError } = await supabase
+            .from('ai_sales_campaign_contacts')
+            .insert(contactsToInsert);
+
+          if (insertError) {
+            console.error('Error inserting campaign contacts:', insertError);
+          }
+
+          // Update contact count
+          await supabase
+            .from('ai_sales_campaigns')
+            .update({ contact_count: contactsData.total })
+            .eq('id', duplicate.id);
+        }
+      }
+
       return duplicate;
     },
     onSuccess: (duplicate) => {
