@@ -76,12 +76,14 @@ Deno.serve(async (req) => {
 
     const {
       contact_id,
-      agent_id,
+      agent_id: initialAgentId,
       conversation_id,
       message_type,
       trigger_context,
       channel = 'sms'
     }: GenerateMessageRequest = await req.json();
+    
+    let agent_id = initialAgentId;
 
     // Preserve message_type to prevent variable shadowing
     const originalMessageType = message_type;
@@ -555,19 +557,24 @@ What questions can I answer for you? 🚀`;
       };
 
       if (!isTestMode) {
-        const { data: scheduledMessage, error: scheduleError } = await supabase
-          .from('scheduled_messages')
-          .insert({
-            contact_id,
-            agent_id,
-            message_body: messageContent.message,
-            subject: null,
-            channel,
-            scheduled_for: new Date().toISOString(),
-            status: 'pending'
-          })
-          .select()
-          .single();
+    const { data: scheduledMessage, error: scheduleError } = await supabase
+      .from('scheduled_messages')
+      .insert({
+        contact_id,
+        agent_id,
+        message_type: originalMessageType,
+        message_body: messageContent.message,
+        subject: null,
+        channel,
+        scheduled_for: new Date().toISOString(),
+        status: 'pending',
+        personalization_data: {
+          trigger_context,
+          reasoning: messageContent.reasoning
+        }
+      })
+      .select()
+      .single();
 
         if (scheduleError) {
           throw scheduleError;
