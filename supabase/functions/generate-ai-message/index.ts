@@ -803,19 +803,21 @@ What questions can I answer for you? 🚀`;
         console.log('✅ SMS sent successfully');
 
         // Save to messages table
-        await supabase
-          .from('messages')
-          .insert({
-            contact_id,
-            conversation_id,
-            message_type: 'outbound',
-            content: messageContent.message,
-            channel: 'sms',
-            sent_at: new Date().toISOString(),
-            status: 'sent'
-          });
-
-        console.log('💾 Message saved to messages table');
+        try {
+          await supabase
+            .from('messages')
+            .insert({
+              conversation_id,
+              direction: 'outbound',
+              sender: 'ai_sales',
+              body: messageContent.message,
+              status: 'sent'
+            });
+          console.log('💾 Message saved to messages table');
+        } catch (dbError) {
+          console.error('❌ Failed to save message to database:', dbError);
+          // Don't throw - message was already sent successfully
+        }
 
       } else if (channel === 'email' && contact.email) {
         console.log(`📧 Sending email to ${contact.email}...`);
@@ -836,19 +838,21 @@ What questions can I answer for you? 🚀`;
         console.log('✅ Email sent successfully');
 
         // Save to messages table
-        await supabase
-          .from('messages')
-          .insert({
-            contact_id,
-            conversation_id,
-            message_type: 'outbound',
-            content: messageContent.message,
-            channel: 'email',
-            sent_at: new Date().toISOString(),
-            status: 'sent'
-          });
-
-        console.log('💾 Message saved to messages table');
+        try {
+          await supabase
+            .from('messages')
+            .insert({
+              conversation_id,
+              direction: 'outbound',
+              sender: 'ai_sales',
+              body: messageContent.message,
+              status: 'sent'
+            });
+          console.log('💾 Message saved to messages table');
+        } catch (dbError) {
+          console.error('❌ Failed to save message to database:', dbError);
+          // Don't throw - message was already sent successfully
+        }
 
       } else {
         console.error(`❌ Cannot send: missing ${channel} contact info`);
