@@ -575,31 +575,29 @@ If you'd like to continue your conversation with ${previousAgentName}, just repl
 
 What questions can I answer for you? 🚀`;
 
-      console.log('Generated handoff message for agent takeover');
+      console.log('✅ Generated handoff message for agent takeover');
       
-      // Save message to database and schedule it
       messageContent = {
         subject: null,
         message: handoffMessage,
         reasoning: 'Sales agent handoff from ' + trigger_context.previous_agent_type
       };
 
-      // Continue to unified scheduling + sending logic below
-    }
+      console.log('🎯 Handoff message created, proceeding to schedule + send');
+      
+    } else {
+      // For non-handoff messages, log campaign details and call ai-agent
+      console.log('═══════════════════════════════════════════════');
+      console.log('CAMPAIGN MESSAGE REQUEST');
+      console.log('═══════════════════════════════════════════════');
+      console.log('Agent Type:', agent?.product_type);
+      console.log('Campaign Day:', campaignContextPayload.campaignDay);
+      console.log('Message Goal:', messageGoal);
+      console.log('Custom Instructions:', customInstructions?.substring(0, 80) || 'NONE');
+      console.log('Channel:', channel);
+      console.log('Personality:', personalityType);
+      console.log('═══════════════════════════════════════════════');
 
-    console.log('═══════════════════════════════════════════════');
-    console.log('CAMPAIGN MESSAGE REQUEST');
-    console.log('═══════════════════════════════════════════════');
-    console.log('Agent Type:', agent?.product_type);
-    console.log('Campaign Day:', campaignContextPayload.campaignDay);
-    console.log('Message Goal:', messageGoal);
-    console.log('Custom Instructions:', customInstructions?.substring(0, 80) || 'NONE');
-    console.log('Channel:', channel);
-    console.log('Personality:', personalityType);
-    console.log('═══════════════════════════════════════════════');
-
-    // Skip ai-agent call if we already generated a handoff message
-    if (message_type !== 'handoff') {
       // Format conversation history for ai-agent
       const formattedMessages = (recentMessages || []).reverse().map((msg: any) => ({
         sender: msg.sender,
@@ -628,11 +626,10 @@ What questions can I answer for you? 🚀`;
           context: {
             contact,
             purchases,
-            customerProfile, // Include customer profile for personalization
+            customerProfile,
             messageType: message_type,
             channel
           },
-          // ✅ NEW: Pass campaign context to ai-agent
           campaignContext: campaignContextPayload
         }
       });
@@ -644,7 +641,6 @@ What questions can I answer for you? 🚀`;
 
       console.log('✅ ai-agent response received');
 
-      // Extract message from response
       messageContent = {
         subject: null,
         message: aiAgentData.response || aiAgentData.message,
@@ -652,14 +648,18 @@ What questions can I answer for you? 🚀`;
       };
       
       console.log('AI generated message:', messageContent);
-    } else {
-      console.log('✅ Using pre-generated handoff message, skipping ai-agent call');
     }
 
-    // Ensure messageContent was assigned
-    if (!messageContent!) {
-      throw new Error('Failed to generate message content');
-    }
+  // Ensure messageContent was assigned
+  if (!messageContent || !messageContent.message) {
+    console.error('❌ CRITICAL: messageContent validation failed', { messageContent });
+    throw new Error('Failed to generate message content');
+  }
+
+  console.log('✅ Message content validated, proceeding to schedule + send');
+  console.log('🔄 Execution flow check - about to handle test mode or proceed to scheduling');
+  console.log('isTestMode:', isTestMode);
+  console.log('message_type:', message_type);
 
     if (isTestMode) {
       // If test mode, save messages to database for persistence
