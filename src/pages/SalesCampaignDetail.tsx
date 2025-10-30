@@ -93,7 +93,8 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .in('agent_id', agentIds);
+      .in('agent_id', agentIds)
+      .in('contact_id', contactIds);
       
       if (outboundError) throw outboundError;
       
