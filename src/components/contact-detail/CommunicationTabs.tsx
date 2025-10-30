@@ -48,7 +48,7 @@ export const CommunicationTabs = ({
   onSendMessage,
   contactId
 }: CommunicationTabsProps) => {
-  // Fetch active agent for this contact
+  // Fetch active agent for this contact (checks both product_agents and agent_conversations)
   const { data: activeAgent } = useQuery({
     queryKey: ['active-agent', contactId],
     queryFn: async () => {
@@ -56,21 +56,56 @@ export const CommunicationTabs = ({
       
       const { data: convState } = await supabase
         .from('conversation_state')
-        .select('active_agent_id, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .select('active_agent_id')
         .eq('contact_id', contactId)
         .maybeSingle();
       
-      if (convState?.active_agent_id && convState.product_agents) {
-        const agent = convState.product_agents;
+      if (!convState?.active_agent_id) return null;
+      
+      // Try to find in product_agents first
+      const { data: productAgent } = await supabase
+        .from('product_agents')
+        .select('*')
+        .eq('id', convState.active_agent_id)
+        .maybeSingle();
+      
+      if (productAgent) {
         const now = new Date();
-        const expirationDate = new Date(agent.expiration_date);
+        const expirationDate = new Date(productAgent.expiration_date);
         const isExpired = now > expirationDate;
-        const isActive = agent.status === 'active';
+        const isActive = productAgent.status === 'active';
         
         if (isActive && !isExpired) {
-          return agent;
+          return {
+            type: 'product_agent' as const,
+            agent_type: productAgent.product_type,
+            ...productAgent
+          };
         }
       }
+      
+      // Check agent_conversations
+      const { data: convAgent } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('id', convState.active_agent_id)
+        .maybeSingle();
+      
+      if (convAgent) {
+        const now = new Date();
+        const expirationDate = new Date(convAgent.expiration_date);
+        const isExpired = now > expirationDate;
+        const isActive = convAgent.status === 'active';
+        
+        if (isActive && !isExpired) {
+          return {
+            type: 'agent_conversation' as const,
+            agent_type: convAgent.agent_type,
+            ...convAgent
+          };
+        }
+      }
+      
       return null;
     },
     enabled: !!contactId
@@ -108,11 +143,11 @@ export const CommunicationTabs = ({
             <span className="text-xs text-muted-foreground">Active Agent:</span>
             {activeAgent ? (
               <div className="flex items-center gap-2">
-                <AgentTypeIcon type={activeAgent.product_type} className="w-4 h-4" />
+                <AgentTypeIcon type={activeAgent.agent_type} className="w-4 h-4" />
                 <span className="text-sm font-medium">
-                  {AGENT_NAMES[activeAgent.product_type] || activeAgent.product_type} 
+                  {AGENT_NAMES[activeAgent.agent_type] || activeAgent.agent_type} 
                   <span className="text-muted-foreground ml-1">
-                    ({activeAgent.product_type.replace(/_/g, ' ')})
+                    ({activeAgent.agent_type.replace(/_/g, ' ')})
                   </span>
                 </span>
               </div>
