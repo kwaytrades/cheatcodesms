@@ -47,8 +47,8 @@ const TEXT_OPERATORS = [
 
 const NUMBER_OPERATORS = [
   { value: 'equals', label: 'equals' },
-  { value: 'greater', label: 'greater than' },
-  { value: 'less', label: 'less than' },
+  { value: 'greater_than', label: 'greater than' },
+  { value: 'less_than', label: 'less than' },
   { value: 'between', label: 'between' },
 ];
 
@@ -125,18 +125,6 @@ export function FilterBuilder({ filters, onFiltersChange, onSave }: FilterBuilde
 
       {/* Quick Filters */}
       <div className="flex flex-wrap gap-2 pb-2 border-b">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onFiltersChange([
-              { id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'hot' }
-            ]);
-          }}
-          className="text-xs"
-        >
-          🔥 Hot Leads
-        </Button>
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'hot' }])} className="text-xs">
           🔥 Hot Leads
         </Button>
@@ -158,13 +146,13 @@ export function FilterBuilder({ filters, onFiltersChange, onSave }: FilterBuilde
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'VIP' }])} className="text-xs">
           👑 VIP Only
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'total_spent', operator: 'greater', value: '1000' }])} className="text-xs">
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'total_spent', operator: 'greater_than', value: '1000' }])} className="text-xs">
           💰 High Spenders
         </Button>
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'SHITLIST' }])} className="text-xs">
           ⚠️ SHITLIST
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater', value: '70' }])} className="text-xs">
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater_than', value: '70' }])} className="text-xs">
           📈 High Likelihood
         </Button>
       </div>

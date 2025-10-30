@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Play, Pause, CheckCircle, Clock, Send, MessageSquare, Mail } from "lucide-react";
+import { Plus, Play, Pause, CheckCircle, Clock, Send, MessageSquare, Mail, Bot, Users } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { FailedMessagesDialog } from "@/components/FailedMessagesDialog";
@@ -34,11 +34,13 @@ interface Campaign {
 const Campaigns = () => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [salesCampaigns, setSalesCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingCampaignId, setSendingCampaignId] = useState<string | null>(null);
 
   useEffect(() => {
     loadCampaigns();
+    loadSalesCampaigns();
     
     // Subscribe to campaign changes
     const channel = supabase
@@ -56,8 +58,24 @@ const Campaigns = () => {
       )
       .subscribe();
 
+    const salesChannel = supabase
+      .channel('sales-campaigns-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_sales_campaigns'
+        },
+        () => {
+          loadSalesCampaigns();
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(salesChannel);
     };
   }, []);
 
@@ -74,6 +92,20 @@ const Campaigns = () => {
       console.error("Error loading campaigns:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSalesCampaigns = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("ai_sales_campaigns")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setSalesCampaigns(data || []);
+    } catch (error) {
+      console.error("Error loading sales campaigns:", error);
     }
   };
 
@@ -338,6 +370,94 @@ const Campaigns = () => {
   const smsCampaigns = campaigns.filter(c => c.channel === 'sms');
   const emailCampaigns = campaigns.filter(c => c.channel === 'email');
 
+  const getAgentIcon = (agentType: string) => {
+    return <Bot className="h-4 w-4" />;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-primary/20 text-primary border-primary/30';
+      case 'completed':
+        return 'bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30';
+      case 'paused':
+        return 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/30';
+      default:
+        return 'bg-muted text-muted-foreground border-border';
+    }
+  };
+
+  const renderSalesCampaignList = (campaignList: any[]) => {
+    if (campaignList.length === 0) {
+      return (
+        <Card className="border-dashed">
+          <CardHeader className="text-center">
+            <CardTitle>No AI sales campaigns yet</CardTitle>
+            <CardDescription>Create your first AI-powered sales campaign to get started</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={() => navigate("/sales-campaigns/new")}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Sales Campaign
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="border rounded-lg overflow-hidden bg-card">
+        {campaignList.map((campaign, index) => (
+          <div 
+            key={campaign.id} 
+            className={`flex items-center gap-4 px-6 py-4 hover:bg-muted/50 transition-colors cursor-pointer ${
+              index !== campaignList.length - 1 ? 'border-b' : ''
+            }`}
+            onClick={() => navigate(`/sales-campaigns/${campaign.id}`)}
+          >
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {getAgentIcon(campaign.agent_type)}
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold truncate">{campaign.name}</div>
+                <div className="text-sm text-muted-foreground">
+                  {format(new Date(campaign.created_at), "MMM d, yyyy 'at' h:mm a")}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6 text-sm">
+              <div className="text-center">
+                <div className="text-muted-foreground text-xs">Contacts</div>
+                <div className="font-semibold">{campaign.total_contacts || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground text-xs">Engaged</div>
+                <div className="font-semibold text-primary">{campaign.engaged_count || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground text-xs">Converted</div>
+                <div className="font-semibold text-green-600">{campaign.conversion_count || 0}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground text-xs">Rate</div>
+                <div className="font-semibold">
+                  {campaign.engaged_count > 0 
+                    ? `${Math.round(((campaign.conversion_count || 0) / campaign.engaged_count) * 100)}%`
+                    : '0%'
+                  }
+                </div>
+              </div>
+            </div>
+
+            <Badge variant="outline" className={getStatusColor(campaign.status)}>
+              {campaign.status}
+            </Badge>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderCampaignList = (campaignList: Campaign[]) => {
     if (campaignList.length === 0) {
       return (
@@ -448,6 +568,10 @@ const Campaigns = () => {
             <Mail className="h-4 w-4" />
             Email Campaigns ({emailCampaigns.length})
           </TabsTrigger>
+          <TabsTrigger value="sales" className="gap-2">
+            <Bot className="h-4 w-4" />
+            AI Sales Campaigns ({salesCampaigns.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="sms" className="mt-6">
@@ -456,6 +580,10 @@ const Campaigns = () => {
 
         <TabsContent value="email" className="mt-6">
           {renderCampaignList(emailCampaigns)}
+        </TabsContent>
+
+        <TabsContent value="sales" className="mt-6">
+          {renderSalesCampaignList(salesCampaigns)}
         </TabsContent>
       </Tabs>
     </div>

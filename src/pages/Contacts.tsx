@@ -22,6 +22,7 @@ import { RecalculateScoresButton } from "@/components/RecalculateScoresButton";
 import { GlobalScoreRefreshButton } from "@/components/GlobalScoreRefreshButton";
 import { LeadStatusBadge } from "@/components/ui/lead-status-badge";
 import { TierBadge } from "@/components/ui/tier-badge";
+import { LikelihoodScore } from "@/components/ui/likelihood-score";
 
 interface Contact {
   id: string;
@@ -62,8 +63,8 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'phone_number', label: 'Phone', visible: true },
   { key: 'customer_tier', label: 'Tier', visible: true },
   { key: 'lead_status', label: 'Status', visible: true },
-  { key: 'lead_score', label: 'Score', visible: true },
-  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: false },
+  { key: 'lead_score', label: 'Score', visible: false },
+  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: true },
   { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
@@ -166,12 +167,12 @@ const Contacts = () => {
             return query.eq(field, value);
           case 'contains':
             return query.ilike(field, `%${value}%`);
-          case 'greater':
-          case 'greater_than':
-            return query.gt(field, value);
-          case 'less':
-          case 'less_than':
-            return query.lt(field, value);
+            case 'greater':
+            case 'greater_than':
+              return query.gt(field, value);
+            case 'less':
+            case 'less_than':
+              return query.lt(field, value);
           case 'in':
             const values = typeof value === 'string' ? value.split(',').map((v: string) => v.trim()) : value;
             return query.in(field, values);
@@ -243,8 +244,10 @@ const Contacts = () => {
             case 'equals':
               return value === filter.value;
             case 'greater':
+            case 'greater_than':
               return Number(value) > Number(filter.value);
             case 'less':
+            case 'less_than':
               return Number(value) < Number(filter.value);
             case 'includes':
               return Array.isArray(value) && value.some(v => String(v).toLowerCase().includes(String(filter.value).toLowerCase()));
@@ -266,6 +269,7 @@ const Contacts = () => {
             case 'equals':
               return value === filter.value;
             case 'greater':
+            case 'greater_than':
               return Number(value) > Number(filter.value);
             case 'within_days':
               if (!contact.created_at && !contact.last_contact_date) return false;
@@ -498,16 +502,11 @@ const Contacts = () => {
         ) : '-';
       case 'likelihood_to_buy_score':
         return contact.likelihood_to_buy_score !== null ? (
-          <div className="flex items-center gap-2">
-            <Badge className={getScoreColor(contact.likelihood_to_buy_score)}>
-              {contact.likelihood_to_buy_score}
-            </Badge>
-            {contact.likelihood_category && (
-              <span className="text-xs text-muted-foreground capitalize">
-                {contact.likelihood_category}
-              </span>
-            )}
-          </div>
+          <LikelihoodScore 
+            score={contact.likelihood_to_buy_score} 
+            category={contact.likelihood_category}
+            showLabel={true}
+          />
         ) : '-';
       case 'lead_status':
         return contact.lead_status && contact.lead_score !== null ? (
