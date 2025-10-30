@@ -661,6 +661,7 @@ HELP - This message`;
       console.log(`📋 Agent Priority Constants:`, AGENT_PRIORITIES);
       
       // Step 1: Check for active Sales Agent (priority 10)
+      // Check BOTH product_agents and agent_conversations tables
       const { data: salesAgent } = await supabase
         .from('product_agents')
         .select('*')
@@ -669,13 +670,25 @@ HELP - This message`;
         .eq('status', 'active')
         .maybeSingle();
 
+      const { data: salesConversation } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('contact_id', existingContact.id)
+        .eq('agent_type', 'sales_agent')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      const now = new Date();
+      let salesAgentFound = false;
+      let salesAgentSource: 'product_agents' | 'agent_conversations' | null = null;
+
+      // Check product_agents first
       if (salesAgent) {
-        const now = new Date();
         const expirationDate = new Date(salesAgent.expiration_date);
         const isExpired = now > expirationDate;
 
         if (!isExpired) {
-          console.log('✅ Routing to SALES AGENT (priority 10)');
+          console.log('✅ Routing to SALES AGENT from product_agents (priority 10)');
           routeToAgent = 'sales_agent';
           agentContext = {
             agent_id: salesAgent.id,
@@ -683,7 +696,10 @@ HELP - This message`;
             assigned_date: salesAgent.assigned_date,
             context: salesAgent.agent_context
           };
+          salesAgentFound = true;
+          salesAgentSource = 'product_agents';
           
+          // Update engagement stats in product_agents
           await supabase
             .from('product_agents')
             .update({ 
@@ -691,6 +707,61 @@ HELP - This message`;
               replies_received: (salesAgent.replies_received || 0) + 1
             })
             .eq('id', salesAgent.id);
+
+          // Update campaign response counter if linked to campaign
+          if (salesAgent.agent_context?.campaign_id) {
+            await supabase
+              .from('ai_sales_campaign_contacts')
+              .update({
+                responded: true,
+                updated_at: now.toISOString()
+              })
+              .eq('contact_id', existingContact.id)
+              .eq('campaign_id', salesAgent.agent_context.campaign_id)
+              .eq('responded', false);
+          }
+        }
+      }
+
+      // Check agent_conversations if not found in product_agents
+      if (!salesAgentFound && salesConversation) {
+        const expirationDate = new Date(salesConversation.expiration_date);
+        const isExpired = now > expirationDate;
+
+        if (!isExpired) {
+          console.log('✅ Routing to SALES AGENT from agent_conversations (priority 10)');
+          routeToAgent = 'sales_agent';
+          agentContext = {
+            agent_id: salesConversation.id,
+            product_type: 'sales_agent',
+            assigned_date: salesConversation.started_at,
+            context: salesConversation.key_entities
+          };
+          salesAgentFound = true;
+          salesAgentSource = 'agent_conversations';
+          
+          // Update engagement stats in agent_conversations
+          await supabase
+            .from('agent_conversations')
+            .update({ 
+              last_message_at: now.toISOString(),
+              message_count: (salesConversation.message_count || 0) + 1,
+              updated_at: now.toISOString()
+            })
+            .eq('id', salesConversation.id);
+
+          // Update campaign response counter if linked to campaign
+          if (salesConversation.key_entities?.campaign_id) {
+            await supabase
+              .from('ai_sales_campaign_contacts')
+              .update({
+                responded: true,
+                updated_at: now.toISOString()
+              })
+              .eq('contact_id', existingContact.id)
+              .eq('campaign_id', salesConversation.key_entities.campaign_id)
+              .eq('responded', false);
+          }
         }
       }
 
