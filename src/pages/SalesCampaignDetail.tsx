@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail, Trash2, Clock, Send, AlertCircle } from "lucide-react";
+import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail, Trash2, Clock, Send, AlertCircle, ArrowDownLeft, ArrowUpRight, Check, X } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -52,18 +52,30 @@ export default function SalesCampaignDetail() {
   const { data: campaignMessages, isLoading: messagesLoading } = useQuery({
     queryKey: ['sales-campaign-messages', id],
     queryFn: async () => {
+      // Get campaign start date and contacts
+      const { data: campaignData } = await supabase
+        .from('ai_sales_campaigns')
+        .select('start_date, created_at')
+        .eq('id', id)
+        .single();
+      
+      const campaignStartDate = campaignData?.start_date || campaignData?.created_at;
+      
+      // Get all agent IDs and contact IDs for this campaign
       const { data: campaignContacts, error: contactsError } = await supabase
         .from('ai_sales_campaign_contacts')
-        .select('agent_id')
+        .select('agent_id, contact_id')
         .eq('campaign_id', id);
       
       if (contactsError) throw contactsError;
       
       const agentIds = campaignContacts?.map(cc => cc.agent_id).filter(Boolean) || [];
+      const contactIds = campaignContacts?.map(cc => cc.contact_id).filter(Boolean) || [];
       
-      if (agentIds.length === 0) return [];
+      if (contactIds.length === 0) return [];
       
-      const { data: messages, error } = await supabase
+      // Fetch outbound messages (campaign messages)
+      const { data: outboundMessages, error: outboundError } = await supabase
         .from('scheduled_messages')
         .select(`
           id,
@@ -80,16 +92,72 @@ export default function SalesCampaignDetail() {
             email
           )
         `)
-        .in('agent_id', agentIds)
-        .order('created_at', { ascending: false });
+        .in('agent_id', agentIds);
       
-      if (error) throw error;
-      return messages || [];
+      if (outboundError) throw outboundError;
+      
+      // Fetch inbound messages (user replies) after campaign started
+      let inboundQuery = supabase
+        .from('messages')
+        .select(`
+          id,
+          body,
+          created_at,
+          conversation_id,
+          conversations!inner(
+            contact_id,
+            phone_number,
+            contacts(
+              full_name,
+              email
+            )
+          )
+        `)
+        .eq('direction', 'inbound')
+        .in('conversations.contact_id', contactIds);
+      
+      // Only include messages after campaign started
+      if (campaignStartDate) {
+        inboundQuery = inboundQuery.gte('created_at', campaignStartDate);
+      }
+      
+      const { data: inboundMessages, error: inboundError } = await inboundQuery;
+      if (inboundError) throw inboundError;
+      
+      // Normalize and combine messages
+      const normalizedOutbound = (outboundMessages || []).map(msg => ({
+        id: msg.id,
+        type: 'outbound' as const,
+        contactName: msg.contacts.full_name,
+        destination: msg.contacts.phone_number || msg.contacts.email,
+        body: msg.message_body,
+        channel: msg.channel,
+        status: msg.status,
+        timestamp: msg.sent_at || msg.created_at,
+        createdAt: msg.created_at
+      }));
+      
+      const normalizedInbound = (inboundMessages || []).map(msg => ({
+        id: msg.id,
+        type: 'inbound' as const,
+        contactName: msg.conversations.contacts?.full_name || 'Unknown',
+        destination: msg.conversations.phone_number,
+        body: msg.body,
+        channel: 'sms' as const,
+        status: 'received' as const,
+        timestamp: msg.created_at,
+        createdAt: msg.created_at
+      }));
+      
+      // Combine and sort by timestamp (most recent first)
+      return [...normalizedOutbound, ...normalizedInbound]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     },
     enabled: !!id,
   });
 
   const [messageStatusFilter, setMessageStatusFilter] = useState<string>('all');
+  const [messageDirectionFilter, setMessageDirectionFilter] = useState<'all' | 'outbound' | 'inbound'>('all');
 
   const pauseCampaignMutation = useMutation({
     mutationFn: async () => {
@@ -495,18 +563,47 @@ export default function SalesCampaignDetail() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Message History</CardTitle>
-                <Select value={messageStatusFilter} onValueChange={setMessageStatusFilter}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Messages</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-3">
+                  <Select value={messageStatusFilter} onValueChange={setMessageStatusFilter}>
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select 
+                    value={messageDirectionFilter} 
+                    onValueChange={(v) => setMessageDirectionFilter(v as 'all' | 'outbound' | 'inbound')}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Messages</SelectItem>
+                      <SelectItem value="outbound">Campaign Messages</SelectItem>
+                      <SelectItem value="inbound">Contact Replies</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              {campaignMessages && campaignMessages.length > 0 && (
+                <div className="text-sm text-muted-foreground mt-2">
+                  Showing {campaignMessages.filter(msg => 
+                    (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
+                    (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
+                  ).length} messages
+                  {messageDirectionFilter === 'all' && (
+                    <span className="ml-1">
+                      ({campaignMessages.filter(m => m.type === 'inbound').length} replies)
+                    </span>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               {messagesLoading ? (
@@ -520,8 +617,11 @@ export default function SalesCampaignDetail() {
                 <ScrollArea className="h-[600px] pr-4">
                   <div className="space-y-4">
                     {campaignMessages
-                      .filter(msg => messageStatusFilter === 'all' || msg.status === messageStatusFilter)
-                      .map((message: any) => {
+                      .filter(msg => 
+                        (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
+                        (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
+                      )
+                      .map((msg: any) => {
                         const getStatusVariant = (status: string) => {
                           switch (status) {
                             case 'sent': return 'default';
@@ -531,62 +631,87 @@ export default function SalesCampaignDetail() {
                           }
                         };
 
-                        const getStatusIcon = (status: string) => {
-                          switch (status) {
-                            case 'sent': return <Send className="h-3 w-3" />;
-                            case 'pending': return <Clock className="h-3 w-3" />;
-                            case 'failed': return <AlertCircle className="h-3 w-3" />;
-                            default: return null;
-                          }
-                        };
-
-                        const initials = message.contacts?.full_name
+                        const initials = msg.contactName
                           ?.split(' ')
                           .map((n: string) => n[0])
                           .join('')
                           .toUpperCase()
                           .slice(0, 2) || '??';
 
-                        const destination = message.channel === 'sms' 
-                          ? message.contacts?.phone_number 
-                          : message.contacts?.email;
+                        const truncatedMessage = msg.body?.length > 200
+                          ? msg.body.substring(0, 200) + '...'
+                          : msg.body;
 
-                        const truncatedMessage = message.message_body?.length > 200
-                          ? message.message_body.substring(0, 200) + '...'
-                          : message.message_body;
-
-                        const timeAgo = message.sent_at 
-                          ? formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })
-                          : formatDistanceToNow(new Date(message.created_at), { addSuffix: true });
+                        const timeAgo = formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true });
 
                         return (
-                          <div key={message.id} className="border rounded-lg p-4 space-y-3">
+                          <div 
+                            key={msg.id} 
+                            className={`border rounded-lg p-4 space-y-3 ${
+                              msg.type === 'inbound' 
+                                ? 'bg-primary/5 border-primary/20' 
+                                : 'bg-card'
+                            }`}
+                          >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
+                                {msg.type === 'inbound' ? (
+                                  <ArrowDownLeft className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                
                                 <Avatar className="h-10 w-10">
                                   <AvatarFallback className="text-sm">{initials}</AvatarFallback>
                                 </Avatar>
+                                
                                 <div>
-                                  <p className="font-semibold">{message.contacts?.full_name || 'Unknown'}</p>
+                                  <p className="font-semibold">{msg.contactName}</p>
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    {message.channel === 'sms' ? (
-                                      <MessageSquare className="h-3 w-3" />
+                                    {msg.type === 'inbound' ? (
+                                      <span className="text-primary font-medium">Reply from contact</span>
                                     ) : (
-                                      <Mail className="h-3 w-3" />
+                                      <>
+                                        {msg.channel === 'sms' ? (
+                                          <MessageSquare className="h-3 w-3" />
+                                        ) : (
+                                          <Mail className="h-3 w-3" />
+                                        )}
+                                        <span>{msg.destination}</span>
+                                      </>
                                     )}
-                                    <span>{destination || 'N/A'}</span>
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex flex-col items-end gap-2">
-                                <Badge variant={getStatusVariant(message.status)} className="flex items-center gap-1">
-                                  {getStatusIcon(message.status)}
-                                  {message.status}
+                              
+                              <div className="flex items-center gap-2">
+                                {msg.type === 'outbound' && (
+                                  <Badge variant={getStatusVariant(msg.status)} className="flex items-center gap-1">
+                                    {msg.status === 'sent' && <Check className="h-3 w-3" />}
+                                    {msg.status === 'failed' && <X className="h-3 w-3" />}
+                                    {msg.status === 'pending' && <Clock className="h-3 w-3" />}
+                                    {msg.status}
+                                  </Badge>
+                                )}
+                                
+                                <Badge variant="outline" className="flex items-center gap-1">
+                                  {msg.channel === 'sms' ? (
+                                    <MessageSquare className="h-3 w-3" />
+                                  ) : (
+                                    <Mail className="h-3 w-3" />
+                                  )}
+                                  {msg.channel}
                                 </Badge>
+                                
                                 <span className="text-xs text-muted-foreground">{timeAgo}</span>
                               </div>
                             </div>
-                            <div className="text-sm text-muted-foreground bg-muted/50 rounded p-3">
+                            
+                            <div className={`text-sm bg-muted/50 rounded p-3 ${
+                              msg.type === 'inbound' 
+                                ? 'text-foreground' 
+                                : 'text-muted-foreground'
+                            }`}>
                               {truncatedMessage}
                             </div>
                           </div>
