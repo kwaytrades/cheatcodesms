@@ -186,7 +186,7 @@ export default function SalesCampaignDetail() {
     enabled: !!id,
   });
 
-  const { data: responseStats, refetch: refetchResponseStats } = useQuery({
+  const { data: responseStats } = useQuery({
     queryKey: ['campaign-response-stats', id],
     queryFn: async () => {
       const { data: campaignContacts } = await supabase
@@ -257,12 +257,12 @@ export default function SalesCampaignDetail() {
           .update({ responses_received: responseCount })
           .eq('id', id);
         
-        refetchResponseStats();
+        queryClient.invalidateQueries({ queryKey: ['campaign-response-stats', id] });
       }
     };
     
     checkRetrospectiveResponses();
-  }, [campaign?.start_date, id, refetchResponseStats]);
+  }, [campaign?.start_date, id, queryClient]);
 
   // Real-time response tracking: Listen for new inbound messages
   useEffect(() => {
@@ -306,7 +306,7 @@ export default function SalesCampaignDetail() {
               console.log('Real-time: Contact marked as responded');
               queryClient.invalidateQueries({ queryKey: ['sales-campaign', campaign.id] });
               queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaign.id] });
-              refetchResponseStats();
+              queryClient.invalidateQueries({ queryKey: ['campaign-response-stats', campaign.id] });
             }
           }
         }
@@ -316,7 +316,7 @@ export default function SalesCampaignDetail() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [campaign?.id, campaign?.status, campaignContacts, queryClient, refetchResponseStats]);
+  }, [campaign?.id, campaign?.status, campaignContacts, queryClient]);
 
   const [messageStatusFilter, setMessageStatusFilter] = useState<string>('all');
   const [messageDirectionFilter, setMessageDirectionFilter] = useState<'all' | 'outbound' | 'inbound'>('all');
