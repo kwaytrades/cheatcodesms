@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, TrendingUp, Users, MessageSquare, Target, Play, Pause, Eye, MoreVertical, Copy, Square, Edit } from "lucide-react";
+import { Plus, Search, TrendingUp, Users, MessageSquare, Target, Play, Pause, Eye, MoreVertical, Copy, Square, Edit, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -20,6 +20,8 @@ export default function SalesCampaigns() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [campaignToStop, setCampaignToStop] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ['sales-campaigns'],
@@ -201,6 +203,26 @@ export default function SalesCampaigns() {
     },
     onError: (error: any) => {
       toast.error(`Failed to duplicate campaign: ${error.message}`);
+    },
+  });
+
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { error } = await supabase
+        .from('ai_sales_campaigns')
+        .delete()
+        .eq('id', campaignId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Campaign deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+      setDeleteDialogOpen(false);
+      setCampaignToDelete(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to delete campaign: ${error.message}`);
     },
   });
 
@@ -389,6 +411,22 @@ export default function SalesCampaigns() {
                           </DropdownMenuItem>
                         </>
                       )}
+                      {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'stopped') && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCampaignToDelete(campaign.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Campaign
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -414,6 +452,27 @@ export default function SalesCampaigns() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Stop Campaign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the campaign and all associated data including contacts, messages, and analytics. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => campaignToDelete && deleteCampaignMutation.mutate(campaignToDelete)}
+              disabled={deleteCampaignMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Campaign
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

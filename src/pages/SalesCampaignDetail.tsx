@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail } from "lucide-react";
+import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function SalesCampaignDetail() {
@@ -15,6 +15,7 @@ export default function SalesCampaignDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ['sales-campaign', id],
@@ -176,6 +177,25 @@ export default function SalesCampaignDetail() {
     },
   });
 
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('ai_sales_campaigns')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Campaign deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+      navigate('/sales-campaigns');
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to delete campaign: ${error.message}`);
+    },
+  });
+
   if (isLoading) {
     return <div className="container mx-auto p-6">Loading campaign...</div>;
   }
@@ -283,6 +303,15 @@ export default function SalesCampaignDetail() {
                 Launch
               </Button>
             ) : null}
+            {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'stopped') && (
+              <Button 
+                variant="destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -454,6 +483,27 @@ export default function SalesCampaignDetail() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Stop Campaign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the campaign and all associated data including contacts, messages, and analytics. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteCampaignMutation.mutate()}
+              disabled={deleteCampaignMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Campaign
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
