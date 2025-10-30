@@ -749,6 +749,197 @@ What questions can I answer for you? 🚀`;
 
     console.log('Message scheduled:', scheduledMessage.id);
 
+    // Send the message immediately (same flow as product agents)
+    console.log('🚀 Starting immediate message send...');
+
+    try {
+      // Fetch contact data
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('full_name, email, phone_number')
+        .eq('id', contact_id)
+        .single();
+
+      if (!contact) {
+        console.error('❌ Contact not found, cannot send message');
+        throw new Error('Contact not found');
+      }
+
+      console.log(`📞 Contact found: ${contact.full_name}`);
+
+      // Update conversation state
+      const { data: convState } = await supabase
+        .from('conversation_state')
+        .select('messages_sent_today, messages_sent_this_week')
+        .eq('contact_id', contact_id)
+        .maybeSingle();
+
+      await supabase
+        .from('conversation_state')
+        .update({
+          messages_sent_today: (convState?.messages_sent_today || 0) + 1,
+          messages_sent_this_week: (convState?.messages_sent_this_week || 0) + 1,
+          last_message_sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('contact_id', contact_id);
+
+      console.log('📊 Conversation state updated');
+
+      // Send the message via appropriate channel
+      if (channel === 'sms' && contact.phone_number) {
+        console.log(`📱 Sending SMS to ${contact.phone_number}...`);
+        
+        const { error: smsError } = await supabase.functions.invoke('send-sms', {
+          body: {
+            to: contact.phone_number,
+            message: messageContent.message
+          }
+        });
+
+        if (smsError) {
+          console.error('❌ SMS send error:', smsError);
+          throw smsError;
+        }
+
+        console.log('✅ SMS sent successfully');
+
+        // Save to messages table
+        await supabase
+          .from('messages')
+          .insert({
+            contact_id,
+            conversation_id,
+            message_type: 'outbound',
+            content: messageContent.message,
+            channel: 'sms',
+            sent_at: new Date().toISOString(),
+            status: 'sent'
+          });
+
+        console.log('💾 Message saved to messages table');
+
+      } else if (channel === 'email' && contact.email) {
+        console.log(`📧 Sending email to ${contact.email}...`);
+        
+        const { error: emailError } = await supabase.functions.invoke('send-email', {
+          body: {
+            to: contact.email,
+            subject: messageContent.subject || 'Message from our team',
+            htmlBody: messageContent.message
+          }
+        });
+
+        if (emailError) {
+          console.error('❌ Email send error:', emailError);
+          throw emailError;
+        }
+
+        console.log('✅ Email sent successfully');
+
+        // Save to messages table
+        await supabase
+          .from('messages')
+          .insert({
+            contact_id,
+            conversation_id,
+            message_type: 'outbound',
+            content: messageContent.message,
+            channel: 'email',
+            sent_at: new Date().toISOString(),
+            status: 'sent'
+          });
+
+        console.log('💾 Message saved to messages table');
+
+      } else {
+        console.error(`❌ Cannot send: missing ${channel} contact info`);
+        throw new Error(`Missing ${channel} contact info`);
+      }
+
+      // Mark as sent
+      await supabase
+        .from('scheduled_messages')
+        .update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', scheduledMessage.id);
+
+      console.log('✅ Scheduled message marked as sent');
+
+      // Update agent metrics
+      if (agent_id) {
+        const { data: productAgent } = await supabase
+          .from('product_agents')
+          .select('messages_sent')
+          .eq('id', agent_id)
+          .maybeSingle();
+
+        if (productAgent) {
+          await supabase
+            .from('product_agents')
+            .update({
+              messages_sent: (productAgent.messages_sent || 0) + 1,
+              last_engagement_at: new Date().toISOString()
+            })
+            .eq('id', agent_id);
+          console.log('📈 Product agent metrics updated');
+        } else {
+          const { data: agentConv } = await supabase
+            .from('agent_conversations')
+            .select('message_count')
+            .eq('id', agent_id)
+            .maybeSingle();
+
+          if (agentConv) {
+            await supabase
+              .from('agent_conversations')
+              .update({
+                message_count: (agentConv.message_count || 0) + 1,
+                last_message_at: new Date().toISOString()
+              })
+              .eq('id', agent_id);
+            console.log('📈 Agent conversation metrics updated');
+          }
+        }
+      }
+
+      // Log activity
+      await supabase
+        .from('contact_activities')
+        .insert({
+          contact_id,
+          activity_type: channel === 'sms' ? 'sms_sent' : 'email_sent',
+          description: `${channel.toUpperCase()} message sent`,
+          metadata: {
+            scheduled_message_id: scheduledMessage.id,
+            agent_id,
+            content_preview: messageContent.message.substring(0, 100)
+          }
+        });
+
+      console.log('✅ Activity logged');
+      console.log('🎉 Message sent successfully!');
+
+    } catch (sendError) {
+      console.error('❌ Error sending message immediately:', sendError);
+      console.error('Full error:', JSON.stringify(sendError));
+      
+      // Mark as failed but don't throw - let process-scheduled-messages retry
+      await supabase
+        .from('scheduled_messages')
+        .update({
+          status: 'failed',
+          error_message: sendError instanceof Error ? sendError.message : 'Unknown error',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', scheduledMessage.id);
+      
+      console.log('⚠️ Message marked as failed, will be retried by process-scheduled-messages');
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
