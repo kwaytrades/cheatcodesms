@@ -63,8 +63,6 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'phone_number', label: 'Phone', visible: true },
   { key: 'customer_tier', label: 'Tier', visible: true },
   { key: 'lead_status', label: 'Status', visible: true },
-  { key: 'lead_score', label: 'Score', visible: false },
-  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: false },
   { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
