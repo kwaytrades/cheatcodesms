@@ -22,7 +22,14 @@ serve(async (req) => {
       channel = 'sms'
     } = await req.json();
 
-    console.log('Creating campaign:', { name, agent_type, start_immediately });
+    console.log('═══════════════════════════════════════════════');
+    console.log('CREATE-SALES-CAMPAIGN INVOKED');
+    console.log('Campaign Name:', name);
+    console.log('Agent Type:', agent_type);
+    console.log('Channel:', channel);
+    console.log('Start Immediately:', start_immediately);
+    console.log('Audience Filters:', JSON.stringify(audience_filter, null, 2));
+    console.log('═══════════════════════════════════════════════');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -43,17 +50,32 @@ serve(async (req) => {
     }
 
     // Get matching contacts
-    const { data: matchingContacts } = await supabase.functions.invoke('filter-contacts', {
+    console.log('Fetching matching contacts...');
+    const { data: matchingContacts, error: filterError } = await supabase.functions.invoke('filter-contacts', {
       body: { filters: audience_filter, limit: 10000 }
     });
 
-    if (!matchingContacts || !matchingContacts.contacts) {
-      throw new Error('Failed to fetch matching contacts');
+    if (filterError) {
+      console.error('filter-contacts error:', filterError);
+      throw new Error(`Failed to fetch matching contacts: ${filterError.message}`);
     }
+
+    if (!matchingContacts || !matchingContacts.contacts) {
+      console.error('Invalid response from filter-contacts:', matchingContacts);
+      throw new Error('Failed to fetch matching contacts - invalid response');
+    }
+
+    console.log('Contacts fetched:', matchingContacts.contacts.length);
+    console.log('Contact structure sample:', matchingContacts.contacts[0]);
 
     const contactCount = matchingContacts.contacts.length;
 
+    if (contactCount === 0) {
+      throw new Error('No contacts match the selected filters');
+    }
+
     // Create campaign
+    console.log('Creating campaign record...');
     const { data: campaign, error: campaignError } = await supabase
       .from('ai_sales_campaigns')
       .insert({
@@ -71,11 +93,12 @@ serve(async (req) => {
       .select()
       .single();
 
-    console.log('Campaign created:', campaign.id);
-
     if (campaignError) {
+      console.error('Campaign creation error:', campaignError);
       throw campaignError;
     }
+
+    console.log('Campaign created successfully:', campaign.id);
 
     // Create campaign_contacts records
     const campaignContacts = matchingContacts.contacts.map((contact: any) => ({
@@ -84,14 +107,31 @@ serve(async (req) => {
       status: start_immediately ? 'active' : 'pending',
     }));
 
+    console.log(`Inserting ${campaignContacts.length} campaign contacts...`);
+    
     if (campaignContacts.length > 0) {
-      const { error: contactsError } = await supabase
+      const { data: insertedContacts, error: contactsError } = await supabase
         .from('ai_sales_campaign_contacts')
-        .insert(campaignContacts);
+        .insert(campaignContacts)
+        .select();
 
       if (contactsError) {
-        console.error('Error inserting campaign contacts:', contactsError);
+        console.error('❌ CRITICAL: Error inserting campaign contacts:', contactsError);
+        console.error('Contact insert payload sample:', campaignContacts[0]);
+        
+        // Don't throw - mark campaign but return error info
+        await supabase
+          .from('ai_sales_campaigns')
+          .update({ 
+            status: 'error',
+            contact_count: 0 
+          })
+          .eq('id', campaign.id);
+        
+        throw new Error(`Campaign created but failed to add contacts: ${contactsError.message}`);
       }
+
+      console.log('✅ Successfully inserted campaign contacts:', insertedContacts?.length || 0);
     }
 
     // If starting immediately, trigger activation

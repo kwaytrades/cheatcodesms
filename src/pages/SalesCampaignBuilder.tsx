@@ -109,11 +109,27 @@ export default function SalesCampaignBuilder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
-      toast.success("Campaign created successfully!");
+    onSuccess: async (data) => {
+      // Verify contacts were added
+      const { data: contactCheck } = await supabase
+        .from('ai_sales_campaign_contacts')
+        .select('id', { count: 'exact' })
+        .eq('campaign_id', data.campaign.id);
+      
+      const actualContactCount = contactCheck?.length || 0;
+      
+      if (actualContactCount === 0) {
+        toast.warning("Campaign created but no contacts were added. Please check filters and try again.");
+      } else if (actualContactCount < (contactCount || 0)) {
+        toast.warning(`Campaign created with ${actualContactCount} contacts (expected ${contactCount})`);
+      } else {
+        toast.success(`Campaign created successfully with ${actualContactCount} contacts!`);
+      }
+      
       navigate(`/sales-campaigns/${data.campaign.id}`);
     },
     onError: (error) => {
+      console.error('Campaign creation error:', error);
       toast.error(`Failed to create campaign: ${error.message}`);
     },
   });

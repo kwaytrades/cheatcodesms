@@ -545,6 +545,8 @@ const Campaigns = () => {
     );
   };
 
+  const [activeTab, setActiveTab] = useState("sms");
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -552,13 +554,22 @@ const Campaigns = () => {
           <h1 className="text-3xl font-bold tracking-tight">Campaigns</h1>
           <p className="text-muted-foreground">Create and manage your messaging campaigns</p>
         </div>
-        <Button onClick={() => navigate("/campaigns/new")} className="gap-2">
+        <Button 
+          onClick={() => {
+            if (activeTab === "sales") {
+              navigate("/sales-campaigns/new");
+            } else {
+              navigate("/campaigns/new");
+            }
+          }} 
+          className="gap-2"
+        >
           <Plus className="h-4 w-4" />
-          New Campaign
+          New {activeTab === "sales" ? "AI Sales " : ""}Campaign
         </Button>
       </div>
 
-      <Tabs defaultValue="sms" className="w-full">
+      <Tabs defaultValue="sms" className="w-full" onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="sms" className="gap-2">
             <MessageSquare className="h-4 w-4" />
