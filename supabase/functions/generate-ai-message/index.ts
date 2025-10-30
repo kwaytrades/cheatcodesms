@@ -12,6 +12,7 @@ interface GenerateMessageRequest {
   message_type: 'introduction' | 'check_in' | 'upsell' | 'retention' | 'expiration_notice' | 'onboarding' | 'handoff';
   trigger_context: Record<string, any>;
   channel?: 'sms' | 'email';
+  campaign_id?: string; // ✅ Optional campaign ID for sales campaigns
 }
 
 const AGENT_NAMES = {
@@ -80,7 +81,8 @@ Deno.serve(async (req) => {
       conversation_id,
       message_type,
       trigger_context,
-      channel = 'sms'
+      channel = 'sms',
+      campaign_id
     }: GenerateMessageRequest = await req.json();
     
     let agent_id = initialAgentId;
@@ -773,6 +775,7 @@ What questions can I answer for you? 🚀`;
         status: 'pending',
         subject: messageContent.subject,
         message_body: messageContent.message,
+        campaign_id: campaign_id || trigger_context?.campaign_id || null,
         personalization_data: {
           trigger_context,
           personality_type: personalityType,

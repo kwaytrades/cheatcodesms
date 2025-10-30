@@ -289,6 +289,7 @@ serve(async (req) => {
             agent_id: conversation.id,
             conversation_id: conversation.id,
             message_type: shouldHandoff ? 'handoff' : 'introduction',
+            campaign_id: campaign_id,
             trigger_context: {
               campaign_id: campaign_id,
               campaign_strategy: campaign.campaign_strategy || {},

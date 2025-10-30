@@ -77,7 +77,7 @@ export default function SalesCampaignDetail() {
       
       // Fetch outbound messages (campaign messages) sent by agents
       const { data: outboundMessages, error: outboundError } = await supabase
-        .from('scheduled_messages')
+      .from('scheduled_messages')
       .select(`
         id,
         contact_id,
@@ -93,8 +93,7 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .in('agent_id', agentIds)
-      .in('contact_id', contactIds);
+      .eq('campaign_id', id);
       
       if (outboundError) throw outboundError;
       

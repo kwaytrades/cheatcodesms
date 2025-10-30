@@ -2283,6 +2283,7 @@ export type Database = {
         Row: {
           agent_id: string | null
           campaign_day: number | null
+          campaign_id: string | null
           channel: string
           contact_id: string
           created_at: string | null
@@ -2302,6 +2303,7 @@ export type Database = {
         Insert: {
           agent_id?: string | null
           campaign_day?: number | null
+          campaign_id?: string | null
           channel: string
           contact_id: string
           created_at?: string | null
@@ -2321,6 +2323,7 @@ export type Database = {
         Update: {
           agent_id?: string | null
           campaign_day?: number | null
+          campaign_id?: string | null
           channel?: string
           contact_id?: string
           created_at?: string | null
@@ -2338,6 +2341,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "scheduled_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sales_campaigns"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "scheduled_messages_contact_id_fkey"
             columns: ["contact_id"]
