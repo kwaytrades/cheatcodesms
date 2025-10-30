@@ -7,8 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail, Trash2 } from "lucide-react";
+import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail, Trash2, Clock, Send, AlertCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDistanceToNow } from "date-fns";
 
 export default function SalesCampaignDetail() {
   const { id } = useParams();
@@ -44,6 +48,48 @@ export default function SalesCampaignDetail() {
       return data;
     },
   });
+
+  const { data: campaignMessages, isLoading: messagesLoading } = useQuery({
+    queryKey: ['sales-campaign-messages', id],
+    queryFn: async () => {
+      const { data: campaignContacts, error: contactsError } = await supabase
+        .from('ai_sales_campaign_contacts')
+        .select('agent_id')
+        .eq('campaign_id', id);
+      
+      if (contactsError) throw contactsError;
+      
+      const agentIds = campaignContacts?.map(cc => cc.agent_id).filter(Boolean) || [];
+      
+      if (agentIds.length === 0) return [];
+      
+      const { data: messages, error } = await supabase
+        .from('scheduled_messages')
+        .select(`
+          id,
+          contact_id,
+          message_body,
+          channel,
+          status,
+          scheduled_for,
+          sent_at,
+          created_at,
+          contacts!inner(
+            full_name,
+            phone_number,
+            email
+          )
+        `)
+        .in('agent_id', agentIds)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return messages || [];
+    },
+    enabled: !!id,
+  });
+
+  const [messageStatusFilter, setMessageStatusFilter] = useState<string>('all');
 
   const pauseCampaignMutation = useMutation({
     mutationFn: async () => {
@@ -447,10 +493,108 @@ export default function SalesCampaignDetail() {
         <TabsContent value="messages">
           <Card>
             <CardHeader>
-              <CardTitle>Message History</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Message History</CardTitle>
+                <Select value={messageStatusFilter} onValueChange={setMessageStatusFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Messages</SelectItem>
+                    <SelectItem value="sent">Sent</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">Message history will appear here</p>
+              {messagesLoading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading messages...</div>
+              ) : !campaignMessages || campaignMessages.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No messages sent yet</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="space-y-4">
+                    {campaignMessages
+                      .filter(msg => messageStatusFilter === 'all' || msg.status === messageStatusFilter)
+                      .map((message: any) => {
+                        const getStatusVariant = (status: string) => {
+                          switch (status) {
+                            case 'sent': return 'default';
+                            case 'pending': return 'secondary';
+                            case 'failed': return 'destructive';
+                            default: return 'outline';
+                          }
+                        };
+
+                        const getStatusIcon = (status: string) => {
+                          switch (status) {
+                            case 'sent': return <Send className="h-3 w-3" />;
+                            case 'pending': return <Clock className="h-3 w-3" />;
+                            case 'failed': return <AlertCircle className="h-3 w-3" />;
+                            default: return null;
+                          }
+                        };
+
+                        const initials = message.contacts?.full_name
+                          ?.split(' ')
+                          .map((n: string) => n[0])
+                          .join('')
+                          .toUpperCase()
+                          .slice(0, 2) || '??';
+
+                        const destination = message.channel === 'sms' 
+                          ? message.contacts?.phone_number 
+                          : message.contacts?.email;
+
+                        const truncatedMessage = message.message_body?.length > 200
+                          ? message.message_body.substring(0, 200) + '...'
+                          : message.message_body;
+
+                        const timeAgo = message.sent_at 
+                          ? formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })
+                          : formatDistanceToNow(new Date(message.created_at), { addSuffix: true });
+
+                        return (
+                          <div key={message.id} className="border rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarFallback className="text-sm">{initials}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-semibold">{message.contacts?.full_name || 'Unknown'}</p>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    {message.channel === 'sms' ? (
+                                      <MessageSquare className="h-3 w-3" />
+                                    ) : (
+                                      <Mail className="h-3 w-3" />
+                                    )}
+                                    <span>{destination || 'N/A'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-2">
+                                <Badge variant={getStatusVariant(message.status)} className="flex items-center gap-1">
+                                  {getStatusIcon(message.status)}
+                                  {message.status}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{timeAgo}</span>
+                              </div>
+                            </div>
+                            <div className="text-sm text-muted-foreground bg-muted/50 rounded p-3">
+                              {truncatedMessage}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
