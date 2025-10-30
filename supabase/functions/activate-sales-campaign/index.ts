@@ -224,30 +224,82 @@ serve(async (req) => {
         console.log(`Agent conversation created: ${conversation.id}`);
 
         // Register sales agent in product_agents table for proper routing
+        console.log(`📝 Registering sales_agent in product_agents for contact: ${cc.contact_id}`);
         const agentExpirationDate = getAgentExpirationDate('sales_agent');
-        const { error: productAgentError } = await supabase
+        
+        // Check if sales_agent already exists for this contact
+        const { data: existingSalesAgent } = await supabase
           .from('product_agents')
-          .upsert({
-            contact_id: cc.contact_id,
-            product_type: 'sales_agent',
-            product_id: null, // Sales agents are not tied to a specific product
-            agent_context: {
-              campaign_id: campaign_id,
-              campaign_name: campaign.name,
-              campaign_strategy: campaign.campaign_strategy || {}
-            },
-            assigned_date: new Date().toISOString(),
-            expiration_date: agentExpirationDate,
-            status: 'active',
-          }, {
-            onConflict: 'contact_id,product_type',
-            ignoreDuplicates: false
-          });
-
-        if (productAgentError) {
-          console.error('Error registering product agent:', productAgentError);
+          .select('id, status')
+          .eq('contact_id', cc.contact_id)
+          .eq('product_type', 'sales_agent')
+          .maybeSingle();
+        
+        if (existingSalesAgent) {
+          // Update existing sales agent
+          console.log(`♻️ Updating existing sales_agent ${existingSalesAgent.id}`);
+          const { error: updateError } = await supabase
+            .from('product_agents')
+            .update({
+              status: 'active',
+              agent_context: {
+                campaign_id: campaign_id,
+                campaign_name: campaign.name,
+                campaign_strategy: campaign.campaign_strategy || {},
+                agent_conversation_id: conversation.id,
+              },
+              expiration_date: agentExpirationDate,
+              assigned_date: new Date().toISOString(),
+            })
+            .eq('id', existingSalesAgent.id);
+          
+          if (updateError) {
+            console.error(`❌ Failed to update product_agent:`, updateError);
+          } else {
+            console.log(`✅ Sales agent updated in product_agents`);
+          }
         } else {
-          console.log(`Sales agent registered in product_agents for contact: ${cc.contact_id}`);
+          // Create new sales agent entry
+          const { data: productAgentData, error: productAgentError } = await supabase
+            .from('product_agents')
+            .insert({
+              contact_id: cc.contact_id,
+              product_type: 'sales_agent',
+              product_id: null,
+              agent_context: {
+                campaign_id: campaign_id,
+                campaign_name: campaign.name,
+                campaign_strategy: campaign.campaign_strategy || {},
+                agent_conversation_id: conversation.id,
+              },
+              assigned_date: new Date().toISOString(),
+              expiration_date: agentExpirationDate,
+              status: 'active',
+              direction: 'outbound',
+            })
+            .select()
+            .single();
+
+          if (productAgentError) {
+            console.error(`❌ Failed to register product_agent:`, productAgentError);
+          } else {
+            console.log(`✅ Sales agent registered in product_agents: ${productAgentData.id}`);
+            
+            // Verify the registration
+            const { data: verifyAgent, error: verifyError } = await supabase
+              .from('product_agents')
+              .select('id, status, product_type')
+              .eq('contact_id', cc.contact_id)
+              .eq('product_type', 'sales_agent')
+              .eq('status', 'active')
+              .maybeSingle();
+            
+            if (verifyError || !verifyAgent) {
+              console.error(`⚠️ Could not verify product_agent registration:`, verifyError);
+            } else {
+              console.log(`✅ Verified sales_agent in product_agents: ${verifyAgent.id}`);
+            }
+          }
         }
 
         // Update campaign contact with agent info
