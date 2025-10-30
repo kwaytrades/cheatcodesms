@@ -184,7 +184,7 @@ export default function SalesCampaignDetail() {
     enabled: !!id,
   });
 
-  const { data: responseStats } = useQuery({
+  const { data: responseStats, refetch: refetchResponseStats } = useQuery({
     queryKey: ['campaign-response-stats', id],
     queryFn: async () => {
       const { data: campaignContacts } = await supabase
@@ -206,6 +206,61 @@ export default function SalesCampaignDetail() {
     },
     enabled: !!id,
   });
+
+  // Retroactive response detection - check for messages sent after campaign started
+  useEffect(() => {
+    if (!campaign?.start_date || !id) return;
+    
+    const checkRetrospectiveResponses = async () => {
+      const { data: contacts } = await supabase
+        .from('ai_sales_campaign_contacts')
+        .select('id, contact_id, responded')
+        .eq('campaign_id', id)
+        .eq('responded', false);
+      
+      if (!contacts || contacts.length === 0) return;
+      
+      let updated = false;
+      
+      for (const contact of contacts) {
+        const { data: inboundMessages } = await supabase
+          .from('messages')
+          .select('id, conversation_id, conversations!inner(contact_id)')
+          .eq('direction', 'inbound')
+          .eq('conversations.contact_id', contact.contact_id)
+          .gte('created_at', campaign.start_date)
+          .limit(1);
+        
+        if (inboundMessages && inboundMessages.length > 0) {
+          await supabase
+            .from('ai_sales_campaign_contacts')
+            .update({ responded: true })
+            .eq('id', contact.id);
+          
+          updated = true;
+          console.log(`✅ Retroactively marked contact ${contact.contact_id} as responded`);
+        }
+      }
+      
+      if (updated) {
+        const { data: updatedContacts } = await supabase
+          .from('ai_sales_campaign_contacts')
+          .select('responded')
+          .eq('campaign_id', id);
+        
+        const responseCount = updatedContacts?.filter(c => c.responded).length || 0;
+        
+        await supabase
+          .from('ai_sales_campaigns')
+          .update({ responses_received: responseCount })
+          .eq('id', id);
+        
+        refetchResponseStats();
+      }
+    };
+    
+    checkRetrospectiveResponses();
+  }, [campaign?.start_date, id, refetchResponseStats]);
 
   const [messageStatusFilter, setMessageStatusFilter] = useState<string>('all');
   const [messageDirectionFilter, setMessageDirectionFilter] = useState<'all' | 'outbound' | 'inbound'>('all');
