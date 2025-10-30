@@ -69,11 +69,12 @@ export default function SalesCampaignDetail() {
       
       if (contactsError) throw contactsError;
       
+      const agentIds = campaignContacts?.map(cc => cc.agent_id).filter(Boolean) || [];
       const contactIds = campaignContacts?.map(cc => cc.contact_id).filter(Boolean) || [];
       
-      if (contactIds.length === 0) return [];
+      if (agentIds.length === 0) return [];
       
-      // Fetch outbound messages (campaign messages) by contact_id
+      // Fetch outbound messages (campaign messages) sent by agents
       const { data: outboundMessages, error: outboundError } = await supabase
         .from('scheduled_messages')
       .select(`
@@ -91,7 +92,7 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .in('contact_id', contactIds)
+      .in('agent_id', agentIds)
       .gte('created_at', campaignStartDate);
       
       if (outboundError) throw outboundError;
@@ -179,6 +180,29 @@ export default function SalesCampaignDetail() {
       });
 
       return sortedThreads;
+    },
+    enabled: !!id,
+  });
+
+  const { data: responseStats } = useQuery({
+    queryKey: ['campaign-response-stats', id],
+    queryFn: async () => {
+      const { data: campaignContacts } = await supabase
+        .from('ai_sales_campaign_contacts')
+        .select('contact_id, responded')
+        .eq('campaign_id', id);
+      
+      if (!campaignContacts || campaignContacts.length === 0) {
+        return { totalContacts: 0, respondedContacts: 0, responseRate: 0 };
+      }
+      
+      const totalContacts = campaignContacts.length;
+      const respondedContacts = campaignContacts.filter(cc => cc.responded).length;
+      const responseRate = totalContacts > 0 
+        ? Math.round((respondedContacts / totalContacts) * 100 * 10) / 10
+        : 0;
+      
+      return { totalContacts, respondedContacts, responseRate };
     },
     enabled: !!id,
   });
@@ -485,7 +509,10 @@ export default function SalesCampaignDetail() {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <CardDescription>Response Rate</CardDescription>
             </div>
-            <CardTitle className="text-3xl">{responseRate}%</CardTitle>
+            <CardTitle className="text-3xl">{responseStats?.responseRate.toFixed(1) || 0}%</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {responseStats?.respondedContacts || 0} of {responseStats?.totalContacts || 0} replied
+            </p>
           </CardHeader>
         </Card>
 

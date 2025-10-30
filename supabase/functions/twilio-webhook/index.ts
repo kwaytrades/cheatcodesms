@@ -142,6 +142,40 @@ serve(async (req) => {
       status: 'delivered',
     });
 
+    // Track response in sales campaigns
+    if (existingContact) {
+      const { data: campaignContact } = await supabase
+        .from('ai_sales_campaign_contacts')
+        .select('id, campaign_id, responded')
+        .eq('contact_id', existingContact.id)
+        .in('status', ['active', 'pending'])
+        .maybeSingle();
+
+      if (campaignContact && !campaignContact.responded) {
+        // Mark as responded
+        await supabase
+          .from('ai_sales_campaign_contacts')
+          .update({ responded: true })
+          .eq('id', campaignContact.id);
+        
+        // Increment campaign response count - simple direct update
+        const { data: currentCampaign } = await supabase
+          .from('ai_sales_campaigns')
+          .select('responses_received')
+          .eq('id', campaignContact.campaign_id)
+          .single();
+        
+        if (currentCampaign) {
+          await supabase
+            .from('ai_sales_campaigns')
+            .update({ responses_received: (currentCampaign.responses_received || 0) + 1 })
+            .eq('id', campaignContact.campaign_id);
+        }
+
+        console.log(`✅ Marked campaign contact as responded: ${campaignContact.id}`);
+      }
+    }
+
     // ============================================
     // REAL-TIME SCORE UPDATE - Update contact scores immediately
     // ============================================
