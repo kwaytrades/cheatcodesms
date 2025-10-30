@@ -76,6 +76,7 @@ export default function SalesCampaignDetail() {
       if (agentIds.length === 0) return [];
       
       // Fetch outbound messages (campaign messages) sent by agents
+      // Only show messages with proper campaign_id tracking (filters out old/misattributed messages)
       const { data: outboundMessages, error: outboundError } = await supabase
       .from('scheduled_messages')
       .select(`
@@ -93,7 +94,8 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .eq('campaign_id', id);
+      .eq('campaign_id', id)
+      .not('campaign_id', 'is', null);
       
       if (outboundError) throw outboundError;
       
