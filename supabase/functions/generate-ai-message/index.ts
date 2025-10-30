@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    let {
+    const {
       contact_id,
       agent_id,
       conversation_id,
@@ -83,13 +83,21 @@ Deno.serve(async (req) => {
       channel = 'sms'
     }: GenerateMessageRequest = await req.json();
 
+    // Preserve message_type to prevent variable shadowing
+    const originalMessageType = message_type;
+    
+    // Validate critical parameters
+    if (!originalMessageType) {
+      throw new Error('message_type is required but was not provided');
+    }
+
     console.log('═══════════════════════════════════════════════');
     console.log('GENERATE-AI-MESSAGE INVOKED');
     console.log('═══════════════════════════════════════════════');
     console.log('Contact ID:', contact_id);
     console.log('Agent ID:', agent_id);
     console.log('Conversation ID:', conversation_id);
-    console.log('Message Type:', message_type);
+    console.log('Message Type:', originalMessageType);
     console.log('Channel:', channel);
     console.log('Trigger Context:', JSON.stringify(trigger_context));
     console.log('═══════════════════════════════════════════════');
@@ -700,17 +708,22 @@ What questions can I answer for you? 🚀`;
     console.log('═══ INSERTING TO SCHEDULED_MESSAGES ═══');
     console.log('contact_id:', contact_id);
     console.log('agent_id:', agent_id);
-    console.log('message_type:', message_type);
+    console.log('message_type (original):', originalMessageType);
     console.log('channel:', channel);
     console.log('subject:', messageContent.subject);
     console.log('═══════════════════════════════════════');
+    
+    // Final validation before insert
+    if (!originalMessageType) {
+      throw new Error('CRITICAL: message_type became null before database insert');
+    }
     
     const { data: scheduledMessage, error: scheduleError } = await supabase
       .from('scheduled_messages')
       .insert({
         contact_id: contact_id,
         agent_id: agent_id,
-        message_type: message_type,
+        message_type: originalMessageType,
         channel: channel,
         scheduled_for: new Date().toISOString(),
         status: 'pending',

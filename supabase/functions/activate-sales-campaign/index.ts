@@ -292,17 +292,21 @@ serve(async (req) => {
         });
 
         if (messageResult.error) {
-          console.error('Error generating message:', messageResult.error);
+          console.error('❌ Error generating message for contact:', cc.contact_id);
+          console.error('Error details:', JSON.stringify(messageResult.error, null, 2));
           
-          // Mark contact as failed with retry information
+          // Mark contact as failed with detailed retry information
           await supabase
             .from('ai_sales_campaign_contacts')
             .update({
               status: 'failed',
               last_error: JSON.stringify({
                 error: messageResult.error.message || 'Message generation failed',
+                full_error: messageResult.error,
                 timestamp: new Date().toISOString(),
-                retry_count: 0
+                retry_count: 0,
+                message_type: previousAgentType ? 'handoff' : 'introduction',
+                contact_name: cc.contacts?.full_name || 'Unknown'
               })
             })
             .eq('id', cc.id);

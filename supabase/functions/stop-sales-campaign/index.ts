@@ -57,14 +57,14 @@ serve(async (req) => {
       throw contactsError
     }
 
-    // Expire all related agent conversations
+    // Complete all related agent conversations (not expire - that status is invalid)
     const contactIds = contacts?.map(c => c.contact_id) || []
     
     if (contactIds.length > 0) {
-      const { data: expiredAgents, error: agentError } = await supabase
+      const { data: completedAgents, error: agentError } = await supabase
         .from('agent_conversations')
         .update({
-          status: 'expired',
+          status: 'completed',
           expiration_date: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -74,9 +74,9 @@ serve(async (req) => {
         .select()
 
       if (agentError) {
-        console.error('Error expiring agent conversations:', agentError)
+        console.error('Error completing agent conversations:', agentError)
       } else {
-        console.log(`Expired ${expiredAgents?.length || 0} agent conversations`)
+        console.log(`Completed ${completedAgents?.length || 0} agent conversations`)
       }
     }
 
