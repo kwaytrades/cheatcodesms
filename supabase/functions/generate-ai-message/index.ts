@@ -360,6 +360,52 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
 
     // Add campaign context if available
     let campaignContext = '';
+    let campaignStrategy: any = null;
+    
+    // Fetch campaign strategy from conversation metadata
+    if (conversation_id) {
+      const { data: conversationData } = await supabase
+        .from('agent_conversations')
+        .select('key_entities')
+        .eq('id', conversation_id)
+        .maybeSingle();
+      
+      if (conversationData?.key_entities?.campaign_strategy) {
+        campaignStrategy = conversationData.key_entities.campaign_strategy;
+        
+        campaignContext = `
+═══════════════════════════════════════════════════════
+🎯 CAMPAIGN STRATEGY - CRITICAL CONTEXT
+═══════════════════════════════════════════════════════
+
+PRIMARY OBJECTIVE: ${campaignStrategy.primary_objective?.replace('_', ' ').toUpperCase() || 'Not specified'}
+PRODUCTS: ${campaignStrategy.products?.join(', ') || 'Not specified'}
+SALES INTENSITY: ${campaignStrategy.sales_intensity}/10 ${campaignStrategy.sales_intensity >= 8 ? '(HIGH - AGGRESSIVE)' : campaignStrategy.sales_intensity >= 5 ? '(MODERATE - BALANCED)' : '(LOW - SOFT TOUCH)'}
+
+VALUE PROPOSITIONS:
+${campaignStrategy.value_propositions?.map((vp: string) => `• ${vp}`).join('\n') || 'None specified'}
+
+${campaignStrategy.pricing?.base_price ? `PRICING: ${campaignStrategy.pricing.base_price}` : ''}
+${campaignStrategy.pricing?.special_offer ? `SPECIAL OFFER: ${campaignStrategy.pricing.special_offer}` : ''}
+
+DISCOUNT STRATEGY: ${campaignStrategy.discount_strategy?.approach?.replace('_', ' ').toUpperCase() || 'No discounts'}
+${campaignStrategy.discount_strategy?.amount ? `Discount Amount: ${campaignStrategy.discount_strategy.amount}` : ''}
+${campaignStrategy.discount_strategy?.expiration ? `Expires: ${campaignStrategy.discount_strategy.expiration}` : ''}
+
+OBJECTION HANDLING: ${campaignStrategy.objection_handling?.replace('_', ' ') || 'Address with education'}
+
+${campaignStrategy.campaign_context ? `CAMPAIGN CONTEXT:\n${campaignStrategy.campaign_context}\n` : ''}
+
+${campaignStrategy.key_talking_points?.length ? `KEY TALKING POINTS (MUST MENTION):\n${campaignStrategy.key_talking_points.map((tp: string) => `✓ ${tp}`).join('\n')}\n` : ''}
+
+${campaignStrategy.avoid_topics?.length ? `⚠️ TOPICS TO AVOID:\n${campaignStrategy.avoid_topics.map((at: string) => `✗ ${at}`).join('\n')}\n` : ''}
+
+${campaignStrategy.competitive_positioning ? `COMPETITIVE POSITIONING:\n${campaignStrategy.competitive_positioning}\n` : ''}
+
+═══════════════════════════════════════════════════════
+`;
+      }
+    }
     
     if (trigger_context?.campaign_day !== undefined) {
       const { data: agentConfig } = await supabase
@@ -371,13 +417,13 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
       const duration = agentConfig?.campaign_config?.duration_days || 90;
       const campaignStage = getCampaignStage(trigger_context.campaign_day, duration);
       
-      campaignContext = `
+      campaignContext += `
 
 ═══════════════════════════════════════════════════════
-CAMPAIGN CONTEXT - Day ${trigger_context.campaign_day} of ${duration}
+CAMPAIGN TIMELINE - Day ${trigger_context.campaign_day} of ${duration}
 ═══════════════════════════════════════════════════════
 
-📅 Timeline: ${Math.round((trigger_context.campaign_day / duration) * 100)}% through campaign (${campaignStage})
+📅 Progress: ${Math.round((trigger_context.campaign_day / duration) * 100)}% through campaign (${campaignStage})
 🎯 Goal: "${messageGoal}" | Type: "${trigger_context.message_type}"
 📝 Channel: ${trigger_context.message_channel || 'sms'}
 ${trigger_context.customer_goals ? `👤 Goals: ${trigger_context.customer_goals} | Personality: ${trigger_context.personality_type || 'Unknown'}` : ''}`;

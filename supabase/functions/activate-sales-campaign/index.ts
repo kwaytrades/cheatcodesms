@@ -73,6 +73,17 @@ serve(async (req) => {
           })
           .eq('id', cc.id);
 
+        // Store campaign strategy reference in conversation metadata
+        await supabase
+          .from('agent_conversations')
+          .update({
+            key_entities: {
+              campaign_id: campaign_id,
+              campaign_strategy: campaign.campaign_strategy || {},
+            }
+          })
+          .eq('id', conversation.id);
+
         // Update or create conversation_state
         const { error: stateError } = await supabase
           .from('conversation_state')

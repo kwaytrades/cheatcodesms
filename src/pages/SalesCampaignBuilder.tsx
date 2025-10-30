@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, TrendingUp, Users, Loader2 } from "lucide-react";
 import { FilterBuilder } from "@/components/FilterBuilder";
-import { AgentCampaignConfigEditor } from "@/components/AgentCampaignConfigEditor";
+import { CampaignStrategyEditor } from "@/components/CampaignStrategyEditor";
 import { Badge } from "@/components/ui/badge";
 
 export default function SalesCampaignBuilder() {
@@ -21,7 +21,37 @@ export default function SalesCampaignBuilder() {
   const [description, setDescription] = useState("");
   const [agentType, setAgentType] = useState<"sales_agent" | "lead_nurture">("sales_agent");
   const [filters, setFilters] = useState<any[]>([]);
-  const [campaignConfig, setCampaignConfig] = useState<any>(null);
+  const [campaignStrategy, setCampaignStrategy] = useState<{
+    primary_objective: string;
+    products: string[];
+    value_propositions: string[];
+    pricing: Record<string, any>;
+    discount_strategy: {
+      approach: string;
+      amount?: string;
+      expiration?: string;
+    };
+    sales_intensity: number;
+    objection_handling: string;
+    campaign_context: string;
+    key_talking_points: string[];
+    avoid_topics: string[];
+    competitive_positioning: string;
+  }>({
+    primary_objective: "close_sales",
+    products: [],
+    value_propositions: [],
+    pricing: {},
+    discount_strategy: {
+      approach: "no_discounts",
+    },
+    sales_intensity: 5,
+    objection_handling: "address_with_education",
+    campaign_context: "",
+    key_talking_points: [],
+    avoid_topics: [],
+    competitive_positioning: "",
+  });
 
   // Get contact count based on filters
   const { data: contactCount, isLoading: isLoadingCount } = useQuery({
@@ -56,7 +86,7 @@ export default function SalesCampaignBuilder() {
           description,
           agent_type: agentType,
           audience_filter: filters,
-          campaign_config: campaignConfig,
+          campaign_strategy: campaignStrategy,
           start_immediately: startImmediately,
         }
       });
@@ -80,7 +110,7 @@ export default function SalesCampaignBuilder() {
       case 2:
         return filters.length > 0 && (contactCount || 0) > 0;
       case 3:
-        return campaignConfig !== null;
+        return campaignStrategy.products.length > 0 && campaignStrategy.campaign_context.trim() !== "";
       default:
         return false;
     }
@@ -215,36 +245,12 @@ export default function SalesCampaignBuilder() {
         </div>
       )}
 
-      {/* Step 3: Configure Campaign */}
+      {/* Step 3: Campaign Strategy */}
       {step === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Campaign Configuration</CardTitle>
-            <CardDescription>Set up messaging schedule and rules</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Campaign configuration will be managed through the agent type config. 
-                For now, please configure your {agentType} agent settings in AI Agent Settings.
-              </p>
-              <Button onClick={() => {
-                // Set a default config so we can proceed
-                setCampaignConfig({
-                  duration_days: 90,
-                  outreach_schedule: [],
-                  frequency_limits: {
-                    max_per_day: 2,
-                    max_per_week: 5,
-                    min_hours_between: 12
-                  }
-                });
-              }}>
-                Use Default Configuration
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <CampaignStrategyEditor
+          strategy={campaignStrategy}
+          onChange={setCampaignStrategy}
+        />
       )}
 
       {/* Step 4: Review */}
@@ -273,13 +279,13 @@ export default function SalesCampaignBuilder() {
             </div>
 
             <div className="space-y-2">
-              <Label>Campaign Duration</Label>
-              <p>{campaignConfig?.duration_days || 90} days</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Scheduled Messages</Label>
-              <p>{campaignConfig?.outreach_schedule?.length || 0} messages scheduled</p>
+              <Label>Campaign Strategy</Label>
+              <div className="space-y-1">
+                <p className="text-sm"><strong>Objective:</strong> {campaignStrategy.primary_objective.replace("_", " ")}</p>
+                <p className="text-sm"><strong>Products:</strong> {campaignStrategy.products.join(", ") || "None"}</p>
+                <p className="text-sm"><strong>Sales Intensity:</strong> {campaignStrategy.sales_intensity}/10</p>
+                <p className="text-sm"><strong>Discount Strategy:</strong> {campaignStrategy.discount_strategy.approach.replace("_", " ")}</p>
+              </div>
             </div>
 
             <div className="flex gap-4 pt-6">

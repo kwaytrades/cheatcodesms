@@ -521,6 +521,7 @@ export type Database = {
           agent_type: string
           audience_filter: Json
           campaign_config: Json
+          campaign_strategy: Json | null
           contact_count: number | null
           contacts_engaged: number | null
           conversions: number | null
@@ -540,6 +541,7 @@ export type Database = {
           agent_type: string
           audience_filter?: Json
           campaign_config?: Json
+          campaign_strategy?: Json | null
           contact_count?: number | null
           contacts_engaged?: number | null
           conversions?: number | null
@@ -559,6 +561,7 @@ export type Database = {
           agent_type?: string
           audience_filter?: Json
           campaign_config?: Json
+          campaign_strategy?: Json | null
           contact_count?: number | null
           contacts_engaged?: number | null
           conversions?: number | null
