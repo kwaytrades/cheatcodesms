@@ -43,6 +43,7 @@ import StyleGuides from "./pages/content-studio/StyleGuides";
 import VideoEditor from "./pages/content-studio/VideoEditor";
 import AIVideoGeneration from "./pages/content-studio/AIVideoGeneration";
 import AgentTesting from "./pages/content-studio/AgentTesting";
+import Products from "./pages/Products";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
             <Route path="agents/types" element={<AIAgentTypes />} />
             <Route path="agents/settings" element={<AIAgentSettings />} />
             <Route path="agents/test" element={<AgentTesting />} />
+            <Route path="products" element={<Products />} />
             <Route path="cheat-code-ai" element={<CheatCodeAI />}>
               <Route index element={<CheatCodeDashboard />} />
               <Route path="users" element={<CheatCodeUsers />} />

@@ -859,6 +859,48 @@ export type Database = {
           },
         ]
       }
+      campaign_products: {
+        Row: {
+          campaign_id: string
+          created_at: string | null
+          custom_messaging: Json | null
+          id: string
+          priority: number | null
+          product_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string | null
+          custom_messaging?: Json | null
+          id?: string
+          priority?: number | null
+          product_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string | null
+          custom_messaging?: Json | null
+          id?: string
+          priority?: number | null
+          product_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_products_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sales_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           audience_filter: Json | null
@@ -1006,6 +1048,61 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_products: {
+        Row: {
+          acquired_date: string | null
+          contact_id: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          product_id: string
+          purchase_id: string | null
+          status: string | null
+        }
+        Insert: {
+          acquired_date?: string | null
+          contact_id: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id: string
+          purchase_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          acquired_date?: string | null
+          contact_id?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          product_id?: string
+          purchase_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_products_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_products_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
             referencedColumns: ["id"]
           },
         ]
@@ -2052,31 +2149,73 @@ export type Database = {
       }
       products: {
         Row: {
+          benefits: Json | null
           category: string | null
+          competitive_positioning: string | null
           created_at: string | null
           description: string | null
+          discount_options: Json | null
+          features: Json | null
           id: string
           is_active: boolean | null
+          key_talking_points: Json | null
+          media_urls: Json | null
+          metadata: Json | null
           name: string
+          objection_responses: Json | null
           price: number | null
+          pricing_tiers: Json | null
+          product_type: string
+          sku: string | null
+          target_audience: string | null
+          updated_at: string | null
+          value_propositions: Json | null
         }
         Insert: {
+          benefits?: Json | null
           category?: string | null
+          competitive_positioning?: string | null
           created_at?: string | null
           description?: string | null
+          discount_options?: Json | null
+          features?: Json | null
           id?: string
           is_active?: boolean | null
+          key_talking_points?: Json | null
+          media_urls?: Json | null
+          metadata?: Json | null
           name: string
+          objection_responses?: Json | null
           price?: number | null
+          pricing_tiers?: Json | null
+          product_type?: string
+          sku?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+          value_propositions?: Json | null
         }
         Update: {
+          benefits?: Json | null
           category?: string | null
+          competitive_positioning?: string | null
           created_at?: string | null
           description?: string | null
+          discount_options?: Json | null
+          features?: Json | null
           id?: string
           is_active?: boolean | null
+          key_talking_points?: Json | null
+          media_urls?: Json | null
+          metadata?: Json | null
           name?: string
+          objection_responses?: Json | null
           price?: number | null
+          pricing_tiers?: Json | null
+          product_type?: string
+          sku?: string | null
+          target_audience?: string | null
+          updated_at?: string | null
+          value_propositions?: Json | null
         }
         Relationships: []
       }

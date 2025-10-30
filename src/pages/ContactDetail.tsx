@@ -332,7 +332,7 @@ const ContactDetail = () => {
               onScoreRefresh={() => loadContactData(id!)}
             />
             <ProductsList 
-              productsOwned={contact.products_owned}
+              contactId={id!}
               totalSpent={contact.total_spent}
             />
             <TradingProfile
