@@ -46,6 +46,8 @@ serve(async (req) => {
     // For each contact, create agent conversation
     for (const cc of campaignContacts || []) {
       try {
+        console.log(`Creating agent conversation for contact: ${cc.contact_id}`);
+        
         // Create agent conversation
         const { data: conversation, error: convError } = await supabase
           .from('agent_conversations')
@@ -54,6 +56,7 @@ serve(async (req) => {
             agent_type: campaign.agent_type,
             status: 'active',
             started_at: new Date().toISOString(),
+            expiration_date: getAgentExpirationDate(campaign.agent_type),
           })
           .select()
           .single();
@@ -63,8 +66,10 @@ serve(async (req) => {
           continue;
         }
 
+        console.log(`Agent conversation created: ${conversation.id}`);
+
         // Update campaign contact with agent info
-        await supabase
+        const { error: updateError } = await supabase
           .from('ai_sales_campaign_contacts')
           .update({
             agent_id: conversation.id,
@@ -73,8 +78,12 @@ serve(async (req) => {
           })
           .eq('id', cc.id);
 
+        if (updateError) {
+          console.error('Error updating campaign contact:', updateError);
+        }
+
         // Store campaign strategy reference in conversation metadata
-        await supabase
+        const { error: metadataError } = await supabase
           .from('agent_conversations')
           .update({
             key_entities: {
@@ -83,6 +92,10 @@ serve(async (req) => {
             }
           })
           .eq('id', conversation.id);
+
+        if (metadataError) {
+          console.error('Error updating conversation metadata:', metadataError);
+        }
 
         // Update or create conversation_state
         const { error: stateError } = await supabase
@@ -99,13 +112,17 @@ serve(async (req) => {
 
         if (stateError) {
           console.error('Error updating conversation state:', stateError);
+        } else {
+          console.log(`Conversation state updated for contact: ${cc.contact_id}`);
         }
 
         activatedCount++;
       } catch (error) {
-        console.error('Error activating contact:', error);
+        console.error('Error activating contact:', cc.contact_id, error);
       }
     }
+
+    console.log(`Activated ${activatedCount} out of ${campaignContacts?.length || 0} contacts`);
 
     // Update campaign status
     await supabase

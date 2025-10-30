@@ -17,9 +17,11 @@ serve(async (req) => {
       description, 
       agent_type, 
       audience_filter, 
-      campaign_config,
+      campaign_strategy,
       start_immediately = false 
     } = await req.json();
+
+    console.log('Creating campaign:', { name, agent_type, start_immediately });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -58,7 +60,7 @@ serve(async (req) => {
         description,
         agent_type,
         audience_filter,
-        campaign_config,
+        campaign_strategy,
         contact_count: contactCount,
         status: start_immediately ? 'active' : 'draft',
         created_by: user.id,
@@ -66,6 +68,8 @@ serve(async (req) => {
       })
       .select()
       .single();
+
+    console.log('Campaign created:', campaign.id);
 
     if (campaignError) {
       throw campaignError;
@@ -90,9 +94,16 @@ serve(async (req) => {
 
     // If starting immediately, trigger activation
     if (start_immediately) {
-      await supabase.functions.invoke('activate-sales-campaign', {
+      console.log('Activating campaign immediately:', campaign.id);
+      const { data: activationResult, error: activationError } = await supabase.functions.invoke('activate-sales-campaign', {
         body: { campaign_id: campaign.id }
       });
+      
+      if (activationError) {
+        console.error('Activation error:', activationError);
+      } else {
+        console.log('Activation result:', activationResult);
+      }
     }
 
     return new Response(
