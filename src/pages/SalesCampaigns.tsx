@@ -1,19 +1,25 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, TrendingUp, Users, MessageSquare, Target, Play, Pause, Eye } from "lucide-react";
+import { Plus, Search, TrendingUp, Users, MessageSquare, Target, Play, Pause, Eye, MoreVertical, Copy, Square, Edit } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Progress } from "@/components/ui/progress";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function SalesCampaigns() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [campaignToStop, setCampaignToStop] = useState<string | null>(null);
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ['sales-campaigns'],
@@ -55,6 +61,115 @@ export default function SalesCampaigns() {
   const getAgentIcon = (agentType: string) => {
     return agentType === 'sales_agent' ? <TrendingUp className="h-4 w-4" /> : <Users className="h-4 w-4" />;
   };
+
+  const pauseCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data, error } = await supabase.functions.invoke('pause-sales-campaign', {
+        body: { campaign_id: campaignId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign paused successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to pause campaign: ${error.message}`);
+    },
+  });
+
+  const resumeCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data, error } = await supabase.functions.invoke('resume-sales-campaign', {
+        body: { campaign_id: campaignId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign resumed successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to resume campaign: ${error.message}`);
+    },
+  });
+
+  const launchCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data, error } = await supabase.functions.invoke('activate-sales-campaign', {
+        body: { campaign_id: campaignId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign launched successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to launch campaign: ${error.message}`);
+    },
+  });
+
+  const stopCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data, error } = await supabase.functions.invoke('stop-sales-campaign', {
+        body: { campaign_id: campaignId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign stopped successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+      setStopDialogOpen(false);
+      setCampaignToStop(null);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to stop campaign: ${error.message}`);
+    },
+  });
+
+  const duplicateCampaignMutation = useMutation({
+    mutationFn: async (campaignId: string) => {
+      // Fetch original campaign
+      const { data: original, error: fetchError } = await supabase
+        .from('ai_sales_campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+
+      // Create duplicate
+      const { data: duplicate, error: createError } = await supabase
+        .from('ai_sales_campaigns')
+        .insert({
+          name: `${original.name} (Copy)`,
+          description: original.description,
+          agent_type: original.agent_type,
+          audience_filter: original.audience_filter,
+          campaign_config: original.campaign_config,
+          campaign_strategy: original.campaign_strategy,
+          status: 'draft'
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+      return duplicate;
+    },
+    onSuccess: (duplicate) => {
+      toast.success('Campaign duplicated successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaigns'] });
+      navigate(`/sales-campaigns/${duplicate.id}/edit`);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to duplicate campaign: ${error.message}`);
+    },
+  });
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -177,22 +292,99 @@ export default function SalesCampaigns() {
                     <Eye className="h-4 w-4 mr-2" />
                     View
                   </Button>
-                  {campaign.status === 'active' && (
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
-                      <Pause className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {campaign.status === 'draft' && (
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
-                      <Play className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="outline" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/sales-campaigns/${campaign.id}/edit`);
+                      }} disabled={campaign.status === 'active'}>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      {campaign.status === 'draft' && (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          launchCampaignMutation.mutate(campaign.id);
+                        }} disabled={launchCampaignMutation.isPending}>
+                          <Play className="h-4 w-4 mr-2" />
+                          Launch
+                        </DropdownMenuItem>
+                      )}
+                      {campaign.status === 'active' && (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          pauseCampaignMutation.mutate(campaign.id);
+                        }} disabled={pauseCampaignMutation.isPending}>
+                          <Pause className="h-4 w-4 mr-2" />
+                          Pause
+                        </DropdownMenuItem>
+                      )}
+                      {campaign.status === 'paused' && (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          resumeCampaignMutation.mutate(campaign.id);
+                        }} disabled={resumeCampaignMutation.isPending}>
+                          <Play className="h-4 w-4 mr-2" />
+                          Resume
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        duplicateCampaignMutation.mutate(campaign.id);
+                      }} disabled={duplicateCampaignMutation.isPending}>
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
+                      </DropdownMenuItem>
+                      {(campaign.status === 'active' || campaign.status === 'paused') && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCampaignToStop(campaign.id);
+                              setStopDialogOpen(true);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Square className="h-4 w-4 mr-2" />
+                            Stop Campaign
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
             </Card>
           ))
         )}
       </div>
+
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently stop the campaign and expire all associated agents. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => campaignToStop && stopCampaignMutation.mutate(campaignToStop)}
+              disabled={stopCampaignMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Stop Campaign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

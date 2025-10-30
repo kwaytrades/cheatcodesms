@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp } from "lucide-react";
+import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function SalesCampaignDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
 
   const { data: campaign, isLoading } = useQuery({
     queryKey: ['sales-campaign', id],
@@ -92,6 +95,54 @@ export default function SalesCampaignDetail() {
     },
   });
 
+  const stopCampaignMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('stop-sales-campaign', {
+        body: { campaign_id: id }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Campaign stopped successfully');
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
+      setStopDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to stop campaign: ${error.message}`);
+    },
+  });
+
+  const duplicateCampaignMutation = useMutation({
+    mutationFn: async () => {
+      if (!campaign) throw new Error('Campaign not found');
+      
+      const { data: duplicate, error } = await supabase
+        .from('ai_sales_campaigns')
+        .insert({
+          name: `${campaign.name} (Copy)`,
+          description: campaign.description,
+          agent_type: campaign.agent_type,
+          audience_filter: campaign.audience_filter,
+          campaign_config: campaign.campaign_config,
+          campaign_strategy: campaign.campaign_strategy,
+          status: 'draft'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return duplicate;
+    },
+    onSuccess: (duplicate) => {
+      toast.success('Campaign duplicated successfully');
+      navigate(`/sales-campaigns/${duplicate.id}/edit`);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to duplicate campaign: ${error.message}`);
+    },
+  });
+
   if (isLoading) {
     return <div className="container mx-auto p-6">Loading campaign...</div>;
   }
@@ -142,6 +193,14 @@ export default function SalesCampaignDetail() {
           <div className="flex gap-2">
             <Button 
               variant="outline" 
+              onClick={() => duplicateCampaignMutation.mutate()}
+              disabled={duplicateCampaignMutation.isPending}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate
+            </Button>
+            <Button 
+              variant="outline" 
               onClick={() => navigate(`/sales-campaigns/${id}/edit`)}
               disabled={campaign.status === 'active'}
             >
@@ -149,21 +208,39 @@ export default function SalesCampaignDetail() {
               Edit
             </Button>
             {campaign.status === 'active' ? (
-              <Button 
-                onClick={() => pauseCampaignMutation.mutate()}
-                disabled={pauseCampaignMutation.isPending}
-              >
-                <Pause className="h-4 w-4 mr-2" />
-                Pause
-              </Button>
+              <>
+                <Button 
+                  onClick={() => pauseCampaignMutation.mutate()}
+                  disabled={pauseCampaignMutation.isPending}
+                >
+                  <Pause className="h-4 w-4 mr-2" />
+                  Pause
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => setStopDialogOpen(true)}
+                >
+                  <Square className="h-4 w-4 mr-2" />
+                  Stop
+                </Button>
+              </>
             ) : campaign.status === 'paused' ? (
-              <Button 
-                onClick={() => resumeCampaignMutation.mutate()}
-                disabled={resumeCampaignMutation.isPending}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Resume
-              </Button>
+              <>
+                <Button 
+                  onClick={() => resumeCampaignMutation.mutate()}
+                  disabled={resumeCampaignMutation.isPending}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Resume
+                </Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => setStopDialogOpen(true)}
+                >
+                  <Square className="h-4 w-4 mr-2" />
+                  Stop
+                </Button>
+              </>
             ) : campaign.status === 'draft' ? (
               <Button 
                 onClick={() => launchCampaignMutation.mutate()}
@@ -309,6 +386,27 @@ export default function SalesCampaignDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop Campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently stop the campaign and expire all associated agents. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => stopCampaignMutation.mutate()}
+              disabled={stopCampaignMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Stop Campaign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
