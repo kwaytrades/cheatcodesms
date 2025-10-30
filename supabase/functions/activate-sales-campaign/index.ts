@@ -88,22 +88,57 @@ serve(async (req) => {
           }
         }
         
-        // Create agent conversation (only sales_agent for campaigns)
-        const { data: conversation, error: convError } = await supabase
+        // Check if agent conversation already exists
+        const { data: existingConv } = await supabase
           .from('agent_conversations')
-          .insert({
-            contact_id: cc.contact_id,
-            agent_type: 'sales_agent', // Force to sales_agent for campaigns
-            status: 'active',
-            started_at: new Date().toISOString(),
-            expiration_date: getAgentExpirationDate('sales_agent'),
-          })
-          .select()
+          .select('*')
+          .eq('contact_id', cc.contact_id)
+          .eq('agent_type', 'sales_agent')
           .single();
 
-        if (convError) {
-          console.error('Error creating conversation:', convError);
-          continue;
+        let conversation;
+        
+        if (existingConv) {
+          // Reuse existing conversation and update it
+          console.log(`Reusing existing agent conversation: ${existingConv.id}`);
+          
+          const { data: updatedConv, error: updateError } = await supabase
+            .from('agent_conversations')
+            .update({
+              status: 'active',
+              expiration_date: getAgentExpirationDate('sales_agent'),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingConv.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.error('Error updating existing conversation:', updateError);
+            continue;
+          }
+          
+          conversation = updatedConv;
+        } else {
+          // Create new agent conversation
+          const { data: newConv, error: convError } = await supabase
+            .from('agent_conversations')
+            .insert({
+              contact_id: cc.contact_id,
+              agent_type: 'sales_agent',
+              status: 'active',
+              started_at: new Date().toISOString(),
+              expiration_date: getAgentExpirationDate('sales_agent'),
+            })
+            .select()
+            .single();
+
+          if (convError) {
+            console.error('Error creating conversation:', convError);
+            continue;
+          }
+          
+          conversation = newConv;
         }
 
         console.log(`Agent conversation created: ${conversation.id}`);
