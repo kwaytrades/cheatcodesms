@@ -37,6 +37,7 @@ const Campaigns = () => {
   const [salesCampaigns, setSalesCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendingCampaignId, setSendingCampaignId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("sms");
 
   useEffect(() => {
     loadCampaigns();
@@ -544,8 +545,6 @@ const Campaigns = () => {
       </div>
     );
   };
-
-  const [activeTab, setActiveTab] = useState("sms");
 
   return (
     <div className="p-8 space-y-6">
