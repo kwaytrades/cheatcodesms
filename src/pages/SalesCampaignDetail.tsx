@@ -93,8 +93,7 @@ export default function SalesCampaignDetail() {
           email
         )
       `)
-      .in('agent_id', agentIds)
-      .gte('created_at', campaignStartDate);
+      .in('agent_id', agentIds);
       
       if (outboundError) throw outboundError;
       
