@@ -94,11 +94,11 @@ Deno.serve(async (req) => {
     console.log('Trigger Context:', JSON.stringify(trigger_context));
     console.log('═══════════════════════════════════════════════');
 
-    // If no agent_id provided but contact_id is, check for active product agent
+    // If no agent_id provided but contact_id is, check for active agent
     if (!agent_id && contact_id) {
       const { data: convState } = await supabase
         .from('conversation_state')
-        .select('active_agent_id, product_agents!conversation_state_active_agent_id_fkey(*)')
+        .select('active_agent_id')
         .eq('contact_id', contact_id)
         .maybeSingle();
       
@@ -176,16 +176,34 @@ Deno.serve(async (req) => {
         .single();
       conversationState = convState;
 
-      const { data: agentData } = await supabase
-        .from('product_agents')
+      // Try agent_conversations first (for sales campaigns)
+      const { data: conversationAgent } = await supabase
+        .from('agent_conversations')
         .select('*')
         .eq('id', agent_id)
-        .single();
+        .maybeSingle();
 
-      if (!agentData) {
-        throw new Error('Agent not found');
+      if (conversationAgent) {
+        // Normalize the field name for consistency
+        agent = {
+          ...conversationAgent,
+          product_type: conversationAgent.agent_type, // Alias agent_type as product_type
+        };
+        console.log(`Found agent in agent_conversations: ${agent.product_type}`);
+      } else {
+        // Fallback to product_agents
+        const { data: productAgent } = await supabase
+          .from('product_agents')
+          .select('*')
+          .eq('id', agent_id)
+          .maybeSingle();
+        
+        if (!productAgent) {
+          throw new Error(`Agent not found in either agent_conversations or product_agents: ${agent_id}`);
+        }
+        agent = productAgent;
+        console.log(`Found agent in product_agents: ${agent.product_type}`);
       }
-      agent = agentData;
     }
 
     const requestPriority = AGENT_PRIORITIES[agent.product_type as keyof typeof AGENT_PRIORITIES] || 1;
@@ -362,8 +380,12 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
     let campaignContext = '';
     let campaignStrategy: any = null;
     
-    // Fetch campaign strategy from conversation metadata
-    if (conversation_id) {
+    // Fetch campaign strategy from agent's key_entities (for sales campaigns)
+    if (agent.key_entities?.campaign_strategy) {
+      campaignStrategy = agent.key_entities.campaign_strategy;
+      console.log('Using campaign strategy from agent key_entities');
+    } else if (conversation_id) {
+      // Fallback: Fetch campaign strategy from conversation metadata
       const { data: conversationData } = await supabase
         .from('agent_conversations')
         .select('key_entities')
@@ -372,8 +394,13 @@ INSTRUCTIONS FOR USING THIS INFORMATION:
       
       if (conversationData?.key_entities?.campaign_strategy) {
         campaignStrategy = conversationData.key_entities.campaign_strategy;
-        
-        campaignContext = `
+        console.log('Using campaign strategy from conversation key_entities');
+      }
+    }
+    
+    // Build campaign context if strategy is available
+    if (campaignStrategy) {
+      campaignContext = `
 ═══════════════════════════════════════════════════════
 🎯 CAMPAIGN STRATEGY - CRITICAL CONTEXT
 ═══════════════════════════════════════════════════════
@@ -404,7 +431,6 @@ ${campaignStrategy.competitive_positioning ? `COMPETITIVE POSITIONING:\n${campai
 
 ═══════════════════════════════════════════════════════
 `;
-      }
     }
     
     if (trigger_context?.campaign_day !== undefined) {
