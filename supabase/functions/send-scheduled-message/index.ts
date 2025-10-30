@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     // Load the scheduled message
     const { data: message, error: messageError } = await supabase
       .from('scheduled_messages')
-      .select('*, product_agents(*), contacts(*)')
+      .select('*, contacts(*)')
       .eq('id', scheduled_message_id)
       .single();
 
@@ -127,19 +127,49 @@ Deno.serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    // Update agent metrics
-    const { data: currentAgent } = await supabase
-      .from('product_agents')
-      .select('messages_sent')
-      .eq('id', message.agent_id)
-      .single();
+    // Update agent metrics - handle both product_agents and agent_conversations
+    if (message.agent_id) {
+      // Try product_agents first
+      const { data: productAgent } = await supabase
+        .from('product_agents')
+        .select('messages_sent')
+        .eq('id', message.agent_id)
+        .maybeSingle();
 
-    await supabase
-      .from('product_agents')
-      .update({
-        messages_sent: (currentAgent?.messages_sent || 0) + 1
-      })
-      .eq('id', message.agent_id);
+      if (productAgent) {
+        // Update product_agents
+        await supabase
+          .from('product_agents')
+          .update({
+            messages_sent: (productAgent.messages_sent || 0) + 1,
+            last_engagement_at: new Date().toISOString()
+          })
+          .eq('id', message.agent_id);
+        
+        console.log(`✅ Updated product_agents metrics for agent: ${message.agent_id}`);
+      } else {
+        // Try agent_conversations
+        const { data: agentConv } = await supabase
+          .from('agent_conversations')
+          .select('message_count')
+          .eq('id', message.agent_id)
+          .maybeSingle();
+
+        if (agentConv) {
+          await supabase
+            .from('agent_conversations')
+            .update({
+              message_count: (agentConv.message_count || 0) + 1,
+              last_message_at: new Date().toISOString()
+            })
+            .eq('id', message.agent_id);
+          
+          console.log(`✅ Updated agent_conversations metrics for agent: ${message.agent_id}`);
+        } else {
+          console.warn(`⚠️ Agent ${message.agent_id} not found in either product_agents or agent_conversations`);
+        }
+      }
+    }
 
     // Log activity
     await supabase
