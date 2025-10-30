@@ -1409,13 +1409,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "conversation_state_active_agent_id_fkey"
-            columns: ["active_agent_id"]
-            isOneToOne: false
-            referencedRelation: "product_agents"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "conversation_state_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: true
