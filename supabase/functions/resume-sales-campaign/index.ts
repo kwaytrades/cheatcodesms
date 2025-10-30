@@ -120,13 +120,26 @@ serve(async (req) => {
       throw contactsError
     }
 
-    console.log(`Campaign ${campaign_id} resumed. ${contacts?.length || 0} contacts updated.`)
+    // Also retry failed contacts (clear error and set to active)
+    const { data: failedContacts } = await supabase
+      .from('ai_sales_campaign_contacts')
+      .update({ 
+        status: 'active',
+        last_error: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('campaign_id', campaign_id)
+      .eq('status', 'failed')
+      .select()
+
+    const totalUpdated = (contacts?.length || 0) + (failedContacts?.length || 0)
+    console.log(`Campaign ${campaign_id} resumed. ${totalUpdated} contacts updated (${failedContacts?.length || 0} failed retries).`)
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         campaign: updatedCampaign,
-        contacts_updated: contacts?.length || 0
+        contacts_updated: totalUpdated
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

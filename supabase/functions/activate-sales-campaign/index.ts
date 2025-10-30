@@ -275,7 +275,7 @@ serve(async (req) => {
         // Generate handoff or introduction message
         console.log(`Generating ${previousAgentType ? 'handoff' : 'introduction'} message for contact: ${cc.contact_id}`);
         
-        const { error: messageError } = await supabase.functions.invoke('generate-ai-message', {
+        const messageResult = await supabase.functions.invoke('generate-ai-message', {
           body: {
             contact_id: cc.contact_id,
             agent_id: conversation.id,
@@ -291,11 +291,27 @@ serve(async (req) => {
           }
         });
 
-        if (messageError) {
-          console.error('Error generating message:', messageError);
-        } else {
-          console.log(`Message generated for contact: ${cc.contact_id}`);
+        if (messageResult.error) {
+          console.error('Error generating message:', messageResult.error);
+          
+          // Mark contact as failed with retry information
+          await supabase
+            .from('ai_sales_campaign_contacts')
+            .update({
+              status: 'failed',
+              last_error: JSON.stringify({
+                error: messageResult.error.message || 'Message generation failed',
+                timestamp: new Date().toISOString(),
+                retry_count: 0
+              })
+            })
+            .eq('id', cc.id);
+          
+          console.log(`Contact ${cc.contact_id} marked as failed for manual retry`);
+          continue; // Skip to next contact
         }
+        
+        console.log(`Message generated for contact: ${cc.contact_id}`);
 
         activatedCount++;
       } catch (error) {
