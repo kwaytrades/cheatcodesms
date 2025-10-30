@@ -400,7 +400,9 @@ export default function SalesCampaignDetail() {
                   <div key={cc.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-semibold">{cc.contacts.full_name}</p>
-                      <p className="text-sm text-muted-foreground">{cc.contacts.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {campaign.channel === 'sms' ? cc.contacts.phone_number : cc.contacts.email}
+                      </p>
                     </div>
                     <div className="text-right">
                       <Badge>{cc.status}</Badge>

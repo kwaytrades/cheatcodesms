@@ -697,13 +697,21 @@ What questions can I answer for you? 🚀`;
     }
 
     // Schedule the message to be sent immediately
+    console.log('═══ INSERTING TO SCHEDULED_MESSAGES ═══');
+    console.log('contact_id:', contact_id);
+    console.log('agent_id:', agent_id);
+    console.log('message_type:', message_type);
+    console.log('channel:', channel);
+    console.log('subject:', messageContent.subject);
+    console.log('═══════════════════════════════════════');
+    
     const { data: scheduledMessage, error: scheduleError } = await supabase
       .from('scheduled_messages')
       .insert({
-        contact_id,
-        agent_id,
-        message_type,
-        channel,
+        contact_id: contact_id,
+        agent_id: agent_id,
+        message_type: message_type,
+        channel: channel,
         scheduled_for: new Date().toISOString(),
         status: 'pending',
         subject: messageContent.subject,

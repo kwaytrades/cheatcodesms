@@ -26,6 +26,7 @@ interface CampaignContactsDialogProps {
   campaignId: string;
   filterType: "total" | "sent" | "delivered" | "replied";
   count: number;
+  channel?: "sms" | "email";
   children: React.ReactNode;
 }
 
@@ -33,6 +34,7 @@ export const CampaignContactsDialog = ({
   campaignId,
   filterType,
   count,
+  channel = "sms",
   children,
 }: CampaignContactsDialogProps) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -210,13 +212,13 @@ export const CampaignContactsDialog = ({
                         )}
                       </div>
                       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                        {contact.email && (
+                        {channel === "email" && contact.email && (
                           <div className="flex items-center gap-2">
                             <Mail className="h-3 w-3" />
                             {contact.email}
                           </div>
                         )}
-                        {contact.phone_number && (
+                        {channel === "sms" && contact.phone_number && (
                           <div className="flex items-center gap-2">
                             <Phone className="h-3 w-3" />
                             {contact.phone_number}
