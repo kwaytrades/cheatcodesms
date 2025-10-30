@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square } from "lucide-react";
+import { ChevronLeft, Play, Pause, Edit, MessageSquare, Users, Target, TrendingUp, Copy, Square, Mail } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function SalesCampaignDetail() {
@@ -345,11 +345,27 @@ export default function SalesCampaignDetail() {
               <CardTitle>Campaign Configuration</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Agent Type</p>
-                <p className="font-semibold">{campaign.agent_type === 'sales_agent' ? 'Sales Agent' : 'Lead Nurture Agent'}</p>
+            <div>
+              <p className="text-sm text-muted-foreground">Channel</p>
+              <div className="flex items-center gap-2 font-semibold">
+                {campaign.channel === 'sms' ? (
+                  <>
+                    <MessageSquare className="h-4 w-4" />
+                    <span>SMS</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4" />
+                    <span>Email</span>
+                  </>
+                )}
               </div>
-              <div>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Agent Type</p>
+              <p className="font-semibold">{campaign.agent_type === 'sales_agent' ? 'Sales Agent' : 'Lead Nurture Agent'}</p>
+            </div>
+            <div>
                 <p className="text-sm text-muted-foreground">Duration</p>
                 <p className="font-semibold">
                   {typeof campaign.campaign_config === 'object' && campaign.campaign_config !== null && 'duration_days' in campaign.campaign_config

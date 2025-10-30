@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, TrendingUp, Users, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, TrendingUp, Users, Loader2, MessageSquare, Mail } from "lucide-react";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { CampaignStrategyEditor } from "@/components/CampaignStrategyEditor";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ export default function SalesCampaignBuilder() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [agentType] = useState<"sales_agent">("sales_agent"); // Sales campaigns only use sales_agent
+  const [channel, setChannel] = useState<"sms" | "email">("sms");
   const [filters, setFilters] = useState<any[]>([]);
   const [campaignStrategy, setCampaignStrategy] = useState<{
     primary_objective: string;
@@ -101,6 +102,7 @@ export default function SalesCampaignBuilder() {
           audience_filter: cleanedFilters,
           campaign_strategy: campaignStrategy,
           start_immediately: startImmediately,
+          channel,
         }
       });
 
@@ -175,6 +177,29 @@ export default function SalesCampaignBuilder() {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="channel">Channel *</Label>
+              <Select value={channel} onValueChange={(value: "sms" | "email") => setChannel(value)}>
+                <SelectTrigger id="channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sms">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      <span>SMS</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="email">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      <span>Email</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -263,6 +288,18 @@ export default function SalesCampaignBuilder() {
               <Label>Campaign Name</Label>
               <p className="text-lg font-semibold">{name}</p>
               {description && <p className="text-muted-foreground">{description}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Channel</Label>
+              <div className="flex items-center gap-2">
+                {channel === 'sms' ? (
+                  <MessageSquare className="h-4 w-4" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+                <Badge>{channel === 'sms' ? 'SMS' : 'Email'}</Badge>
+              </div>
             </div>
 
             <div className="space-y-2">

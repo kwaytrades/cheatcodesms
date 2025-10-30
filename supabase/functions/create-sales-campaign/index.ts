@@ -18,7 +18,8 @@ serve(async (req) => {
       agent_type, 
       audience_filter, 
       campaign_strategy,
-      start_immediately = false 
+      start_immediately = false,
+      channel = 'sms'
     } = await req.json();
 
     console.log('Creating campaign:', { name, agent_type, start_immediately });
@@ -65,6 +66,7 @@ serve(async (req) => {
         status: start_immediately ? 'active' : 'draft',
         created_by: user.id,
         start_date: start_immediately ? new Date().toISOString() : null,
+        channel,
       })
       .select()
       .single();

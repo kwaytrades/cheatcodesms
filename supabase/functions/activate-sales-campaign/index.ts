@@ -287,7 +287,7 @@ serve(async (req) => {
               previous_agent_type: previousAgentType,
               is_sales_campaign: true
             },
-            channel: 'sms'
+            channel: campaign.channel || 'sms'
           }
         });
 
