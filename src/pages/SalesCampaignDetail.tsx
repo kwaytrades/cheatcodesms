@@ -77,22 +77,23 @@ export default function SalesCampaignDetail() {
       // Fetch outbound messages (campaign messages)
       const { data: outboundMessages, error: outboundError } = await supabase
         .from('scheduled_messages')
-        .select(`
-          id,
-          contact_id,
-          message_body,
-          channel,
-          status,
-          scheduled_for,
-          sent_at,
-          created_at,
-          contacts!inner(
-            full_name,
-            phone_number,
-            email
-          )
-        `)
-        .in('agent_id', agentIds);
+      .select(`
+        id,
+        contact_id,
+        message_body,
+        channel,
+        status,
+        scheduled_for,
+        sent_at,
+        created_at,
+        contacts!inner(
+          full_name,
+          phone_number,
+          email
+        )
+      `)
+      .in('agent_id', agentIds)
+      .gte('created_at', campaignStartDate);
       
       if (outboundError) throw outboundError;
       
@@ -149,9 +150,36 @@ export default function SalesCampaignDetail() {
         createdAt: msg.created_at
       }));
       
-      // Combine and sort by timestamp (most recent first)
-      return [...normalizedOutbound, ...normalizedInbound]
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // Combine messages
+      const normalizedMessages = [...normalizedOutbound, ...normalizedInbound];
+      
+      // Group by contact
+      const groupedByContact = normalizedMessages.reduce((acc, msg) => {
+        const key = msg.contactName;
+        if (!acc[key]) {
+          acc[key] = {
+            contactName: msg.contactName,
+            destination: msg.destination,
+            messages: []
+          };
+        }
+        acc[key].messages.push(msg);
+        return acc;
+      }, {} as Record<string, { contactName: string; destination: string; messages: typeof normalizedMessages }>);
+
+      // Sort messages within each thread chronologically (oldest first for conversation flow)
+      Object.values(groupedByContact).forEach(thread => {
+        thread.messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      });
+
+      // Sort threads by most recent message (most recent thread first)
+      const sortedThreads = Object.values(groupedByContact).sort((a, b) => {
+        const aLatest = a.messages[a.messages.length - 1].timestamp;
+        const bLatest = b.messages[b.messages.length - 1].timestamp;
+        return new Date(bLatest).getTime() - new Date(aLatest).getTime();
+      });
+
+      return sortedThreads;
     },
     enabled: !!id,
   });
@@ -591,19 +619,22 @@ export default function SalesCampaignDetail() {
                   </Select>
                 </div>
               </div>
-              {campaignMessages && campaignMessages.length > 0 && (
-                <div className="text-sm text-muted-foreground mt-2">
-                  Showing {campaignMessages.filter(msg => 
+              {campaignMessages && campaignMessages.length > 0 && (() => {
+                const filteredThreads = campaignMessages.filter(thread => {
+                  const hasMatchingMessages = thread.messages.some((msg: any) =>
                     (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
                     (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
-                  ).length} messages
-                  {messageDirectionFilter === 'all' && (
-                    <span className="ml-1">
-                      ({campaignMessages.filter(m => m.type === 'inbound').length} replies)
-                    </span>
-                  )}
-                </div>
-              )}
+                  );
+                  return hasMatchingMessages;
+                });
+                const totalMessages = filteredThreads.reduce((sum, thread) => sum + thread.messages.length, 0);
+                
+                return (
+                  <div className="text-sm text-muted-foreground mt-2">
+                    Showing {totalMessages} messages in {filteredThreads.length} conversations
+                  </div>
+                );
+              })()}
             </CardHeader>
             <CardContent>
               {messagesLoading ? (
@@ -613,113 +644,119 @@ export default function SalesCampaignDetail() {
                   <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No messages sent yet</p>
                 </div>
-              ) : (
-                <ScrollArea className="h-[600px] pr-4">
-                  <div className="space-y-4">
-                    {campaignMessages
-                      .filter(msg => 
-                        (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
-                        (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
-                      )
-                      .map((msg: any) => {
-                        const getStatusVariant = (status: string) => {
-                          switch (status) {
-                            case 'sent': return 'default';
-                            case 'pending': return 'secondary';
-                            case 'failed': return 'destructive';
-                            default: return 'outline';
-                          }
-                        };
+              ) : (() => {
+                const getStatusVariant = (status: string) => {
+                  switch (status) {
+                    case 'sent': return 'default';
+                    case 'pending': return 'secondary';
+                    case 'failed': return 'destructive';
+                    default: return 'outline';
+                  }
+                };
 
-                        const initials = msg.contactName
-                          ?.split(' ')
-                          .map((n: string) => n[0])
-                          .join('')
-                          .toUpperCase()
-                          .slice(0, 2) || '??';
+                const filteredThreads = campaignMessages?.filter(thread => {
+                  const hasMatchingMessages = thread.messages.some((msg: any) =>
+                    (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
+                    (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
+                  );
+                  return hasMatchingMessages;
+                }).map(thread => ({
+                  ...thread,
+                  messages: thread.messages.filter((msg: any) =>
+                    (messageStatusFilter === 'all' || msg.status === messageStatusFilter) &&
+                    (messageDirectionFilter === 'all' || msg.type === messageDirectionFilter)
+                  )
+                })) || [];
 
-                        const truncatedMessage = msg.body?.length > 200
-                          ? msg.body.substring(0, 200) + '...'
-                          : msg.body;
+                return (
+                  <ScrollArea className="h-[600px] pr-4">
+                    <div className="space-y-6">
+                      {filteredThreads.map((thread: any) => (
+                        <div key={thread.contactName} className="space-y-2">
+                          {/* Thread Header */}
+                          <div className="flex items-center gap-3 sticky top-0 bg-background/95 backdrop-blur py-2 px-3 rounded-lg border">
+                            <Avatar className="h-10 w-10">
+                              <AvatarFallback>
+                                {thread.contactName?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <p className="font-semibold">{thread.contactName}</p>
+                              <p className="text-xs text-muted-foreground">{thread.destination}</p>
+                            </div>
+                            <Badge variant="outline">{thread.messages.length} messages</Badge>
+                          </div>
 
-                        const timeAgo = formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true });
-
-                        return (
-                          <div 
-                            key={msg.id} 
-                            className={`border rounded-lg p-4 space-y-3 ${
-                              msg.type === 'inbound' 
-                                ? 'bg-primary/5 border-primary/20' 
-                                : 'bg-card'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {msg.type === 'inbound' ? (
-                                  <ArrowDownLeft className="h-4 w-4 text-primary" />
-                                ) : (
-                                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                
-                                <Avatar className="h-10 w-10">
-                                  <AvatarFallback className="text-sm">{initials}</AvatarFallback>
-                                </Avatar>
-                                
-                                <div>
-                                  <p className="font-semibold">{msg.contactName}</p>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {/* Messages in Thread */}
+                          <div className="pl-4 space-y-2">
+                            {thread.messages.map((msg: any) => (
+                              <div
+                                key={msg.id}
+                                className={`border rounded-lg p-3 space-y-2 ${
+                                  msg.type === 'inbound'
+                                    ? 'bg-primary/5 border-primary/20 ml-8'
+                                    : 'bg-card mr-8'
+                                }`}
+                              >
+                                {/* Message Header */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
                                     {msg.type === 'inbound' ? (
-                                      <span className="text-primary font-medium">Reply from contact</span>
+                                      <ArrowDownLeft className="h-3 w-3 text-primary" />
                                     ) : (
-                                      <>
-                                        {msg.channel === 'sms' ? (
-                                          <MessageSquare className="h-3 w-3" />
-                                        ) : (
-                                          <Mail className="h-3 w-3" />
-                                        )}
-                                        <span>{msg.destination}</span>
-                                      </>
+                                      <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
                                     )}
+                                    <span className="text-xs font-medium">
+                                      {msg.type === 'inbound' ? 'Reply' : 'Campaign'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    {msg.type === 'outbound' && (
+                                      <Badge variant={getStatusVariant(msg.status)} className="flex items-center gap-1">
+                                        {msg.status === 'sent' && <Check className="h-3 w-3" />}
+                                        {msg.status === 'failed' && <X className="h-3 w-3" />}
+                                        {msg.status === 'pending' && <Clock className="h-3 w-3" />}
+                                        {msg.status}
+                                      </Badge>
+                                    )}
+                                    <Badge variant="outline" className="flex items-center gap-1">
+                                      {msg.channel === 'sms' ? (
+                                        <MessageSquare className="h-3 w-3" />
+                                      ) : (
+                                        <Mail className="h-3 w-3" />
+                                      )}
+                                      {msg.channel}
+                                    </Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+                                    </span>
                                   </div>
                                 </div>
+
+                                {/* Message Body */}
+                                <div className={`text-sm bg-muted/50 rounded p-2 whitespace-pre-wrap ${
+                                  msg.type === 'inbound'
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground'
+                                }`}>
+                                  {msg.body}
+                                </div>
                               </div>
-                              
-                              <div className="flex items-center gap-2">
-                                {msg.type === 'outbound' && (
-                                  <Badge variant={getStatusVariant(msg.status)} className="flex items-center gap-1">
-                                    {msg.status === 'sent' && <Check className="h-3 w-3" />}
-                                    {msg.status === 'failed' && <X className="h-3 w-3" />}
-                                    {msg.status === 'pending' && <Clock className="h-3 w-3" />}
-                                    {msg.status}
-                                  </Badge>
-                                )}
-                                
-                                <Badge variant="outline" className="flex items-center gap-1">
-                                  {msg.channel === 'sms' ? (
-                                    <MessageSquare className="h-3 w-3" />
-                                  ) : (
-                                    <Mail className="h-3 w-3" />
-                                  )}
-                                  {msg.channel}
-                                </Badge>
-                                
-                                <span className="text-xs text-muted-foreground">{timeAgo}</span>
-                              </div>
-                            </div>
-                            
-                            <div className={`text-sm bg-muted/50 rounded p-3 ${
-                              msg.type === 'inbound' 
-                                ? 'text-foreground' 
-                                : 'text-muted-foreground'
-                            }`}>
-                              {truncatedMessage}
-                            </div>
+                            ))}
                           </div>
-                        );
-                      })}
-                  </div>
-                </ScrollArea>
-              )}
+                        </div>
+                      ))}
+                      
+                      {filteredThreads.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          No messages found matching the selected filters.
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
