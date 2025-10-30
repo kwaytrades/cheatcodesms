@@ -303,6 +303,11 @@ export default function SalesCampaignDetail() {
 
   const launchCampaignMutation = useMutation({
     mutationFn: async () => {
+      // Prevent re-activation if campaign is already active
+      if (campaign?.status === 'active') {
+        throw new Error('Campaign is already active');
+      }
+
       const { data, error } = await supabase.functions.invoke('activate-sales-campaign', {
         body: { campaign_id: id }
       });
@@ -312,6 +317,7 @@ export default function SalesCampaignDetail() {
     onSuccess: () => {
       toast.success('Campaign launched successfully');
       queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign-contacts', id] });
     },
     onError: (error: any) => {
       toast.error(`Failed to launch campaign: ${error.message}`);
@@ -522,7 +528,7 @@ export default function SalesCampaignDetail() {
                 disabled={launchCampaignMutation.isPending}
               >
                 <Play className="h-4 w-4 mr-2" />
-                Launch
+                {launchCampaignMutation.isPending ? 'Launching...' : 'Launch'}
               </Button>
             ) : null}
             {(campaign.status === 'draft' || campaign.status === 'completed' || campaign.status === 'stopped') && (

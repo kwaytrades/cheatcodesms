@@ -30,6 +30,19 @@ serve(async (req) => {
       throw new Error('Campaign not found');
     }
 
+    // Prevent re-activation of already active campaigns
+    if (campaign.status === 'active') {
+      console.log(`Campaign ${campaign_id} is already active`);
+      return new Response(
+        JSON.stringify({ 
+          message: 'Campaign is already active',
+          campaign_id: campaign_id,
+          activated_contacts: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Validate that sales campaigns only use sales_agent type
     if (campaign.agent_type !== 'sales_agent') {
       console.error(`Invalid agent type for sales campaign: ${campaign.agent_type}`);
@@ -278,6 +291,21 @@ serve(async (req) => {
           console.error('Error recalculating active agent:', recalcError);
         } else {
           console.log(`Active agent recalculated for contact: ${cc.contact_id}`);
+        }
+
+        // Check if message already exists for this campaign + contact
+        const { data: existingMessages } = await supabase
+          .from('scheduled_messages')
+          .select('id')
+          .eq('campaign_id', campaign_id)
+          .eq('contact_id', cc.contact_id)
+          .in('status', ['pending', 'scheduled', 'sent'])
+          .limit(1);
+
+        if (existingMessages && existingMessages.length > 0) {
+          console.log(`⏭️ Skipping - message already exists for campaign ${campaign_id}, contact ${cc.contact_id}`);
+          activatedCount++;
+          continue;
         }
 
         // Generate handoff or introduction message
