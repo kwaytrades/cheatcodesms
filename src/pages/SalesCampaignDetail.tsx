@@ -480,32 +480,7 @@ export default function SalesCampaignDetail() {
     },
   });
 
-  if (isLoading) {
-    return <div className="container mx-auto p-6">Loading campaign...</div>;
-  }
-
-  if (!campaign) {
-    return <div className="container mx-auto p-6">Campaign not found</div>;
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-success';
-      case 'paused': return 'bg-warning';
-      case 'completed': return 'bg-primary';
-      default: return 'bg-muted';
-    }
-  };
-
-  const conversionRate = campaign.messages_sent > 0 
-    ? ((campaign.conversions / campaign.messages_sent) * 100).toFixed(1)
-    : '0';
-
-  const responseRate = campaign.messages_sent > 0
-    ? ((campaign.responses_received / campaign.messages_sent) * 100).toFixed(1)
-    : '0';
-
-  // Calculate analytics data for charts
+  // Calculate analytics data for charts (must be before early returns)
   const analyticsData = useMemo(() => {
     if (!campaignMessages || campaignMessages.length === 0) return [];
 
@@ -562,6 +537,31 @@ export default function SalesCampaignDetail() {
       value
     }));
   }, [campaignContacts]);
+
+  if (isLoading) {
+    return <div className="container mx-auto p-6">Loading campaign...</div>;
+  }
+
+  if (!campaign) {
+    return <div className="container mx-auto p-6">Campaign not found</div>;
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-success';
+      case 'paused': return 'bg-warning';
+      case 'completed': return 'bg-primary';
+      default: return 'bg-muted';
+    }
+  };
+
+  const conversionRate = campaign.messages_sent > 0 
+    ? ((campaign.conversions / campaign.messages_sent) * 100).toFixed(1)
+    : '0';
+
+  const responseRate = campaign.messages_sent > 0
+    ? ((campaign.responses_received / campaign.messages_sent) * 100).toFixed(1)
+    : '0';
 
   return (
     <div className="container mx-auto p-6 space-y-6">
