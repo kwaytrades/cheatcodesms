@@ -168,8 +168,12 @@ export function AssignAgentDialog({ open, onOpenChange, contactId }: AssignAgent
                 <SelectItem value="flashcards">Flashcards</SelectItem>
                 <SelectItem value="algo_monthly">Algo Monthly</SelectItem>
                 <SelectItem value="ccta">CCTA</SelectItem>
+                <SelectItem value="customer_service">Customer Service</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Note: Sales agents are assigned automatically via sales campaigns
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Agent Context (Optional)</Label>

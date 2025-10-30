@@ -19,7 +19,7 @@ export default function SalesCampaignBuilder() {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [agentType, setAgentType] = useState<"sales_agent" | "lead_nurture">("sales_agent");
+  const [agentType] = useState<"sales_agent">("sales_agent"); // Sales campaigns only use sales_agent
   const [filters, setFilters] = useState<any[]>([]);
   const [campaignStrategy, setCampaignStrategy] = useState<{
     primary_objective: string;
@@ -165,34 +165,19 @@ export default function SalesCampaignBuilder() {
             </div>
 
             <div className="space-y-2">
-              <Label>Agent Type *</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <Card 
-                  className={`cursor-pointer hover:border-primary transition-colors ${agentType === 'sales_agent' ? 'border-primary bg-primary/5' : ''}`}
-                  onClick={() => setAgentType('sales_agent')}
-                >
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      <CardTitle className="text-lg">Sales Agent</CardTitle>
-                    </div>
-                    <CardDescription>Direct sales focus, conversion-oriented messaging</CardDescription>
-                  </CardHeader>
-                </Card>
-
-                <Card 
-                  className={`cursor-pointer hover:border-primary transition-colors ${agentType === 'lead_nurture' ? 'border-primary bg-primary/5' : ''}`}
-                  onClick={() => setAgentType('lead_nurture')}
-                >
-                  <CardHeader>
-                    <div className="flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      <CardTitle className="text-lg">Lead Nurture</CardTitle>
-                    </div>
-                    <CardDescription>Relationship building, educational content</CardDescription>
-                  </CardHeader>
-                </Card>
-              </div>
+              <Label>Agent Type</Label>
+              <Card className="border-primary bg-primary/5">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    <CardTitle className="text-lg">Sales Agent (Sam)</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Sales campaigns use the Sales Agent for direct sales focus and conversion-oriented messaging.
+                    Product agents (textbook, webinar, etc.) are assigned separately based on purchases or manual assignment.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
             </div>
           </CardContent>
         </Card>
@@ -269,7 +254,7 @@ export default function SalesCampaignBuilder() {
 
             <div className="space-y-2">
               <Label>Agent Type</Label>
-              <Badge>{agentType === 'sales_agent' ? 'Sales Agent' : 'Lead Nurture'}</Badge>
+              <Badge>Sales Agent (Sam)</Badge>
             </div>
 
             <div className="space-y-2">

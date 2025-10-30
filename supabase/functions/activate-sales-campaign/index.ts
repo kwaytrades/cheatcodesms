@@ -30,6 +30,12 @@ serve(async (req) => {
       throw new Error('Campaign not found');
     }
 
+    // Validate that sales campaigns only use sales_agent type
+    if (campaign.agent_type !== 'sales_agent') {
+      console.error(`Invalid agent type for sales campaign: ${campaign.agent_type}`);
+      throw new Error('Sales campaigns can only use sales_agent type');
+    }
+
     // Get all pending contacts in campaign
     const { data: campaignContacts, error: contactsError } = await supabase
       .from('ai_sales_campaign_contacts')
@@ -82,15 +88,15 @@ serve(async (req) => {
           }
         }
         
-        // Create agent conversation
+        // Create agent conversation (only sales_agent for campaigns)
         const { data: conversation, error: convError } = await supabase
           .from('agent_conversations')
           .insert({
             contact_id: cc.contact_id,
-            agent_type: campaign.agent_type,
+            agent_type: 'sales_agent', // Force to sales_agent for campaigns
             status: 'active',
             started_at: new Date().toISOString(),
-            expiration_date: getAgentExpirationDate(campaign.agent_type),
+            expiration_date: getAgentExpirationDate('sales_agent'),
           })
           .select()
           .single();
