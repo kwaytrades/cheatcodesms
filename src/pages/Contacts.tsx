@@ -64,7 +64,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: 'customer_tier', label: 'Tier', visible: true },
   { key: 'lead_status', label: 'Status', visible: true },
   { key: 'lead_score', label: 'Score', visible: false },
-  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: true },
+  { key: 'likelihood_to_buy_score', label: 'Likelihood', visible: false },
   { key: 'products_owned', label: 'Products', visible: true },
   { key: 'tags', label: 'Tags', visible: false },
   { key: 'last_contact_date', label: 'Last Activity', visible: true },
@@ -509,8 +509,8 @@ const Contacts = () => {
           />
         ) : '-';
       case 'lead_status':
-        return contact.lead_status && contact.lead_score !== null ? (
-          <LeadStatusBadge score={contact.lead_score} status={contact.lead_status} />
+        return contact.likelihood_to_buy_score !== null ? (
+          <LeadStatusBadge score={contact.likelihood_to_buy_score} status={contact.lead_status} />
         ) : '-';
       case 'lead_score':
         return contact.lead_score !== null ? (

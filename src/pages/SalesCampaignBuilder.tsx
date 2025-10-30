@@ -29,14 +29,19 @@ export default function SalesCampaignBuilder() {
     queryFn: async () => {
       if (filters.length === 0) return 0;
       
+      console.log('Fetching contacts with filters:', filters);
+      
       const { data, error } = await supabase.functions.invoke('filter-contacts', {
         body: { filters, limit: 10000 }
       });
       
       if (error) {
         console.error('Error fetching contacts:', error);
+        toast.error('Failed to load contacts');
         return 0;
       }
+      
+      console.log('Contacts response:', data);
       
       return data?.total || 0;
     },
@@ -85,8 +90,8 @@ export default function SalesCampaignBuilder() {
     { label: "🔥 Hot Leads", filters: [{ id: crypto.randomUUID(), field: "likelihood_category", operator: "equals", value: "hot" }] },
     { label: "🟡 Warm Leads", filters: [{ id: crypto.randomUUID(), field: "likelihood_category", operator: "equals", value: "warm" }] },
     { label: "👑 VIP Only", filters: [{ id: crypto.randomUUID(), field: "customer_tier", operator: "equals", value: "VIP" }] },
-    { label: "💰 High Spenders", filters: [{ id: crypto.randomUUID(), field: "total_spent", operator: "greater_than", value: "1000" }] },
-    { label: "📈 High Score", filters: [{ id: crypto.randomUUID(), field: "likelihood_to_buy_score", operator: "greater_than", value: "70" }] },
+    { label: "💰 High Spenders", filters: [{ id: crypto.randomUUID(), field: "total_spent", operator: "greater_than", value: 1000 }] },
+    { label: "📈 High Score", filters: [{ id: crypto.randomUUID(), field: "likelihood_to_buy_score", operator: "greater_than", value: 70 }] },
   ];
 
   return (

@@ -19,6 +19,8 @@ serve(async (req) => {
 
   try {
     const { filters, limit = 100, offset = 0 } = await req.json();
+    
+    console.log('Received filters:', JSON.stringify(filters, null, 2));
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -29,7 +31,16 @@ serve(async (req) => {
     // Apply filters
     if (filters && Array.isArray(filters)) {
       filters.forEach((filter: FilterCondition) => {
-        const { field, operator, value } = filter;
+        let { field, operator, value } = filter;
+        
+        // Convert string numbers to actual numbers for numeric comparisons
+        if ((operator === 'greater_than' || operator === 'less_than' || 
+             operator === 'greater_or_equal' || operator === 'less_or_equal') && 
+            typeof value === 'string' && !isNaN(Number(value))) {
+          value = Number(value);
+        }
+        
+        console.log(`Applying filter: ${field} ${operator} ${value}`);
 
         switch (operator) {
           case 'equals':
