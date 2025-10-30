@@ -143,12 +143,12 @@ serve(async (req) => {
           });
         }
 
+        // Use the unified recalculation function instead of manual priority setting
+        // First upsert the conversation state with queue
         const { error: stateError } = await supabase
           .from('conversation_state')
           .upsert({
             contact_id: cc.contact_id,
-            active_agent_id: conversation.id,
-            agent_priority: campaign.agent_type === 'sales_agent' ? 10 : 3,
             agent_queue: agentQueue,
             last_engagement_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -158,8 +158,18 @@ serve(async (req) => {
 
         if (stateError) {
           console.error('Error updating conversation state:', stateError);
+          continue;
+        }
+
+        // Now recalculate active agent using the unified function
+        const { error: recalcError } = await supabase.rpc('recalculate_active_agent_unified', {
+          p_contact_id: cc.contact_id
+        });
+
+        if (recalcError) {
+          console.error('Error recalculating active agent:', recalcError);
         } else {
-          console.log(`Conversation state updated for contact: ${cc.contact_id}`);
+          console.log(`Active agent recalculated for contact: ${cc.contact_id}`);
         }
 
         // Generate handoff or introduction message

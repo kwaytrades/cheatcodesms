@@ -2645,6 +2645,10 @@ export type Database = {
         Args: { p_contact_id: string }
         Returns: undefined
       }
+      recalculate_active_agent_unified: {
+        Args: { p_contact_id: string }
+        Returns: undefined
+      }
       reset_daily_message_counters: { Args: never; Returns: undefined }
       reset_weekly_message_counters: { Args: never; Returns: undefined }
       search_agent_memories: {
