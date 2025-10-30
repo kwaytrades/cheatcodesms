@@ -223,6 +223,33 @@ serve(async (req) => {
 
         console.log(`Agent conversation created: ${conversation.id}`);
 
+        // Register sales agent in product_agents table for proper routing
+        const agentExpirationDate = getAgentExpirationDate('sales_agent');
+        const { error: productAgentError } = await supabase
+          .from('product_agents')
+          .upsert({
+            contact_id: cc.contact_id,
+            product_type: 'sales_agent',
+            product_id: null, // Sales agents are not tied to a specific product
+            agent_context: {
+              campaign_id: campaign_id,
+              campaign_name: campaign.name,
+              campaign_strategy: campaign.campaign_strategy || {}
+            },
+            assigned_date: new Date().toISOString(),
+            expiration_date: agentExpirationDate,
+            status: 'active',
+          }, {
+            onConflict: 'contact_id,product_type',
+            ignoreDuplicates: false
+          });
+
+        if (productAgentError) {
+          console.error('Error registering product agent:', productAgentError);
+        } else {
+          console.log(`Sales agent registered in product_agents for contact: ${cc.contact_id}`);
+        }
+
         // Update campaign contact with agent info
         const { error: updateError } = await supabase
           .from('ai_sales_campaign_contacts')

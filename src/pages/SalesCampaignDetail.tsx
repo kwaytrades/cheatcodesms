@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 export default function SalesCampaignDetail() {
   const { id } = useParams();
@@ -264,8 +264,64 @@ export default function SalesCampaignDetail() {
     checkRetrospectiveResponses();
   }, [campaign?.start_date, id, refetchResponseStats]);
 
+  // Real-time response tracking: Listen for new inbound messages
+  useEffect(() => {
+    if (!campaign || campaign.status !== 'active' || !campaignContacts) return;
+
+    const contactIds = campaignContacts.map((c: any) => c.contact_id);
+    
+    const channel = supabase
+      .channel('campaign-responses')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: 'direction=eq.inbound'
+        },
+        async (payload: any) => {
+          const message = payload.new;
+          
+          // Get conversation to check contact_id
+          const { data: conversation } = await supabase
+            .from('conversations')
+            .select('contact_id')
+            .eq('id', message.conversation_id)
+            .single();
+          
+          // Check if this message is from a campaign contact
+          if (conversation && contactIds.includes(conversation.contact_id)) {
+            console.log('Real-time: Inbound message detected for campaign contact:', conversation.contact_id);
+            
+            // Update the contact's responded status
+            const { error } = await supabase
+              .from('ai_sales_campaign_contacts')
+              .update({ responded: true })
+              .eq('campaign_id', campaign.id)
+              .eq('contact_id', conversation.contact_id)
+              .eq('responded', false);
+
+            if (!error) {
+              console.log('Real-time: Contact marked as responded');
+              queryClient.invalidateQueries({ queryKey: ['sales-campaign', campaign.id] });
+              queryClient.invalidateQueries({ queryKey: ['campaign-contacts', campaign.id] });
+              refetchResponseStats();
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [campaign?.id, campaign?.status, campaignContacts, queryClient, refetchResponseStats]);
+
   const [messageStatusFilter, setMessageStatusFilter] = useState<string>('all');
   const [messageDirectionFilter, setMessageDirectionFilter] = useState<'all' | 'outbound' | 'inbound'>('all');
+
+  const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
   const pauseCampaignMutation = useMutation({
     mutationFn: async () => {
@@ -448,6 +504,64 @@ export default function SalesCampaignDetail() {
   const responseRate = campaign.messages_sent > 0
     ? ((campaign.responses_received / campaign.messages_sent) * 100).toFixed(1)
     : '0';
+
+  // Calculate analytics data for charts
+  const analyticsData = useMemo(() => {
+    if (!campaignMessages || campaignMessages.length === 0) return [];
+
+    const dataMap = new Map<string, { messages: number; responses: number }>();
+    
+    campaignMessages.forEach((thread: any) => {
+      thread.messages.forEach((msg: any) => {
+        const date = format(new Date(msg.timestamp), 'MMM dd');
+        const existing = dataMap.get(date) || { messages: 0, responses: 0 };
+        
+        if (msg.type === 'outbound') {
+          existing.messages++;
+        } else if (msg.type === 'inbound') {
+          existing.responses++;
+        }
+        
+        dataMap.set(date, existing);
+      });
+    });
+
+    return Array.from(dataMap.entries())
+      .map(([date, data]) => ({
+        date,
+        ...data,
+        responseRate: data.messages > 0 ? Math.round((data.responses / data.messages) * 100) : 0
+      }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [campaignMessages]);
+
+  const funnelData = useMemo(() => {
+    const totalContacts = campaignContacts?.length || 0;
+    const messagedContacts = campaignContacts?.filter((c: any) => c.messages_received > 0).length || 0;
+    const respondedContacts = campaignContacts?.filter((c: any) => c.responded).length || 0;
+    const convertedContacts = campaignContacts?.filter((c: any) => c.converted).length || 0;
+
+    return [
+      { stage: 'Total Contacts', count: totalContacts },
+      { stage: 'Messaged', count: messagedContacts },
+      { stage: 'Responded', count: respondedContacts },
+      { stage: 'Converted', count: convertedContacts }
+    ];
+  }, [campaignContacts]);
+
+  const statusDistribution = useMemo(() => {
+    if (!campaignContacts || campaignContacts.length === 0) return [];
+
+    const statusCounts = campaignContacts.reduce((acc: any, contact: any) => {
+      acc[contact.status] = (acc[contact.status] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(statusCounts).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value
+    }));
+  }, [campaignContacts]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -850,15 +964,141 @@ export default function SalesCampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="analytics">
-          <Card>
-            <CardHeader>
-              <CardTitle>Campaign Analytics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Analytics charts will appear here</p>
-            </CardContent>
-          </Card>
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Messages & Responses Over Time</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {analyticsData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={analyticsData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))', 
+                            border: '1px solid hsl(var(--border))' 
+                          }}
+                        />
+                        <Legend />
+                        <Line type="monotone" dataKey="messages" stroke="hsl(var(--primary))" name="Messages Sent" strokeWidth={2} />
+                        <Line type="monotone" dataKey="responses" stroke="hsl(var(--chart-2))" name="Responses" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No data available yet
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Conversion Funnel</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {funnelData.some(d => d.count > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={funnelData} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis type="number" className="text-xs" />
+                        <YAxis dataKey="stage" type="category" width={120} className="text-xs" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))', 
+                            border: '1px solid hsl(var(--border))' 
+                          }}
+                        />
+                        <Bar dataKey="count" fill="hsl(var(--primary))" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No data available yet
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Response Rate by Day</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {analyticsData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analyticsData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))', 
+                            border: '1px solid hsl(var(--border))' 
+                          }}
+                        />
+                        <Legend />
+                        <Bar dataKey="responseRate" fill="hsl(var(--chart-3))" name="Response Rate %" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No data available yet
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Contact Status Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {statusDistribution.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={statusDistribution}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="hsl(var(--primary))"
+                          dataKey="value"
+                        >
+                          {statusDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--background))', 
+                            border: '1px solid hsl(var(--border))' 
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No data available yet
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
