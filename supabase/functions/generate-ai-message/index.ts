@@ -556,48 +556,7 @@ What questions can I answer for you? 🚀`;
         reasoning: 'Sales agent handoff from ' + trigger_context.previous_agent_type
       };
 
-      if (!isTestMode) {
-    const { data: scheduledMessage, error: scheduleError } = await supabase
-      .from('scheduled_messages')
-      .insert({
-        contact_id,
-        agent_id,
-        message_type: originalMessageType,
-        message_body: messageContent.message,
-        subject: null,
-        channel,
-        scheduled_for: new Date().toISOString(),
-        status: 'pending',
-        personalization_data: {
-          trigger_context,
-          reasoning: messageContent.reasoning
-        }
-      })
-      .select()
-      .single();
-
-        if (scheduleError) {
-          throw scheduleError;
-        }
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message_id: scheduledMessage.id,
-            scheduled_for: scheduledMessage.scheduled_for
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
-      } else {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            test_mode: true,
-            message: messageContent
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        );
-      }
+      // Continue to unified scheduling + sending logic below
     }
 
     console.log('═══════════════════════════════════════════════');
