@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,15 +54,18 @@ export default function SalesCampaignBuilder() {
   });
 
   // Get contact count based on filters
-  const { data: contactCount, isLoading: isLoadingCount } = useQuery({
+  const { data: contactCount, isLoading: isLoadingCount, refetch } = useQuery({
     queryKey: ['filtered-contacts-count', filters],
     queryFn: async () => {
       if (filters.length === 0) return 0;
       
       console.log('Fetching contacts with filters:', filters);
       
+      // Clean filters by removing the 'id' field before sending
+      const cleanedFilters = filters.map(({ id, ...rest }) => rest);
+      
       const { data, error } = await supabase.functions.invoke('filter-contacts', {
-        body: { filters, limit: 10000 }
+        body: { filters: cleanedFilters, limit: 10000 }
       });
       
       if (error) {
@@ -75,17 +78,27 @@ export default function SalesCampaignBuilder() {
       
       return data?.total || 0;
     },
-    enabled: filters.length > 0 && step === 2,
+    enabled: filters.length > 0,
   });
+
+  // Refetch when navigating to step 2
+  useEffect(() => {
+    if (step === 2 && filters.length > 0) {
+      refetch();
+    }
+  }, [step, refetch]);
 
   const createCampaignMutation = useMutation({
     mutationFn: async ({ startImmediately }: { startImmediately: boolean }) => {
+      // Clean filters by removing the 'id' field before sending
+      const cleanedFilters = filters.map(({ id, ...rest }) => rest);
+      
       const { data, error } = await supabase.functions.invoke('create-sales-campaign', {
         body: {
           name,
           description,
           agent_type: agentType,
-          audience_filter: filters,
+          audience_filter: cleanedFilters,
           campaign_strategy: campaignStrategy,
           start_immediately: startImmediately,
         }

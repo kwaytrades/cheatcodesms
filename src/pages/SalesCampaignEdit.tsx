@@ -12,6 +12,7 @@ import { ChevronLeft, Loader2, Save } from "lucide-react";
 import { FilterBuilder } from "@/components/FilterBuilder";
 import { CampaignStrategyEditor } from "@/components/CampaignStrategyEditor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 export default function SalesCampaignEdit() {
   const navigate = useNavigate();
@@ -47,6 +48,29 @@ export default function SalesCampaignEdit() {
     },
   });
 
+  // Get contact count based on filters
+  const { data: contactCount, isLoading: isLoadingCount } = useQuery({
+    queryKey: ['filtered-contacts-count', filters],
+    queryFn: async () => {
+      if (filters.length === 0) return 0;
+      
+      // Clean filters by removing the 'id' field before sending
+      const cleanedFilters = filters.map(({ id, ...rest }) => rest);
+      
+      const { data, error } = await supabase.functions.invoke('filter-contacts', {
+        body: { filters: cleanedFilters, limit: 10000 }
+      });
+      
+      if (error) {
+        console.error('Error fetching contacts:', error);
+        return 0;
+      }
+      
+      return data?.total || 0;
+    },
+    enabled: filters.length > 0,
+  });
+
   useEffect(() => {
     if (campaign) {
       setName(campaign.name || "");
@@ -58,12 +82,15 @@ export default function SalesCampaignEdit() {
 
   const updateCampaignMutation = useMutation({
     mutationFn: async () => {
+      // Clean filters by removing the 'id' field before sending
+      const cleanedFilters = filters.map(({ id, ...rest }) => rest);
+      
       const { error } = await supabase
         .from('ai_sales_campaigns')
         .update({
           name,
           description,
-          audience_filter: filters,
+          audience_filter: cleanedFilters,
           campaign_strategy: campaignStrategy,
           updated_at: new Date().toISOString(),
         })
@@ -159,8 +186,19 @@ export default function SalesCampaignEdit() {
         <TabsContent value="audience">
           <Card>
             <CardHeader>
-              <CardTitle>Target Audience</CardTitle>
-              <CardDescription>Update audience filters</CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Target Audience</CardTitle>
+                  <CardDescription>Update audience filters</CardDescription>
+                </div>
+                <Badge variant="secondary" className="text-lg">
+                  {isLoadingCount ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `${contactCount || 0} contacts`
+                  )}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
               <FilterBuilder
