@@ -808,6 +808,8 @@ What questions can I answer for you? 🚀`;
             .from('messages')
             .insert({
               conversation_id,
+              topic: 'sales_campaign',
+              extension: 'sms',
               direction: 'outbound',
               sender: 'ai_sales',
               body: messageContent.message,
@@ -843,6 +845,8 @@ What questions can I answer for you? 🚀`;
             .from('messages')
             .insert({
               conversation_id,
+              topic: 'sales_campaign',
+              extension: 'email',
               direction: 'outbound',
               sender: 'ai_sales',
               body: messageContent.message,
