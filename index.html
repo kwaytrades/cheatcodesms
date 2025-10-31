@@ -24,5 +24,15 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Funnel Tracker -->
+    <script src="/funnel-tracker.js"></script>
+    <script>
+      // Initialize FunnelTracker with your Supabase endpoint
+      FunnelTracker.init({
+        apiEndpoint: 'https://kkzqhkrcjwktttsntooz.supabase.co/functions/v1',
+        debug: true // Enable debug mode to see tracking in console
+      });
+    </script>
   </body>
 </html>
