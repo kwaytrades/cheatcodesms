@@ -735,13 +735,39 @@ serve(async (req) => {
     const knowledgeCategory = `agent_${dbAgentType}`;
     console.log(`Searching knowledge base for category: ${knowledgeCategory}`);
     
-    // Build search query - campaign-aware if context provided
+    // ========== FETCH CAMPAIGN STRATEGY FROM AGENT_CONVERSATIONS ==========
+    // Check if this agent has campaign context stored in key_entities
+    let campaignStrategy = null;
+    
+    if (!campaignContext) {
+      const { data: agentConversation } = await supabase
+        .from('agent_conversations')
+        .select('key_entities')
+        .eq('contact_id', profileContactId)
+        .eq('agent_type', dbAgentType)
+        .eq('status', 'active')
+        .maybeSingle();
+      
+      if (agentConversation?.key_entities?.campaign_strategy) {
+        campaignStrategy = agentConversation.key_entities.campaign_strategy;
+        console.log('✅ Campaign strategy loaded from agent_conversations:', {
+          campaign_id: agentConversation.key_entities.campaign_id,
+          products: campaignStrategy.products,
+          objective: campaignStrategy.primary_objective
+        });
+      }
+    }
+    
+    // Build search query - campaign-aware if context or strategy provided
+    const hasCampaign = campaignContext || campaignStrategy;
     const searchQuery = campaignContext?.customInstructions 
       ? `${campaignContext.customInstructions} ${campaignContext.messageGoal || ''} ${incomingMessage}`.substring(0, 200)
-      : incomingMessage;
+      : campaignStrategy 
+        ? `${campaignStrategy.products?.join(' ')} ${campaignStrategy.campaign_context || ''} ${incomingMessage}`.substring(0, 200)
+        : incomingMessage;
 
     // Use more KB results for campaigns (15 vs 3)
-    const matchCount = campaignContext ? 15 : 3;
+    const matchCount = hasCampaign ? 15 : 3;
 
     console.log(`KB search - Query: "${searchQuery}", Category: ${knowledgeCategory}, Count: ${matchCount}`);
 
@@ -793,8 +819,59 @@ serve(async (req) => {
                         agentType === 'cs' ? CS_AGENT_PROMPT : 
                         TEXTBOOK_AGENT_PROMPT);
 
-    // If campaign context provided, prepend it prominently ABOVE system prompt
-    if (campaignContext?.customInstructions) {
+    // ========== ADD CAMPAIGN STRATEGY TO SYSTEM PROMPT ==========
+    // If campaign strategy exists, inject it into the system prompt
+    if (campaignStrategy) {
+      const strategyContext = `
+═══════════════════════════════════════════════════════
+🎯 ACTIVE SALES CAMPAIGN - STRATEGY CONTEXT
+═══════════════════════════════════════════════════════
+
+PRIMARY OBJECTIVE: ${campaignStrategy.primary_objective}
+CAMPAIGN CONTEXT: ${campaignStrategy.campaign_context}
+
+PRODUCTS YOU'RE SELLING: ${campaignStrategy.products?.join(', ')}
+
+PRICING:
+- Base Price: $${campaignStrategy.pricing?.base_price}
+${campaignStrategy.discount_strategy ? `- Discount: ${campaignStrategy.discount_strategy.amount}% off
+- Discount Approach: ${campaignStrategy.discount_strategy.approach}
+- Expires: ${campaignStrategy.discount_strategy.expiration}` : ''}
+
+VALUE PROPOSITIONS:
+${campaignStrategy.value_propositions?.map((v: string, i: number) => `${i + 1}. ${v}`).join('\n')}
+
+KEY TALKING POINTS:
+${campaignStrategy.key_talking_points?.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n')}
+
+COMPETITIVE POSITIONING: ${campaignStrategy.competitive_positioning}
+
+OBJECTION HANDLING: ${campaignStrategy.objection_handling}
+
+SALES INTENSITY: ${campaignStrategy.sales_intensity}/10
+
+TOPICS TO AVOID: ${campaignStrategy.avoid_topics?.join(', ')}
+
+⚠️ CRITICAL RESPONSE RULES:
+1. ALWAYS answer customer questions directly and specifically
+2. When asked about price, state it clearly with value props
+3. Keep responses under 320 characters for SMS
+4. Be natural and conversational, not salesy
+5. Reference specific features/benefits when relevant
+6. Use discount strategically based on objection handling approach
+
+═══════════════════════════════════════════════════════
+
+`;
+      
+      systemPrompt = strategyContext + systemPrompt;
+      console.log(`✅ Campaign strategy added to prompt:`, {
+        products: campaignStrategy.products,
+        objective: campaignStrategy.primary_objective,
+        pricing: campaignStrategy.pricing?.base_price
+      });
+    } else if (campaignContext?.customInstructions) {
+      // Legacy campaign context from parameters
       const campaignPrefix = `
 ═══════════════════════════════════════════════════════
 ⚠️ CAMPAIGN MESSAGE - Day ${campaignContext.campaignDay || 0} of ${campaignContext.totalDays || 90}
@@ -843,6 +920,22 @@ BELOW IS YOUR CORE AGENT PERSONALITY - Use this for tone and style:
     const productsOwned = customerProfile?.financial?.productsOwned || customerProfile?.products_owned || [];
     const leadScore = customerProfile?.engagement?.leadScore || customerProfile?.lead_score || 0;
     
+    // Detect if customer is asking a direct question
+    const isDirectQuestion = incomingMessage.match(/\b(how much|what's the price|cost|pricing|price|how do i|where can i|when can i)\b/i);
+    const questionContext = isDirectQuestion ? `
+
+⚠️ CUSTOMER ASKED A DIRECT QUESTION: "${incomingMessage}"
+YOU MUST:
+1. Answer their specific question FIRST and DIRECTLY
+2. Be specific with numbers/details (don't be vague)
+3. Keep response under 320 characters for SMS
+4. Add value props AFTER answering the question
+5. DO NOT ignore or redirect away from their question
+
+BAD: "Great question! Let me tell you about all our products..."
+GOOD: "The textbook is $197 and includes an AI tutor companion + video course..."
+` : '';
+    
     const customerInfo = `
 CUSTOMER CONTEXT:
 - Name: ${customerName}
@@ -850,7 +943,7 @@ CUSTOMER CONTEXT:
 - Total Spent: $${totalSpent}
 - Products Owned: ${productsOwned.length > 0 ? productsOwned.join(', ') : 'None'}
 - Products Count: ${productsOwned.length}
-- Lead Score: ${leadScore}/100${knowledgeContext}`;
+- Lead Score: ${leadScore}/100${knowledgeContext}${questionContext}`;
 
     // Add critical product ownership enforcement if customer owns products
     const productEnforcement = productsOwned.length > 0 ? `

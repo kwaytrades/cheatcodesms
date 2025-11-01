@@ -603,20 +603,39 @@ ADJUSTMENTS:
       };
       const switchCommand = commandMap[trigger_context.previous_agent_type] || '/help';
       
-      const campaignGoal = campaignStrategy?.primary_objective?.replace('_', ' ') || 'help you succeed';
-      const products = campaignStrategy?.products?.join(' and ') || 'our products';
+      // Build concise product introduction
+      const firstName = contact?.first_name || contact?.full_name?.split(' ')[0] || 'there';
       
-      const handoffMessage = `Hey ${contact?.first_name || 'there'}! 👋 This is ${agentName} from Cheat Code's sales team.
-
-I noticed you've been working with ${previousAgentName} - that's awesome! I'm jumping in to help you with ${campaignGoal} and make sure you're getting the most out of ${products}.
-
-${campaignStrategy?.campaign_context || 'I wanted to reach out personally to see how I can support your journey.'} 
-
-If you'd like to continue your conversation with ${previousAgentName}, just reply with ${switchCommand} anytime. 
-
-What questions can I answer for you? 🚀`;
+      // Create a clean, concise handoff message for SMS
+      let handoffMessage = `Hey ${firstName}! 👋 ${agentName} here from Cheat Code.`;
+      
+      // Add value proposition based on campaign
+      if (campaignStrategy?.products && campaignStrategy.products.length > 0) {
+        const productName = campaignStrategy.products[0];
+        const valueProps = campaignStrategy.value_propositions || [];
+        
+        handoffMessage += `\n\n${valueProps.length > 0 ? valueProps[0] : `We've got something great for you with our ${productName}.`}`;
+        
+        // Add pricing if available
+        if (campaignStrategy.pricing?.base_price) {
+          handoffMessage += ` It's $${campaignStrategy.pricing.base_price}.`;
+        }
+      } else {
+        // Generic fallback
+        handoffMessage += `\n\nI wanted to reach out to see how I can help you succeed.`;
+      }
+      
+      // Simple call to action
+      handoffMessage += `\n\nWhat questions can I answer? 🚀`;
+      
+      // Only mention agent switching if previous agent was a product agent (not customer_service)
+      if (trigger_context.previous_agent_type !== 'customer_service' && 
+          trigger_context.previous_agent_type !== 'sales_agent') {
+        handoffMessage += `\n\n(Reply ${switchCommand} to return to ${previousAgentName})`;
+      }
 
       console.log('✅ Generated handoff message for agent takeover');
+      console.log('Message length:', handoffMessage.length, 'characters');
       
       messageContent = {
         subject: null,
