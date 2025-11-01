@@ -370,10 +370,12 @@ export default function SalesCampaignDetail() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      toast.success('Campaign launched successfully');
+    onSuccess: (data) => {
+      toast.success(`Campaign activated! ${data?.activated_count || 0} contacts engaged.`);
       queryClient.invalidateQueries({ queryKey: ['sales-campaign', id] });
-      queryClient.invalidateQueries({ queryKey: ['sales-campaign-contacts', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-contacts', id] });
+      queryClient.invalidateQueries({ queryKey: ['sales-campaign-messages', id] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-response-stats', id] });
     },
     onError: (error: any) => {
       toast.error(`Failed to launch campaign: ${error.message}`);
