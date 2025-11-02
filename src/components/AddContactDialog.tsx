@@ -18,7 +18,7 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
-    phone: "",
+    phone_number: "",
     lead_status: "new",
     notes: "",
     // Influencer fields
@@ -52,7 +52,7 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
       setFormData({
         full_name: "",
         email: "",
-        phone: "",
+        phone_number: "",
         lead_status: "new",
         notes: "",
         platform: "",
@@ -113,12 +113,12 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone</Label>
+            <Label htmlFor="phone_number">Phone</Label>
             <Input
-              id="phone"
+              id="phone_number"
               type="tel"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              value={formData.phone_number}
+              onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
               placeholder="+1234567890"
             />
           </div>
