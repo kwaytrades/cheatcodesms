@@ -2952,6 +2952,14 @@ export type Database = {
       archive_inactive_agents: { Args: never; Returns: undefined }
       calculate_lead_score: { Args: { p_contact_id: string }; Returns: number }
       expire_old_agents: { Args: never; Returns: undefined }
+      find_duplicate_phone: {
+        Args: { input_phone: string }
+        Returns: {
+          full_name: string
+          id: string
+          phone_number: string
+        }[]
+      }
       find_or_create_contact: {
         Args: {
           p_email: string

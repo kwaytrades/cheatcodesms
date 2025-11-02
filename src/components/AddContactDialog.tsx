@@ -68,6 +68,19 @@ export const AddContactDialog = ({
         }
       }
 
+      // Check for duplicate phone number using database normalization
+      if (formData.phone_number) {
+        const { data: existingPhoneContacts } = await supabase
+          .rpc('find_duplicate_phone', { input_phone: formData.phone_number });
+
+        if (existingPhoneContacts && existingPhoneContacts.length > 0) {
+          const existingContact = existingPhoneContacts[0];
+          toast.error(`A contact with phone number ${formData.phone_number} already exists: ${existingContact.full_name}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from("contacts")
         .insert([formData])
