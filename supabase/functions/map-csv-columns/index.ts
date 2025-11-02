@@ -18,11 +18,20 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Detect if this is influencer data by checking for platform column
+    const isInfluencerData = headers.some((h: string) => 
+      ['platform', 'handle', 'followers', 'social handle', 'follower count', 'engagement rate']
+        .includes(h.toLowerCase().trim())
+    );
+    
+    console.log("Detected data type:", isInfluencerData ? "INFLUENCER" : "CUSTOMER");
+
     // Pre-defined mappings for common columns (case-insensitive)
     // These override AI mapping to ensure accuracy for known fields
     const preMappings: Record<string, string> = {
       'status': 'customer_tier',
-      'tier': 'influencer_tier',
+      // Context-aware tier mapping
+      'tier': isInfluencerData ? 'influencer_tier' : 'customer_tier',
       'customer tier': 'customer_tier',
       'influencer tier': 'influencer_tier',
       'total spent': 'total_spent',
