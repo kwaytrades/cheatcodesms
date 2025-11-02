@@ -61,8 +61,8 @@ serve(async (req) => {
       'country': 'country',
       // Influencer-specific mappings
       'platform': 'platform',
-      'handle': 'social_handle',
-      'social handle': 'social_handle',
+      'handle': 'platform_handle',
+      'social handle': 'platform_handle',
       'followers': 'follower_count',
       'follower count': 'follower_count',
       'engagement rate': 'engagement_rate',
@@ -95,7 +95,7 @@ serve(async (req) => {
       'last_purchase_date',
       
       // Influencer/Media fields
-      'platform', 'social_handle', 'follower_count', 'avg_views', 
+      'platform', 'platform_handle', 'follower_count', 'avg_views', 
       'engagement_rate', 'influencer_tier', 'niche_categories', 'content_topics',
       
       // Other
