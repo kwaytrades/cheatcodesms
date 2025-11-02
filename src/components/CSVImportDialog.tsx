@@ -8,11 +8,23 @@ import { toast } from "sonner";
 import { Upload, Loader2, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
-export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () => void }) => {
-  const [open, setOpen] = useState(false);
+export const CSVImportDialog = ({ 
+  open: controlledOpen,
+  onOpenChange,
+  onImportComplete 
+}: { 
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onImportComplete?: () => void;
+}) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [file, setFile] = useState<File | null>(null);
+  
+  // Use controlled or internal state
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
 
   const parseCSV = (text: string): string[][] => {
     const lines = text.split('\n').filter(line => line.trim());
@@ -337,13 +349,16 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Upload className="h-4 w-4" />
-          <span className="hidden sm:inline">Import CSV</span>
-          <span className="sm:hidden">Import</span>
-        </Button>
-      </DialogTrigger>
+      {/* Only show trigger if uncontrolled */}
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Import CSV</span>
+            <span className="sm:hidden">Import</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Import Contacts from CSV</DialogTitle>

@@ -10,10 +10,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 
-export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => void }) => {
-  const [open, setOpen] = useState(false);
+export const AddContactDialog = ({ 
+  open: controlledOpen,
+  onOpenChange,
+  onContactAdded,
+  skipNavigation = false 
+}: { 
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onContactAdded?: () => void;
+  skipNavigation?: boolean;
+}) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  
+  // Use controlled or internal state
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -66,8 +80,10 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
         onContactAdded();
       }
       
-      // Navigate to the new contact detail page
-      navigate(`/contacts/${data.id}`);
+      // Only navigate if not skipping
+      if (!skipNavigation) {
+        navigate(`/contacts/${data.id}`);
+      }
     } catch (error: any) {
       console.error("Error creating contact:", error);
       toast.error("Failed to create contact");
@@ -78,13 +94,16 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="gap-2 glow-green">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Contact</span>
-          <span className="sm:hidden">Add</span>
-        </Button>
-      </DialogTrigger>
+      {/* Only show trigger if uncontrolled */}
+      {controlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button size="sm" className="gap-2 glow-green">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Contact</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add New Contact</DialogTitle>

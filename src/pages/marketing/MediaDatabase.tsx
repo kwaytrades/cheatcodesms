@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,20 @@ import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function MediaDatabase() {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  
+  const handleContactAdded = () => {
+    queryClient.invalidateQueries({ queryKey: ["influencers"] });
+  };
+  
+  const handleImportComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ["influencers"] });
+  };
 
   const { data: influencers, isLoading } = useQuery({
     queryKey: ["influencers", searchQuery, filters],
@@ -162,8 +171,17 @@ export function MediaDatabase() {
         </div>
       </div>
 
-      {showAddDialog && <AddContactDialog onContactAdded={() => setShowAddDialog(false)} />}
-      {showImportDialog && <CSVImportDialog onImportComplete={() => setShowImportDialog(false)} />}
+      <AddContactDialog 
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onContactAdded={handleContactAdded}
+        skipNavigation={true}
+      />
+      <CSVImportDialog 
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImportComplete={handleImportComplete}
+      />
     </div>
   );
 }
