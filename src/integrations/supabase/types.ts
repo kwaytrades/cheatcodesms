@@ -1115,8 +1115,11 @@ export type Database = {
           ai_profile: Json | null
           assets_traded: string[] | null
           avg_response_time: number | null
+          avg_views: number | null
           behavioral_tags: string[] | null
           city: string | null
+          collaboration_history: Json | null
+          content_topics: string[] | null
           country: string | null
           created_at: string
           customer_profile: Json | null
@@ -1124,14 +1127,17 @@ export type Database = {
           disputed_amount: number | null
           email: string | null
           engagement_level: string | null
+          engagement_rate: number | null
           engagement_velocity: number | null
           first_name: string | null
+          follower_count: number | null
           form_responses: Json | null
           form_submissions: Json | null
           full_name: string
           goals: string[] | null
           has_disputed: boolean | null
           id: string
+          influencer_tier: string | null
           last_contact_date: string | null
           last_engagement_action: string | null
           last_engagement_date: string | null
@@ -1146,10 +1152,13 @@ export type Database = {
           monday_board_id: string | null
           monday_board_name: string | null
           monday_item_id: string | null
+          niche_categories: string[] | null
           notes: string | null
           objections: string | null
           personality_type: string | null
           phone_number: string | null
+          platform: string | null
+          platform_handle: string | null
           postal_code: string | null
           preferred_contact_method: string | null
           products_interested: string[] | null
@@ -1181,8 +1190,11 @@ export type Database = {
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          avg_views?: number | null
           behavioral_tags?: string[] | null
           city?: string | null
+          collaboration_history?: Json | null
+          content_topics?: string[] | null
           country?: string | null
           created_at?: string
           customer_profile?: Json | null
@@ -1190,14 +1202,17 @@ export type Database = {
           disputed_amount?: number | null
           email?: string | null
           engagement_level?: string | null
+          engagement_rate?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          follower_count?: number | null
           form_responses?: Json | null
           form_submissions?: Json | null
           full_name: string
           goals?: string[] | null
           has_disputed?: boolean | null
           id?: string
+          influencer_tier?: string | null
           last_contact_date?: string | null
           last_engagement_action?: string | null
           last_engagement_date?: string | null
@@ -1212,10 +1227,13 @@ export type Database = {
           monday_board_id?: string | null
           monday_board_name?: string | null
           monday_item_id?: string | null
+          niche_categories?: string[] | null
           notes?: string | null
           objections?: string | null
           personality_type?: string | null
           phone_number?: string | null
+          platform?: string | null
+          platform_handle?: string | null
           postal_code?: string | null
           preferred_contact_method?: string | null
           products_interested?: string[] | null
@@ -1247,8 +1265,11 @@ export type Database = {
           ai_profile?: Json | null
           assets_traded?: string[] | null
           avg_response_time?: number | null
+          avg_views?: number | null
           behavioral_tags?: string[] | null
           city?: string | null
+          collaboration_history?: Json | null
+          content_topics?: string[] | null
           country?: string | null
           created_at?: string
           customer_profile?: Json | null
@@ -1256,14 +1277,17 @@ export type Database = {
           disputed_amount?: number | null
           email?: string | null
           engagement_level?: string | null
+          engagement_rate?: number | null
           engagement_velocity?: number | null
           first_name?: string | null
+          follower_count?: number | null
           form_responses?: Json | null
           form_submissions?: Json | null
           full_name?: string
           goals?: string[] | null
           has_disputed?: boolean | null
           id?: string
+          influencer_tier?: string | null
           last_contact_date?: string | null
           last_engagement_action?: string | null
           last_engagement_date?: string | null
@@ -1278,10 +1302,13 @@ export type Database = {
           monday_board_id?: string | null
           monday_board_name?: string | null
           monday_item_id?: string | null
+          niche_categories?: string[] | null
           notes?: string | null
           objections?: string | null
           personality_type?: string | null
           phone_number?: string | null
+          platform?: string | null
+          platform_handle?: string | null
           postal_code?: string | null
           preferred_contact_method?: string | null
           products_interested?: string[] | null
@@ -1888,6 +1915,175 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      influencer_campaigns: {
+        Row: {
+          brand_messaging: string[] | null
+          budget_remaining: number | null
+          budget_total: number | null
+          campaign_type: string
+          compensation_model: string | null
+          content_guidelines: string | null
+          content_pieces_delivered: number | null
+          contracts_signed: number | null
+          conversion_tracking_links: Json | null
+          created_at: string | null
+          expected_deliverables: Json | null
+          hashtags: string[] | null
+          id: string
+          influencers_contacted: number | null
+          influencers_interested: number | null
+          must_mention: string[] | null
+          prohibited_topics: string[] | null
+          sales_campaign_id: string | null
+          target_niches: string[] | null
+          target_platforms: string[] | null
+          target_tier: string[] | null
+          total_engagement: number | null
+          total_reach: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          brand_messaging?: string[] | null
+          budget_remaining?: number | null
+          budget_total?: number | null
+          campaign_type: string
+          compensation_model?: string | null
+          content_guidelines?: string | null
+          content_pieces_delivered?: number | null
+          contracts_signed?: number | null
+          conversion_tracking_links?: Json | null
+          created_at?: string | null
+          expected_deliverables?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          influencers_contacted?: number | null
+          influencers_interested?: number | null
+          must_mention?: string[] | null
+          prohibited_topics?: string[] | null
+          sales_campaign_id?: string | null
+          target_niches?: string[] | null
+          target_platforms?: string[] | null
+          target_tier?: string[] | null
+          total_engagement?: number | null
+          total_reach?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          brand_messaging?: string[] | null
+          budget_remaining?: number | null
+          budget_total?: number | null
+          campaign_type?: string
+          compensation_model?: string | null
+          content_guidelines?: string | null
+          content_pieces_delivered?: number | null
+          contracts_signed?: number | null
+          conversion_tracking_links?: Json | null
+          created_at?: string | null
+          expected_deliverables?: Json | null
+          hashtags?: string[] | null
+          id?: string
+          influencers_contacted?: number | null
+          influencers_interested?: number | null
+          must_mention?: string[] | null
+          prohibited_topics?: string[] | null
+          sales_campaign_id?: string | null
+          target_niches?: string[] | null
+          target_platforms?: string[] | null
+          target_tier?: string[] | null
+          total_engagement?: number | null
+          total_reach?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_campaigns_sales_campaign_id_fkey"
+            columns: ["sales_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ai_sales_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      influencer_profiles: {
+        Row: {
+          audience_demographics: Json | null
+          blog_url: string | null
+          contact_id: string | null
+          content_style: string | null
+          created_at: string | null
+          id: string
+          instagram_handle: string | null
+          last_outreach_date: string | null
+          notes: string | null
+          outreach_count: number | null
+          outreach_status: string | null
+          past_brand_collabs: string[] | null
+          platform_metrics: Json | null
+          preferred_collaboration_types: string[] | null
+          rate_card: Json | null
+          relationship_score: number | null
+          response_rate: number | null
+          tiktok_handle: string | null
+          twitter_handle: string | null
+          updated_at: string | null
+          youtube_channel: string | null
+        }
+        Insert: {
+          audience_demographics?: Json | null
+          blog_url?: string | null
+          contact_id?: string | null
+          content_style?: string | null
+          created_at?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_outreach_date?: string | null
+          notes?: string | null
+          outreach_count?: number | null
+          outreach_status?: string | null
+          past_brand_collabs?: string[] | null
+          platform_metrics?: Json | null
+          preferred_collaboration_types?: string[] | null
+          rate_card?: Json | null
+          relationship_score?: number | null
+          response_rate?: number | null
+          tiktok_handle?: string | null
+          twitter_handle?: string | null
+          updated_at?: string | null
+          youtube_channel?: string | null
+        }
+        Update: {
+          audience_demographics?: Json | null
+          blog_url?: string | null
+          contact_id?: string | null
+          content_style?: string | null
+          created_at?: string | null
+          id?: string
+          instagram_handle?: string | null
+          last_outreach_date?: string | null
+          notes?: string | null
+          outreach_count?: number | null
+          outreach_status?: string | null
+          past_brand_collabs?: string[] | null
+          platform_metrics?: Json | null
+          preferred_collaboration_types?: string[] | null
+          rate_card?: Json | null
+          relationship_score?: number | null
+          response_rate?: number | null
+          tiktok_handle?: string | null
+          twitter_handle?: string | null
+          updated_at?: string | null
+          youtube_channel?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "influencer_profiles_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       knowledge_base: {
         Row: {

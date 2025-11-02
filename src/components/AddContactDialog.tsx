@@ -21,6 +21,12 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
     phone: "",
     lead_status: "new",
     notes: "",
+    // Influencer fields
+    platform: "",
+    platform_handle: "",
+    follower_count: undefined as number | undefined,
+    engagement_rate: undefined as number | undefined,
+    influencer_tier: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,6 +55,11 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
         phone: "",
         lead_status: "new",
         notes: "",
+        platform: "",
+        platform_handle: "",
+        follower_count: undefined,
+        engagement_rate: undefined,
+        influencer_tier: "",
       });
       
       if (onContactAdded) {
@@ -142,7 +153,88 @@ export const AddContactDialog = ({ onContactAdded }: { onContactAdded?: () => vo
             />
           </div>
 
-          <div className="flex gap-2 justify-end pt-4">
+          {/* Influencer Fields */}
+          <div className="border-t pt-4 space-y-4">
+            <h4 className="text-sm font-medium">Influencer Details (Optional)</h4>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="platform">Platform</Label>
+                <Select
+                  value={formData.platform}
+                  onValueChange={(value) => setFormData({ ...formData, platform: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select platform" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="blog">Blog</SelectItem>
+                    <SelectItem value="twitter">Twitter</SelectItem>
+                    <SelectItem value="news">News</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="platform_handle">Handle/Username</Label>
+                <Input
+                  id="platform_handle"
+                  value={formData.platform_handle}
+                  onChange={(e) => setFormData({ ...formData, platform_handle: e.target.value })}
+                  placeholder="@username"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="follower_count">Followers</Label>
+                <Input
+                  id="follower_count"
+                  type="number"
+                  value={formData.follower_count || ""}
+                  onChange={(e) => setFormData({ ...formData, follower_count: e.target.value ? parseInt(e.target.value) : undefined })}
+                  placeholder="50000"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="engagement_rate">Engagement Rate %</Label>
+                <Input
+                  id="engagement_rate"
+                  type="number"
+                  step="0.1"
+                  value={formData.engagement_rate || ""}
+                  onChange={(e) => setFormData({ ...formData, engagement_rate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                  placeholder="5.2"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="influencer_tier">Influencer Tier</Label>
+              <Select
+                value={formData.influencer_tier}
+                onValueChange={(value) => setFormData({ ...formData, influencer_tier: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nano">Nano (1K-10K)</SelectItem>
+                  <SelectItem value="micro">Micro (10K-100K)</SelectItem>
+                  <SelectItem value="mid">Mid (100K-500K)</SelectItem>
+                  <SelectItem value="macro">Macro (500K-1M)</SelectItem>
+                  <SelectItem value="mega">Mega (1M+)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
             </Button>

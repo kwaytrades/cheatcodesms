@@ -9,6 +9,7 @@ import { AgentTypeConfig } from "@/components/agents/AgentTypeConfig";
 const agentTypes = [
   { id: "sales_agent", name: "Sam - Sales Agent", description: "Proactive outreach to qualify and convert leads" },
   { id: "customer_service", name: "Casey - Customer Service", description: "Handles inbound support questions and troubleshooting" },
+  { id: "influencer_outreach", name: "Ivy - Influencer Outreach", description: "Reaches out to influencers with personalized collaboration proposals" },
   { id: "webinar", name: "Wendi - Webinar Agent", description: "Guides contacts through webinar signup and attendance" },
   { id: "textbook", name: "Thomas - Textbook Agent", description: "Helps with textbook purchase decisions and learning path" },
   { id: "flashcards", name: "Frank - Flashcards Agent", description: "Promotes flashcard usage and learning consistency" },

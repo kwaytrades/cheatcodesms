@@ -488,6 +488,94 @@ export function CampaignStrategyEditor({ strategy, onChange }: CampaignStrategyE
           </div>
         </CardContent>
       </Card>
+
+      {/* Influencer Campaign Details (if agent type is influencer_outreach) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Influencer Campaign Details</CardTitle>
+          <CardDescription>Configure collaboration specifics for influencer outreach</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Campaign Type</Label>
+            <Select defaultValue="product_launch">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="product_launch">Product Launch</SelectItem>
+                <SelectItem value="brand_awareness">Brand Awareness</SelectItem>
+                <SelectItem value="ugc_collection">UGC Collection</SelectItem>
+                <SelectItem value="affiliate_program">Affiliate Program</SelectItem>
+                <SelectItem value="event_promotion">Event Promotion</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Target Platforms</Label>
+            <div className="flex flex-wrap gap-2">
+              {['TikTok', 'YouTube', 'Instagram', 'Blog', 'Twitter'].map(platform => (
+                <Badge 
+                  key={platform}
+                  variant="outline"
+                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                >
+                  {platform}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Total Budget</Label>
+              <Input
+                type="number"
+                placeholder="$10,000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Compensation Model</Label>
+              <Select defaultValue="flat_fee">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="flat_fee">Flat Fee</SelectItem>
+                  <SelectItem value="affiliate">Affiliate Commission</SelectItem>
+                  <SelectItem value="product_only">Product Exchange Only</SelectItem>
+                  <SelectItem value="hybrid">Hybrid (Fee + Affiliate)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Content Guidelines</Label>
+            <Textarea 
+              placeholder="Key messaging, dos/don'ts, brand voice..."
+              rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Required Hashtags</Label>
+            <Input 
+              placeholder="#brandname #campaign"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Expected Deliverables</Label>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>• Specify deliverables per platform (e.g., 2 TikTok videos, 3 Instagram posts)</p>
+              <p>• Define content types (posts, stories, reels, videos)</p>
+              <p>• Set timeline expectations</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

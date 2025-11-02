@@ -112,8 +112,39 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
                 contact[mappedField] = value.toLowerCase() === 'true' || parseFloat(value.replace(/[$,]/g, '')) > 0;
               }
               // Handle numeric fields
-              else if (mappedField === 'lead_score' || mappedField === 'engagement_score' || mappedField === 'likelihood_to_buy_score') {
+              else if (mappedField === 'lead_score' || mappedField === 'engagement_score' || mappedField === 'likelihood_to_buy_score' || mappedField === 'follower_count' || mappedField === 'avg_views') {
                 contact[mappedField] = parseFloat(value) || null;
+              }
+              // Handle decimal fields for influencers
+              else if (mappedField === 'engagement_rate') {
+                contact[mappedField] = parseFloat(value) || null;
+              }
+              // Handle influencer tier
+              else if (mappedField === 'influencer_tier') {
+                const tierMap: Record<string, string> = {
+                  'nano': 'nano',
+                  'micro': 'micro',
+                  'mid': 'mid',
+                  'macro': 'macro',
+                  'mega': 'mega'
+                };
+                contact.influencer_tier = tierMap[value.toLowerCase()] || value;
+              }
+              // Handle platform field
+              else if (mappedField === 'platform') {
+                const platformMap: Record<string, string> = {
+                  'tiktok': 'tiktok',
+                  'youtube': 'youtube',
+                  'instagram': 'instagram',
+                  'blog': 'blog',
+                  'twitter': 'twitter',
+                  'news': 'news'
+                };
+                contact.platform = platformMap[value.toLowerCase()] || value.toLowerCase();
+              }
+              // Handle array fields (niche_categories, content_topics)
+              else if (mappedField === 'niche_categories' || mappedField === 'content_topics') {
+                contact[mappedField] = value.split(/[,;|]/).map((v: string) => v.trim()).filter(Boolean);
               }
               // Handle JSONB array fields
               else if (mappedField === 'webinar_attendance' || mappedField === 'form_submissions' || mappedField === 'quiz_responses') {

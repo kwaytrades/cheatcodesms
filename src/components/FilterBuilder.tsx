@@ -31,6 +31,16 @@ const FILTER_FIELDS = [
   { value: 'engagement_score', label: 'Engagement Level', type: 'number' },
   { value: 'products_owned', label: 'Products Owned', type: 'array' },
   { value: 'tags', label: 'Tags', type: 'array' },
+  // Influencer Filters
+  { value: 'platform', label: 'Platform', type: 'select', options: ['tiktok', 'youtube', 'instagram', 'blog', 'twitter', 'news'] },
+  { value: 'platform_handle', label: 'Handle/Username', type: 'text' },
+  { value: 'follower_count', label: 'Follower Count', type: 'number' },
+  { value: 'engagement_rate', label: 'Engagement Rate %', type: 'number' },
+  { value: 'influencer_tier', label: 'Influencer Tier', type: 'select', options: ['nano', 'micro', 'mid', 'macro', 'mega'] },
+  { value: 'niche_categories', label: 'Niche/Category', type: 'array' },
+  { value: 'content_topics', label: 'Content Topics', type: 'array' },
+  { value: 'avg_views', label: 'Average Views', type: 'number' },
+  // Standard Filters
   { value: 'trading_experience', label: 'Trading Experience', type: 'select', options: ['beginner', 'intermediate', 'advanced'] },
   { value: 'trading_style', label: 'Trading Style', type: 'select', options: ['day-trading', 'swing', 'position', 'long-term'] },
   { value: 'account_size', label: 'Account Size', type: 'select', options: ['<5k', '5k-25k', '25k-100k', '100k+'] },
@@ -134,26 +144,24 @@ export function FilterBuilder({ filters, onFiltersChange, onSave }: FilterBuilde
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_category', operator: 'equals', value: 'cold' }])} className="text-xs">
           ❄️ Cold Leads
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 1' }])} className="text-xs">
-          Level 1
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 2' }])} className="text-xs">
-          Level 2
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'Level 3' }])} className="text-xs">
-          Level 3
-        </Button>
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'VIP' }])} className="text-xs">
           👑 VIP Only
         </Button>
         <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'total_spent', operator: 'greater_than', value: '1000' }])} className="text-xs">
           💰 High Spenders
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'customer_tier', operator: 'equals', value: 'SHITLIST' }])} className="text-xs">
-          ⚠️ SHITLIST
+        {/* Influencer Quick Filters */}
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'influencer_tier', operator: 'equals', value: 'micro' }, { id: crypto.randomUUID(), field: 'engagement_rate', operator: 'greater_than', value: '5' }])} className="text-xs">
+          🎯 High-Eng Micro
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'likelihood_to_buy_score', operator: 'greater_than', value: '70' }])} className="text-xs">
-          📈 High Likelihood
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'platform', operator: 'equals', value: 'tiktok' }, { id: crypto.randomUUID(), field: 'follower_count', operator: 'greater_than', value: '50000' }])} className="text-xs">
+          📱 TikTok 50K+
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'platform', operator: 'equals', value: 'youtube' }, { id: crypto.randomUUID(), field: 'follower_count', operator: 'greater_than', value: '100000' }])} className="text-xs">
+          📺 YouTube 100K+
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onFiltersChange([{ id: crypto.randomUUID(), field: 'platform', operator: 'equals', value: 'instagram' }])} className="text-xs">
+          📸 Instagram
         </Button>
       </div>
 
