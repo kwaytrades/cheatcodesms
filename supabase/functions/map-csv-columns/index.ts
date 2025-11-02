@@ -41,6 +41,7 @@ serve(async (req) => {
       'firstname': 'first_name',
       'last name': 'last_name',
       'lastname': 'last_name',
+      'name': 'full_name',
       'phone': 'phone_number',
       'phone number': 'phone_number',
       'city': 'city',
@@ -49,6 +50,16 @@ serve(async (req) => {
       'postal code': 'postal_code',
       'zipcode': 'postal_code',
       'country': 'country',
+      // Influencer-specific mappings
+      'platform': 'platform',
+      'handle': 'social_handle',
+      'social handle': 'social_handle',
+      'followers': 'follower_count',
+      'follower count': 'follower_count',
+      'engagement rate': 'engagement_rate',
+      'engagementrate': 'engagement_rate',
+      'niche': 'niche_categories',
+      'niche categories': 'niche_categories',
     };
 
     // Define valid contact fields
@@ -73,6 +84,10 @@ serve(async (req) => {
       // Engagement tracking
       'webinar_attendance', 'form_submissions', 'quiz_responses',
       'last_purchase_date',
+      
+      // Influencer/Media fields
+      'platform', 'social_handle', 'follower_count', 'avg_views', 
+      'engagement_rate', 'influencer_tier', 'niche_categories', 'content_topics',
       
       // Other
       'notes', 'lead_source', 'utm_campaign', 'referrer', 'metadata',
