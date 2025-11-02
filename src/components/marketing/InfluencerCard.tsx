@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Eye, UserPlus } from "lucide-react";
+import { Eye, UserPlus, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PlatformBadge } from "./PlatformBadge";
 
@@ -27,6 +27,31 @@ export function InfluencerCard({ influencer }: InfluencerCardProps) {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
     return count.toString();
+  };
+
+  const normalizePlatformUrl = (platform: string, handle: string) => {
+    // Remove @ prefix and clean handle
+    const cleanHandle = handle.replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?/, '');
+    
+    switch (platform.toLowerCase()) {
+      case 'instagram':
+        return `https://instagram.com/${cleanHandle}`;
+      case 'tiktok':
+        return `https://tiktok.com/@${cleanHandle}`;
+      case 'youtube':
+        return `https://youtube.com/@${cleanHandle}`;
+      case 'twitter':
+        return `https://twitter.com/${cleanHandle}`;
+      default:
+        return `https://${cleanHandle}`;
+    }
+  };
+
+  const handleViewPlatform = () => {
+    if (influencer.platform && influencer.platform_handle) {
+      const url = normalizePlatformUrl(influencer.platform, influencer.platform_handle);
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -90,20 +115,33 @@ export function InfluencerCard({ influencer }: InfluencerCardProps) {
           <Badge variant="outline">{influencer.influencer_tier}</Badge>
         )}
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => navigate(`/marketing/contacts/${influencer.id}`)}
-          >
-            <Eye className="h-3 w-3 mr-1" />
-            View
-          </Button>
-          <Button size="sm" className="flex-1">
-            <UserPlus className="h-3 w-3 mr-1" />
-            Add to Campaign
-          </Button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => navigate(`/marketing/contacts/${influencer.id}`)}
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              View
+            </Button>
+            <Button size="sm" className="flex-1">
+              <UserPlus className="h-3 w-3 mr-1" />
+              Add to Campaign
+            </Button>
+          </div>
+          {influencer.platform && influencer.platform_handle && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
+              onClick={handleViewPlatform}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              View Platform
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

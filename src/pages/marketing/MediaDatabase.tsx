@@ -3,12 +3,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Upload, Download, Grid3x3, Table as TableIcon } from "lucide-react";
+import { Plus, Search, Upload, Download, Grid3x3, Table as TableIcon, ChevronDown } from "lucide-react";
 import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
 import { InfluencerCard } from "@/components/marketing/InfluencerCard";
 import { AddContactDialog } from "@/components/AddContactDialog";
 import { CSVImportDialog } from "@/components/CSVImportDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 export function MediaDatabase() {
   const queryClient = useQueryClient();
@@ -17,6 +21,9 @@ export function MediaDatabase() {
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(true);
+  const [platformType, setPlatformType] = useState<string>("all");
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   
   const handleContactAdded = () => {
     queryClient.invalidateQueries({ queryKey: ["influencers"] });
@@ -27,7 +34,7 @@ export function MediaDatabase() {
   };
 
   const { data: influencers, isLoading } = useQuery({
-    queryKey: ["influencers", searchQuery, filters],
+    queryKey: ["influencers", searchQuery, filters, platformType, selectedCompanies],
     queryFn: async () => {
       let query = supabase
         .from("contacts")
@@ -36,6 +43,17 @@ export function MediaDatabase() {
 
       if (searchQuery) {
         query = query.or(`full_name.ilike.%${searchQuery}%,platform_handle.ilike.%${searchQuery}%`);
+      }
+
+      // Filter by platform type
+      if (platformType !== "all") {
+        query = query.eq("platform", platformType);
+      }
+
+      // Filter by company for news outlets
+      if (platformType === "news" && selectedCompanies.length > 0) {
+        const companyFilters = selectedCompanies.map(company => `tags.cs.{${company}}`).join(',');
+        query = query.or(companyFilters);
       }
 
       filters.forEach((filter) => {
@@ -56,6 +74,26 @@ export function MediaDatabase() {
       return data;
     },
   });
+
+  const newsCompanies = [
+    "Bloomberg",
+    "Fox News",
+    "CNBC",
+    "Reuters",
+    "CNN",
+    "Financial Times",
+    "Wall Street Journal",
+    "MarketWatch",
+    "Seeking Alpha",
+  ];
+
+  const toggleCompany = (company: string) => {
+    setSelectedCompanies(prev =>
+      prev.includes(company)
+        ? prev.filter(c => c !== company)
+        : [...prev, company]
+    );
+  };
 
   const quickFilters = [
     {
@@ -80,6 +118,19 @@ export function MediaDatabase() {
 
   return (
     <div className="space-y-6">
+      {/* Platform Type Tabs */}
+      <Tabs value={platformType} onValueChange={setPlatformType} className="w-full">
+        <TabsList className="grid w-full grid-cols-7">
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="instagram">Instagram</TabsTrigger>
+          <TabsTrigger value="tiktok">TikTok</TabsTrigger>
+          <TabsTrigger value="youtube">YouTube</TabsTrigger>
+          <TabsTrigger value="twitter">Twitter</TabsTrigger>
+          <TabsTrigger value="news">News</TabsTrigger>
+          <TabsTrigger value="blog">Blog</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Top Actions Bar */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1">
@@ -124,22 +175,49 @@ export function MediaDatabase() {
       <div className="grid md:grid-cols-[300px_1fr] gap-6">
         {/* Filter Sidebar */}
         <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-3">Quick Filters</h3>
-            <div className="space-y-2">
-              {quickFilters.map((qf) => (
-                <Button
-                  key={qf.label}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setFilters(qf.filters)}
-                >
-                  {qf.label}
-                </Button>
-              ))}
+          <Collapsible open={quickFiltersOpen} onOpenChange={setQuickFiltersOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity">
+              <h3 className="font-semibold">Quick Filters</h3>
+              <ChevronDown className={`h-4 w-4 transition-transform ${quickFiltersOpen ? 'rotate-180' : ''}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-2 mb-4">
+                {quickFilters.map((qf) => (
+                  <Button
+                    key={qf.label}
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start"
+                    onClick={() => setFilters(qf.filters)}
+                  >
+                    {qf.label}
+                  </Button>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Company Filter for News */}
+          {platformType === "news" && (
+            <div className="space-y-3 border rounded-lg p-4">
+              <h3 className="font-semibold text-sm">News Organizations</h3>
+              <div className="space-y-2">
+                {newsCompanies.map((company) => (
+                  <div key={company} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={company}
+                      checked={selectedCompanies.includes(company)}
+                      onCheckedChange={() => toggleCompany(company)}
+                    />
+                    <Label htmlFor={company} className="text-sm cursor-pointer">
+                      {company}
+                    </Label>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
           <FilterBuilder filters={filters} onFiltersChange={setFilters} />
         </div>
 
