@@ -53,6 +53,21 @@ export const AddContactDialog = ({
 
     setLoading(true);
     try {
+      // Check for duplicate email before inserting
+      if (formData.email) {
+        const { data: existingContact } = await supabase
+          .from("contacts")
+          .select("id, full_name, email")
+          .eq("email", formData.email)
+          .maybeSingle();
+
+        if (existingContact) {
+          toast.error(`A contact with email ${formData.email} already exists: ${existingContact.full_name}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from("contacts")
         .insert([formData])

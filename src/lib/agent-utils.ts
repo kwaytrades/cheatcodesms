@@ -7,6 +7,7 @@ export const AGENT_EXPIRATION_DAYS: Record<string, number> = {
   algo_monthly: 90,
   ccta: 90,
   lead_nurture: 90,
+  influencer_outreach: 90,
 };
 
 export function getAgentExpirationDate(agentType: string): string {

@@ -1,4 +1,4 @@
-import { Video, Book, Layers, TrendingUp, Award, Sparkles, UserPlus, Headphones } from "lucide-react";
+import { Video, Book, Layers, TrendingUp, Award, Sparkles, UserPlus, Headphones, Megaphone } from "lucide-react";
 
 interface AgentTypeIconProps {
   type: string;
@@ -15,6 +15,7 @@ export function AgentTypeIcon({ type, className = "w-5 h-5" }: AgentTypeIconProp
     algo_monthly: { Icon: TrendingUp, color: "text-green-500" },
     ccta: { Icon: Award, color: "text-yellow-500" },
     lead_nurture: { Icon: Sparkles, color: "text-gray-500" },
+    influencer_outreach: { Icon: Megaphone, color: "text-purple-400" },
   };
 
   const config = icons[type as keyof typeof icons] || icons.lead_nurture;

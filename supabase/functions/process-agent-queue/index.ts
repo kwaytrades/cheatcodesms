@@ -14,6 +14,7 @@ const AGENT_PRIORITIES = {
   algo_monthly: 3,
   ccta: 3,
   lead_nurture: 1,
+  influencer_outreach: 3,
 };
 
 Deno.serve(async (req) => {
