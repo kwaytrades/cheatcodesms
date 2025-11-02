@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Upload, Download, Grid3x3, Table as TableIcon, ChevronDown } from "lucide-react";
+import { Plus, Search, Upload, Download, Grid3x3, Table as TableIcon, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { FilterBuilder, FilterCondition } from "@/components/FilterBuilder";
 import { InfluencerCard } from "@/components/marketing/InfluencerCard";
 import { AddContactDialog } from "@/components/AddContactDialog";
@@ -24,6 +24,7 @@ export function MediaDatabase() {
   const [quickFiltersOpen, setQuickFiltersOpen] = useState(true);
   const [platformType, setPlatformType] = useState<string>("all");
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
   const handleContactAdded = () => {
     queryClient.invalidateQueries({ queryKey: ["influencers"] });
@@ -172,57 +173,78 @@ export function MediaDatabase() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[300px_1fr] gap-6">
+      <div className="flex gap-0 relative">
         {/* Filter Sidebar */}
-        <div className="space-y-4">
-          <Collapsible open={quickFiltersOpen} onOpenChange={setQuickFiltersOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity">
-              <h3 className="font-semibold">Quick Filters</h3>
-              <ChevronDown className={`h-4 w-4 transition-transform ${quickFiltersOpen ? 'rotate-180' : ''}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="space-y-2 mb-4">
-                {quickFilters.map((qf) => (
-                  <Button
-                    key={qf.label}
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-start"
-                    onClick={() => setFilters(qf.filters)}
-                  >
-                    {qf.label}
-                  </Button>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+        <div 
+          className={`border-r bg-background transition-all duration-300 ease-in-out ${
+            sidebarCollapsed ? 'w-0 overflow-hidden' : 'w-[300px]'
+          }`}
+        >
+          <div className="p-4 space-y-4">
+            <Collapsible open={quickFiltersOpen} onOpenChange={setQuickFiltersOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full mb-3 hover:opacity-80 transition-opacity">
+                <h3 className="font-semibold">Quick Filters</h3>
+                <ChevronDown className={`h-4 w-4 transition-transform ${quickFiltersOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-2 mb-4">
+                  {quickFilters.map((qf) => (
+                    <Button
+                      key={qf.label}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => setFilters(qf.filters)}
+                    >
+                      {qf.label}
+                    </Button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
-          {/* Company Filter for News */}
-          {platformType === "news" && (
-            <div className="space-y-3 border rounded-lg p-4">
-              <h3 className="font-semibold text-sm">News Organizations</h3>
-              <div className="space-y-2">
-                {newsCompanies.map((company) => (
-                  <div key={company} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={company}
-                      checked={selectedCompanies.includes(company)}
-                      onCheckedChange={() => toggleCompany(company)}
-                    />
-                    <Label htmlFor={company} className="text-sm cursor-pointer">
-                      {company}
-                    </Label>
-                  </div>
-                ))}
+            {/* Company Filter for News */}
+            {platformType === "news" && (
+              <div className="space-y-3 border rounded-lg p-4">
+                <h3 className="font-semibold text-sm">News Organizations</h3>
+                <div className="space-y-2">
+                  {newsCompanies.map((company) => (
+                    <div key={company} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={company}
+                        checked={selectedCompanies.includes(company)}
+                        onCheckedChange={() => toggleCompany(company)}
+                      />
+                      <Label htmlFor={company} className="text-sm cursor-pointer">
+                        {company}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <FilterBuilder filters={filters} onFiltersChange={setFilters} />
+            <FilterBuilder filters={filters} onFiltersChange={setFilters} />
+          </div>
         </div>
 
+        {/* Collapse/Expand Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-16 w-8 rounded-r-md rounded-l-none border-l-0"
+          style={{ left: sidebarCollapsed ? '0' : '300px' }}
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </Button>
+
         {/* Contact Grid */}
-        <div>
+        <div className="flex-1 p-6">
           {isLoading ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
