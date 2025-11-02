@@ -15,8 +15,9 @@ import Campaigns from "./pages/Campaigns";
 import CampaignBuilder from "./pages/CampaignBuilder";
 import CampaignDetail from "./pages/CampaignDetail";
 import Marketing from "./pages/Marketing";
-import InfluencerProfile from "./pages/marketing/InfluencerProfile";
-import InfluencerCampaignDetail from "./pages/marketing/InfluencerCampaignDetail";
+import InfluencerCampaignBuilder from "@/pages/marketing/InfluencerCampaignBuilder";
+import InfluencerCampaignDetail from "@/pages/marketing/InfluencerCampaignDetail";
+import InfluencerProfile from "@/pages/marketing/InfluencerProfile";
 import SalesCampaigns from "./pages/SalesCampaigns";
 import SalesCampaignBuilder from "./pages/SalesCampaignBuilder";
 import SalesCampaignDetail from "./pages/SalesCampaignDetail";
@@ -67,8 +68,9 @@ const App = () => (
             <Route path="contacts/:id" element={<ContactDetail />} />
             <Route path="products" element={<Products />} />
             <Route path="marketing" element={<Marketing />} />
-            <Route path="marketing/contacts/:id" element={<InfluencerProfile />} />
+            <Route path="marketing/campaigns/new" element={<InfluencerCampaignBuilder />} />
             <Route path="marketing/campaigns/:id" element={<InfluencerCampaignDetail />} />
+            <Route path="marketing/contacts/:id" element={<InfluencerProfile />} />
             <Route path="campaigns" element={<Campaigns />} />
             <Route path="campaigns/new" element={<CampaignBuilder />} />
             <Route path="campaigns/:id" element={<CampaignDetail />} />

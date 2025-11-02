@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, Download } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () => void }) => {
@@ -35,6 +35,22 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
       values.push(current.trim());
       return values;
     });
+  };
+
+  const downloadInfluencerTemplate = () => {
+    const csv = `Name,Email,Phone,Platform,Handle,Followers,Engagement Rate,Niche,Tier
+John Doe,john@example.com,+1234567890,tiktok,@johndoe,50000,5.2,fitness|tech,micro
+Jane Smith,jane@example.com,+1987654321,youtube,@janesmith,120000,4.8,beauty|lifestyle,mid
+Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food,micro`;
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'influencer_import_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success("Template downloaded");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -333,6 +349,35 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
           <DialogTitle>Import Contacts from CSV</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Import Template</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={downloadInfluencerTemplate}
+              className="gap-2"
+            >
+              <Download className="h-3 w-3" />
+              Download Template
+            </Button>
+          </div>
+
+          <div className="p-3 bg-muted rounded-lg text-sm space-y-2">
+            <p className="font-medium">For influencer imports, include these columns:</p>
+            <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
+              <li><strong>Name</strong> (required) - Full name</li>
+              <li><strong>Email</strong> (required) - Contact email</li>
+              <li><strong>Phone</strong> - Phone number with country code</li>
+              <li><strong>Platform</strong> - tiktok, youtube, instagram, blog, twitter, news</li>
+              <li><strong>Handle</strong> - @username on platform</li>
+              <li><strong>Followers</strong> - Number of followers</li>
+              <li><strong>Engagement Rate</strong> - Percentage (e.g., 5.2)</li>
+              <li><strong>Niche</strong> - Comma or pipe-separated: fitness|beauty|tech</li>
+              <li><strong>Tier</strong> - nano, micro, mid, macro, mega</li>
+            </ul>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="csv-file">Select CSV File</Label>
             <Input
@@ -342,9 +387,6 @@ export const CSVImportDialog = ({ onImportComplete }: { onImportComplete?: () =>
               onChange={handleFileChange}
               disabled={loading}
             />
-            <p className="text-xs text-muted-foreground">
-              AI will automatically map columns to contact fields including products, tags, and more
-            </p>
           </div>
 
           {file && (
