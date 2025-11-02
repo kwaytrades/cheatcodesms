@@ -22,8 +22,9 @@ serve(async (req) => {
     // These override AI mapping to ensure accuracy for known fields
     const preMappings: Record<string, string> = {
       'status': 'customer_tier',
-      'tier': 'customer_tier',
+      'tier': 'influencer_tier',
       'customer tier': 'customer_tier',
+      'influencer tier': 'influencer_tier',
       'total spent': 'total_spent',
       'total_spent': 'total_spent',
       'products': 'products_owned',
@@ -114,6 +115,14 @@ Sample Row Values: ${unmappedHeaders.map(h => {
     }).join(' | ')}
 
 Valid Database Fields: ${validFields.join(', ')}
+
+IMPORTANT CONTEXT-AWARE MAPPING RULES:
+- If CSV contains 'Platform', 'Handle', 'Followers' columns → This is INFLUENCER/MEDIA data
+  - Map 'Tier' to 'influencer_tier' (values: nano, micro, mid, macro, mega)
+  - Do NOT map anything to 'customer_tier'
+- If CSV contains 'Total Spent', 'Products', customer data → This is CUSTOMER data
+  - Map 'Tier'/'Status' to 'customer_tier' (values: LEAD, Level 1-3, VIP, SHITLIST)
+  - Do NOT map anything to 'influencer_tier'
 
 Rules:
 1. Map each CSV header to the most appropriate database field

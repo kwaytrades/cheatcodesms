@@ -180,23 +180,25 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
                 const items = value.split(/[,;|]/).map((v: string) => v.trim()).filter(Boolean);
                 contact[mappedField] = items.length > 0 ? items : [];
               }
-              // Handle customer_tier and derive lead_status
+              // Handle customer_tier and derive lead_status (ONLY for customer contacts)
               else if (mappedField === 'customer_tier') {
                 contact.customer_tier = value;
-                // Derive lead_status from customer_tier
-                const tierUpper = value.toUpperCase();
-                if (tierUpper === 'VIP' || tierUpper.includes('LEVEL 3')) {
-                  contact.lead_status = 'hot';
-                } else if (tierUpper.includes('LEVEL 2')) {
-                  contact.lead_status = 'warm';
-                } else if (tierUpper.includes('LEVEL 1')) {
-                  contact.lead_status = 'warm';
-                } else if (tierUpper === 'LEAD') {
-                  contact.lead_status = 'cold';
-                } else if (tierUpper === 'SHITLIST') {
-                  contact.lead_status = 'cold';
-                } else {
-                  contact.lead_status = 'cold';
+                // Only derive lead_status if this is a customer contact (no platform field)
+                if (!contact.platform) {
+                  const tierUpper = value.toUpperCase();
+                  if (tierUpper === 'VIP' || tierUpper.includes('LEVEL 3')) {
+                    contact.lead_status = 'hot';
+                  } else if (tierUpper.includes('LEVEL 2')) {
+                    contact.lead_status = 'warm';
+                  } else if (tierUpper.includes('LEVEL 1')) {
+                    contact.lead_status = 'warm';
+                  } else if (tierUpper === 'LEAD') {
+                    contact.lead_status = 'cold';
+                  } else if (tierUpper === 'SHITLIST') {
+                    contact.lead_status = 'cold';
+                  } else {
+                    contact.lead_status = 'cold';
+                  }
                 }
               }
               // Regular string fields
@@ -206,9 +208,17 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
             }
           });
 
-          // Set defaults - only if customer_tier wasn't set
-          if (!contact.lead_status) contact.lead_status = 'cold';
-          if (!contact.customer_tier) contact.customer_tier = 'LEAD';
+          // Set defaults ONLY for customer contacts, NOT influencers
+          if (!contact.lead_status && !contact.platform && !contact.influencer_tier) {
+            contact.lead_status = 'cold';
+          }
+          
+          // Only set customer_tier if this is NOT an influencer contact
+          if (!contact.customer_tier && !contact.platform && !contact.influencer_tier) {
+            contact.customer_tier = 'LEAD';
+          }
+          
+          // Handle disputes (customer-only field)
           if (contact.disputed_amount && contact.disputed_amount > 0) {
             contact.has_disputed = true;
           }
