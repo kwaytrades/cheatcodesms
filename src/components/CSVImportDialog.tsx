@@ -109,8 +109,8 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
       console.log("Column Mapping:", columnMapping);
       console.log("Sample data row:", dataRows[0]);
 
-      // Process contacts in batches
-      const batchSize = 50;
+      // Process contacts in batches (larger batches for better performance)
+      const batchSize = 150;
       let imported = 0;
       let failed = 0;
       const importedContactIds: string[] = [];
@@ -239,51 +239,14 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
           return contact;
         }).filter(contact => contact.email); // Only import contacts with email
 
-        // Process each contact individually to check for email OR phone duplicates
-        const processedContacts = [];
-        
-        for (const contact of contacts) {
-          try {
-            // Check for existing contact by email OR normalized phone
-            const { data: existing } = await supabase
-              .from('contacts')
-              .select('id, email, phone_number, total_spent')
-              .or(`email.eq.${contact.email}${contact.phone_number ? `,phone_number.eq.${contact.phone_number}` : ''}`)
-              .order('total_spent', { ascending: false, nullsFirst: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (existing) {
-              // Update existing contact
-              const { data: updated, error: updateError } = await supabase
-                .from('contacts')
-                .update(contact)
-                .eq('id', existing.id)
-                .select()
-                .single();
-              
-              if (!updateError && updated) {
-                processedContacts.push(updated);
-              }
-            } else {
-              // Insert new contact (trigger will normalize phone automatically)
-              const { data: inserted, error: insertError } = await supabase
-                .from('contacts')
-                .insert(contact)
-                .select()
-                .single();
-              
-              if (!insertError && inserted) {
-                processedContacts.push(inserted);
-              }
-            }
-          } catch (err) {
-            console.error('Error processing contact:', contact.email, err);
-          }
-        }
-
-        const data = processedContacts;
-        const error = processedContacts.length === 0 ? new Error('No contacts processed') : null;
+        // Use upsert for efficient batch processing (single DB call per batch)
+        const { data, error } = await supabase
+          .from('contacts')
+          .upsert(contacts, { 
+            onConflict: 'email',
+            ignoreDuplicates: false 
+          })
+          .select();
 
         if (error) {
           console.error("Batch insert error:", error);
@@ -291,15 +254,13 @@ Mike Johnson,mike@example.com,+1555123456,instagram,@mikej,85000,6.1,travel|food
           failed += batch.length;
         } else {
           imported += data?.length || 0;
-          // Track imported contact IDs for score calculation
+          // Track imported contact IDs for score calculation (only non-influencers)
           if (data) {
-            importedContactIds.push(...data.map(c => c.id));
+            const customerContactIds = data
+              .filter(c => !c.platform) // Skip influencers
+              .map(c => c.id);
+            importedContactIds.push(...customerContactIds);
           }
-        }
-        
-        // Small delay to avoid rate limiting
-        if (i + batchSize < dataRows.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         setProgress(Math.round(((i + batch.length) / dataRows.length) * 100));
