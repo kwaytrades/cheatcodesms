@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { WorkspaceProvider } from "@/contexts/WorkspaceContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import { OnboardingFlow } from "./components/workspace/OnboardingFlow";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import Analytics from "./pages/Analytics";
 import FunnelAnalytics from "./pages/FunnelAnalytics";
 import FunnelBuilder from "./pages/FunnelBuilder";
@@ -62,7 +64,18 @@ const App = () => (
         <WorkspaceProvider>
           <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Dashboard />}>
+          <Route path="/workspaces/new" element={
+            <ProtectedRoute requireWorkspace={false}>
+              <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-card">
+                <OnboardingFlow />
+              </div>
+            </ProtectedRoute>
+          } />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }>
             <Route index element={<Analytics />} />
             <Route path="analytics/funnels" element={<FunnelAnalytics />} />
             <Route path="funnels" element={<FunnelBuilder />} />
