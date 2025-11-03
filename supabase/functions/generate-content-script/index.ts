@@ -18,8 +18,8 @@ serve(async (req) => {
       tone = 'educational',
       hook_style = 'question',
       include_cta = true,
-      include_broll = true,
-      include_timestamps = true,
+      include_broll = false,
+      include_timestamps = false,
       style_guide,
       include_market_data = false,
       market_symbols = ['SPY', 'QQQ', 'AAPL']
@@ -152,37 +152,12 @@ INSTRUCTION: Integrate this live market data naturally into the script to make t
     
     // Only add generic optional instructions if NO custom style guide exists
     if (!style_guide?.instructions) {
-      // Add optional instructions (timestamps, b-roll, CTA)
-      if (include_timestamps && format !== 'carousel') {
-        systemPrompt += 'TIMESTAMPS: Include timestamps like [HOOK - 0:00-0:05], [MAIN - 0:05-4:30], etc.\n\n';
-      }
-      
-      if (include_broll && format !== 'carousel') {
-        systemPrompt += 'B-ROLL NOTES: Add suggestions for B-roll footage as [B-roll: description of visual]\n\n';
-      }
-      
       if (include_cta) {
         systemPrompt += 'CTA: Include a clear call-to-action at the end (e.g., "Join our Discord for real-time trade alerts" or "Download the free Algo V6 guide")\n\n';
       }
-      
-      // Add structure instructions
-      if (format !== 'carousel') {
-        systemPrompt += `\nSTRUCTURE YOUR RESPONSE AS:
-${include_timestamps ? '[HOOK - 0:00-0:XX]\n' : ''}(Your hook here)
-
-[INTRO - X:XX-X:XX]
-(Brief intro)
-
-[MAIN CONTENT - X:XX-X:XX]
-(Main content broken into clear sections)
-${include_broll ? '[B-roll: relevant visual]' : ''}
-
-[CTA - X:XX-X:XX]
-(Call to action)`;
-      }
     }
     
-    systemPrompt += '\n\nReturn ONLY the formatted script. Do not include any meta-commentary or explanations outside the script.';
+    systemPrompt += '\n\nIMPORTANT: Output ONLY the spoken script text. Do NOT include timestamps, B-roll notes, section labels, stage directions, or any meta-instructions. Make it readable as a pure, clean script that someone can read aloud directly.';
     
     console.log('System prompt first 300 chars:', systemPrompt.substring(0, 300));
 

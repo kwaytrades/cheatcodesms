@@ -18,7 +18,6 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
   const [targetDuration, setTargetDuration] = useState<number>(30);
   const [format, setFormat] = useState("professional");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!scriptText.trim()) {
@@ -29,39 +28,27 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
     setIsGenerating(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-video-from-script', {
-        body: {
-          scriptText,
-          scriptId,
-          targetDuration,
-          format
-        }
+      const response = await fetch('https://kway.app.n8n.cloud/webhook-test/963284fb-ec86-476c-bae5-92b08317d678', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: scriptText,
+          targetDuration: targetDuration,
+          format: format,
+          scriptId: scriptId
+        })
       });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Webhook submission failed');
 
-      setJobId(data.jobId);
-      toast.success("Video generation started! This may take 2-3 minutes.");
+      toast.success("Script submitted for AI video generation!");
     } catch (error) {
       console.error('Error generating video:', error);
-      toast.error(error.message || "Failed to start video generation");
+      toast.error(error instanceof Error ? error.message : "Failed to submit script");
+    } finally {
       setIsGenerating(false);
     }
   };
-
-  const handleComplete = () => {
-    setIsGenerating(false);
-    setJobId(null);
-  };
-
-  if (jobId) {
-    return (
-      <VideoGenerationStatus 
-        jobId={jobId} 
-        onComplete={handleComplete}
-      />
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -139,9 +126,9 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
           </Button>
 
           <div className="text-sm text-muted-foreground space-y-1">
-            <p>• Generation takes 2-3 minutes</p>
-            <p>• Videos are split into {Math.ceil(targetDuration / 10)} scenes (~10s each)</p>
-            <p>• Powered by Google Veo 3 AI</p>
+            <p>• Script will be submitted to video generation pipeline</p>
+            <p>• Processing happens externally via N8N automation</p>
+            <p>• Check your workflow for status updates</p>
           </div>
         </CardContent>
       </Card>

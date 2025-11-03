@@ -39,8 +39,8 @@ const ScriptGenerator = () => {
   const [tone, setTone] = useState('educational');
   const [hookStyle, setHookStyle] = useState('question');
   const [includeCTA, setIncludeCTA] = useState(true);
-  const [includeBroll, setIncludeBroll] = useState(true);
-  const [includeTimestamps, setIncludeTimestamps] = useState(true);
+  const [includeBroll, setIncludeBroll] = useState(false);
+  const [includeTimestamps, setIncludeTimestamps] = useState(false);
   const [includeMarketData, setIncludeMarketData] = useState(false);
   const [generatedScript, setGeneratedScript] = useState('');
   const [wordCount, setWordCount] = useState(0);
@@ -221,14 +221,32 @@ const ScriptGenerator = () => {
     }
   };
 
-  const generateAIVideo = () => {
-    if (generatedScript) {
-      navigate('/content-studio/ai-video', {
-        state: { 
+  const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
+
+  const generateAIVideo = async () => {
+    if (!generatedScript) return;
+    
+    setIsSubmittingVideo(true);
+    
+    try {
+      const response = await fetch('https://kway.app.n8n.cloud/webhook-test/963284fb-ec86-476c-bae5-92b08317d678', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           script: generatedScript,
+          format: format,
+          length_seconds: lengthSeconds,
           scriptId: savedScriptId
-        }
+        })
       });
+      
+      if (!response.ok) throw new Error('Failed to submit to video generation');
+      
+      toast.success('Script submitted for AI video generation!');
+    } catch (error) {
+      toast.error('Failed to submit script for video generation');
+    } finally {
+      setIsSubmittingVideo(false);
     }
   };
 
@@ -452,10 +470,19 @@ const ScriptGenerator = () => {
                       variant="outline"
                       size="sm"
                       onClick={generateAIVideo}
-                      disabled={!generatedScript}
+                      disabled={!generatedScript || isSubmittingVideo}
                     >
-                      <Video className="h-4 w-4 mr-2" />
-                      Generate AI Video
+                      {isSubmittingVideo ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Video className="h-4 w-4 mr-2" />
+                          Generate AI Video
+                        </>
+                      )}
                     </Button>
                   </div>
 
