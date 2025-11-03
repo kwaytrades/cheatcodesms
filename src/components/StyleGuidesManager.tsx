@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ const FORMATS = [
 
 export const StyleGuidesManager = () => {
   const queryClient = useQueryClient();
+  const { currentWorkspace } = useWorkspace();
   const [activeFormat, setActiveFormat] = useState('youtube_long');
   const [uploading, setUploading] = useState(false);
 
@@ -98,6 +100,7 @@ export const StyleGuidesManager = () => {
 
       const payload = {
         user_id: user.id,
+        workspace_id: currentWorkspace!.id,
         format,
         instructions,
         file_name: fileName,
@@ -107,7 +110,7 @@ export const StyleGuidesManager = () => {
 
       const { error } = await supabase
         .from('style_guides')
-        .upsert(payload, { onConflict: 'user_id,format' });
+        .upsert([payload], { onConflict: 'user_id,format' });
 
       if (error) throw error;
     },

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +66,7 @@ const DOCUMENT_TYPES = [
 
 export const KnowledgeBase = () => {
   const queryClient = useQueryClient();
+  const { currentWorkspace } = useWorkspace();
   const [selectedAgent, setSelectedAgent] = useState("");
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
   const [manualContent, setManualContent] = useState({
@@ -456,7 +458,7 @@ export const KnowledgeBase = () => {
       
       const { data, error } = await supabase
         .from("knowledge_base")
-        .insert([doc])
+        .insert([{ ...doc, workspace_id: currentWorkspace!.id }])
         .select()
         .single();
 
@@ -489,7 +491,8 @@ export const KnowledgeBase = () => {
             category: doc.category,
             parent_document_id: data.id,
             chunk_index: i + 1,
-            chunk_metadata: chunks[i].metadata
+            chunk_metadata: chunks[i].metadata,
+            workspace_id: currentWorkspace!.id
           })
           .select()
           .single();
@@ -898,6 +901,7 @@ export const KnowledgeBase = () => {
             file_path: publicUrl,
             file_type: fileExt,
             content: content,
+            workspace_id: currentWorkspace!.id
           })
           .select()
           .single();
@@ -929,7 +933,8 @@ export const KnowledgeBase = () => {
               category: `agent_${selectedAgent}`,
               parent_document_id: kbEntry.id,
               chunk_index: i + 1,
-              chunk_metadata: chunks[i].metadata
+              chunk_metadata: chunks[i].metadata,
+              workspace_id: currentWorkspace!.id
             });
         }
 
@@ -1010,6 +1015,7 @@ export const KnowledgeBase = () => {
           file_path: publicUrl,
           file_type: fileExt,
           content: `Full document: ${totalPages} pages, processed in ${totalBatches} batches`,
+          workspace_id: currentWorkspace!.id
         })
         .select()
         .single();
@@ -1056,6 +1062,7 @@ export const KnowledgeBase = () => {
               parent_document_id: parentDoc.id,
               content: batchContent,
               file_type: 'pdf_batch',
+              workspace_id: currentWorkspace!.id
             })
             .select()
             .single();
@@ -1099,7 +1106,8 @@ export const KnowledgeBase = () => {
                 category: `agent_${selectedAgent}`,
                 parent_document_id: batchDoc.id,
                 chunk_index: chunkIndex + 1,
-                chunk_metadata: chunks[chunkIndex].metadata
+                chunk_metadata: chunks[chunkIndex].metadata,
+                workspace_id: currentWorkspace!.id
               })
               .select()
               .single();

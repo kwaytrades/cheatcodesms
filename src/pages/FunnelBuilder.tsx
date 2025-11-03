@@ -45,8 +45,10 @@ export default function FunnelBuilder() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
-    loadFunnels();
-  }, []);
+    if (currentWorkspace) {
+      loadFunnels();
+    }
+  }, [currentWorkspace]);
 
   useEffect(() => {
     // Check if we should load a specific funnel from URL params
@@ -63,14 +65,20 @@ export default function FunnelBuilder() {
   }, [selectedFunnelId]);
 
   const loadFunnels = async () => {
-    if (!currentWorkspace) return;
-    const { data } = await supabase
-      .from('funnels')
-      .select('*')
-      .eq('workspace_id', currentWorkspace.id)
-      .order('created_at', { ascending: false });
-    
-    setFunnels(data || []);
+    if (!currentWorkspace?.id) return;
+    try {
+      // @ts-ignore - Type instantiation issue with Supabase query builder
+      const { data, error } = await supabase
+        .from('funnels')
+        .select('id, name, description, created_at, workspace_id')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setFunnels(data || []);
+    } catch (error) {
+      console.error('Error loading funnels:', error);
+    }
   };
 
   const loadFunnelData = async () => {

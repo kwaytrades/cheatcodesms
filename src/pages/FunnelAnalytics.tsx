@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, DollarSign, Users, Target, Eye, Plus, Sparkles, Edit } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
@@ -40,6 +41,7 @@ interface StepMetrics {
 
 export default function FunnelAnalytics() {
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [steps, setSteps] = useState<FunnelStep[]>([]);
@@ -262,7 +264,7 @@ export default function FunnelAnalytics() {
 
       const { data: steps, error: stepsError } = await supabase
         .from('funnel_steps')
-        .insert(stepsData.map(step => ({ ...step, funnel_id: funnel.id })))
+        .insert(stepsData.map(step => ({ ...step, funnel_id: funnel.id, workspace_id: currentWorkspace!.id })))
         .select();
 
       if (stepsError) throw stepsError;
@@ -280,7 +282,7 @@ export default function FunnelAnalytics() {
         // Create visit
         const { data: visit } = await supabase
           .from('funnel_visits')
-          .insert({
+          .insert([{
             session_id: sessionId,
             funnel_id: funnel.id,
             entry_step_id: steps[0].id,
@@ -289,8 +291,9 @@ export default function FunnelAnalytics() {
             utm_source: source,
             completed: completed,
             total_value: completed ? Math.floor(Math.random() * 400) + 100 : 0,
-            started_at: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
-          })
+            started_at: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+            workspace_id: currentWorkspace!.id
+          }])
           .select()
           .single();
 
@@ -301,26 +304,28 @@ export default function FunnelAnalytics() {
           for (let j = 0; j < stepsToVisit; j++) {
             await supabase
               .from('funnel_step_events')
-              .insert({
+              .insert([{
                 visit_id: visit.id,
                 step_id: steps[j].id,
                 event_type: 'page_view',
                 duration_seconds: Math.floor(Math.random() * 180) + 30,
-                metadata: { page_url: steps[j].page_url }
-              });
+                metadata: { page_url: steps[j].page_url },
+                workspace_id: currentWorkspace!.id
+              }]);
           }
 
           // If completed, create conversion
           if (completed) {
             await supabase
               .from('funnel_conversions')
-              .insert({
+              .insert([{
                 visit_id: visit.id,
                 funnel_id: funnel.id,
                 contact_id: null,
                 order_value: visit.total_value,
-                conversion_type: 'purchase'
-              });
+                conversion_type: 'purchase',
+                workspace_id: currentWorkspace!.id
+              }]);
           }
         }
       }
