@@ -28,20 +28,22 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
     setIsGenerating(true);
 
     try {
-      const response = await fetch('https://kway.app.n8n.cloud/webhook/963284fb-ec86-476c-bae5-92b08317d678', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('generate-heygen-video', {
+        body: {
           script: scriptText,
           targetDuration: targetDuration,
           format: format,
           scriptId: scriptId
-        })
+        }
       });
 
-      if (!response.ok) throw new Error('Webhook submission failed');
+      if (error) throw error;
 
-      toast.success("Script submitted for AI video generation!");
+      if (data?.success) {
+        toast.success("Video generation started with HeyGen!");
+      } else {
+        throw new Error(data?.error || 'Failed to start video generation');
+      }
     } catch (error) {
       console.error('Error generating video:', error);
       toast.error(error instanceof Error ? error.message : "Failed to submit script");
@@ -59,7 +61,7 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
             AI Video Generator
           </CardTitle>
           <CardDescription>
-            Transform your script into a professional video using Google Veo 3 AI
+            Transform your script into a professional video using HeyGen AI
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -126,9 +128,9 @@ export default function AIVideoGenerator({ initialScript = "", scriptId }: AIVid
           </Button>
 
           <div className="text-sm text-muted-foreground space-y-1">
-            <p>• Script will be submitted to video generation pipeline</p>
-            <p>• Processing happens externally via N8N automation</p>
-            <p>• Check your workflow for status updates</p>
+            <p>• Script will be sent directly to HeyGen for video generation</p>
+            <p>• Processing typically takes 2-5 minutes depending on length</p>
+            <p>• You'll receive the video URL once generation is complete</p>
           </div>
         </CardContent>
       </Card>

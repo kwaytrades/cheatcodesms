@@ -229,22 +229,25 @@ const ScriptGenerator = () => {
     setIsSubmittingVideo(true);
     
     try {
-      const response = await fetch('https://kway.app.n8n.cloud/webhook/963284fb-ec86-476c-bae5-92b08317d678', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('generate-heygen-video', {
+        body: {
           script: generatedScript,
           format: format,
-          length_seconds: lengthSeconds,
+          targetDuration: lengthSeconds,
           scriptId: savedScriptId
-        })
+        }
       });
-      
-      if (!response.ok) throw new Error('Failed to submit to video generation');
-      
-      toast.success('Script submitted for AI video generation!');
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success('Video generation started with HeyGen!');
+      } else {
+        throw new Error(data?.error || 'Failed to start video generation');
+      }
     } catch (error) {
-      toast.error('Failed to submit script for video generation');
+      console.error('Error generating video:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit script for video generation');
     } finally {
       setIsSubmittingVideo(false);
     }

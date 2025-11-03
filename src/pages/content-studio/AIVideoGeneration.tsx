@@ -7,7 +7,7 @@ export default function AIVideoGeneration() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold">AI Video Generation</h1>
           <p className="text-muted-foreground mt-2">
-            Transform your scripts into professional videos using Google Veo 3 AI
+            Transform your scripts into professional videos using HeyGen AI
           </p>
         </div>
         
