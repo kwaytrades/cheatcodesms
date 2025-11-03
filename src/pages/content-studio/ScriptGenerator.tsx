@@ -229,7 +229,7 @@ const ScriptGenerator = () => {
     setIsSubmittingVideo(true);
     
     try {
-      const response = await fetch('https://kway.app.n8n.cloud/webhook-test/963284fb-ec86-476c-bae5-92b08317d678', {
+      const response = await fetch('https://kway.app.n8n.cloud/webhook/963284fb-ec86-476c-bae5-92b08317d678', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
