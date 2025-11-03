@@ -131,6 +131,7 @@ export default function FunnelBuilder() {
         // Insert new steps
         const stepsToInsert = steps.map(step => ({
           funnel_id: selectedFunnelId,
+          workspace_id: currentWorkspace!.id,
           ...step
         }));
 

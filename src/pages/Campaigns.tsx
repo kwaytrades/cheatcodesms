@@ -209,7 +209,7 @@ const Campaigns = () => {
             });
 
             if (sendError || !sendData?.success) {
-              await supabase.from("campaign_messages").insert({
+              await supabase.from("campaign_messages").insert([{
                 campaign_id: campaign.id,
                 phone_number: contact.phone_number,
                 personalized_message: personalizedMessage,
@@ -217,10 +217,10 @@ const Campaigns = () => {
                 error_message: sendError?.message || sendData?.error || "Unknown error",
                 sent_at: new Date().toISOString(),
                 workspace_id: currentWorkspace!.id
-              });
+              }]);
               failureCount++;
             } else {
-              await supabase.from("campaign_messages").insert({
+              await supabase.from("campaign_messages").insert([{
                 campaign_id: campaign.id,
                 phone_number: contact.phone_number,
                 personalized_message: personalizedMessage,
@@ -228,12 +228,12 @@ const Campaigns = () => {
                 twilio_message_sid: sendData.messageSid,
                 sent_at: new Date().toISOString(),
                 workspace_id: currentWorkspace!.id
-              });
+              }]);
               successCount++;
             }
           } catch (error: any) {
             console.error(`Error sending SMS to ${contact.phone_number}:`, error);
-            await supabase.from("campaign_messages").insert({
+            await supabase.from("campaign_messages").insert([{
               campaign_id: campaign.id,
               phone_number: contact.phone_number,
               personalized_message: personalizedMessage,
@@ -241,7 +241,7 @@ const Campaigns = () => {
               error_message: error.message || "Exception occurred during send",
               sent_at: new Date().toISOString(),
               workspace_id: currentWorkspace!.id
-            });
+            }]);
             failureCount++;
           }
         } else {
@@ -278,7 +278,7 @@ const Campaigns = () => {
             });
 
             if (sendError || !sendData?.success) {
-              await supabase.from("campaign_messages").insert({
+              await supabase.from("campaign_messages").insert([{
                 campaign_id: campaign.id,
                 to_email: contact.email,
                 subject: personalizedSubject,
@@ -288,11 +288,12 @@ const Campaigns = () => {
                 phone_number: "",
                 status: "failed",
                 error_message: sendError?.message || sendData?.error || "Unknown error",
-                sent_at: new Date().toISOString()
-              });
+                sent_at: new Date().toISOString(),
+                workspace_id: currentWorkspace!.id
+              }]);
               failureCount++;
             } else {
-              await supabase.from("campaign_messages").insert({
+              await supabase.from("campaign_messages").insert([{
                 campaign_id: campaign.id,
                 to_email: contact.email,
                 subject: personalizedSubject,
@@ -301,13 +302,14 @@ const Campaigns = () => {
                 personalized_message: personalizedText,
                 phone_number: "",
                 status: "sent",
-                sent_at: new Date().toISOString()
-              });
+                sent_at: new Date().toISOString(),
+                workspace_id: currentWorkspace!.id
+              }]);
               successCount++;
             }
           } catch (error: any) {
             console.error(`Error sending email to ${contact.email}:`, error);
-            await supabase.from("campaign_messages").insert({
+            await supabase.from("campaign_messages").insert([{
               campaign_id: campaign.id,
               to_email: contact.email,
               subject: personalizedSubject,
@@ -317,8 +319,9 @@ const Campaigns = () => {
               phone_number: "",
               status: "failed",
               error_message: error.message || "Exception occurred during send",
-              sent_at: new Date().toISOString()
-            });
+              sent_at: new Date().toISOString(),
+              workspace_id: currentWorkspace!.id
+            }]);
             failureCount++;
           }
         }

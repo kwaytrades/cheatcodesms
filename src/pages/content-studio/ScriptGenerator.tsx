@@ -184,6 +184,7 @@ const ScriptGenerator = () => {
         length_seconds: lengthSeconds,
         tone,
         hook_style: hookStyle,
+        user_id: user.id,
         workspace_id: currentWorkspace!.id,
         metadata: {
           word_count: wordCount,

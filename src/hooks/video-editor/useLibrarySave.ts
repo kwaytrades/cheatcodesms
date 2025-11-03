@@ -96,6 +96,7 @@ export const useLibrarySave = (
           source: 'editor',
           composition_data: { overlays, durationInFrames, fps, width: dimensions.width, height: dimensions.height },
           is_final: true,
+          user_id: user.id,
           workspace_id: workspaceId
         }]);
 

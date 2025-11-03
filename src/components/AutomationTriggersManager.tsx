@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export function AutomationTriggersManager() {
+  const { currentWorkspace } = useWorkspace();
   const [triggers, setTriggers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -28,11 +30,13 @@ export function AutomationTriggersManager() {
   }, []);
 
   const loadTriggers = async () => {
+    if (!currentWorkspace) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('automation_triggers')
         .select('*')
+        .eq('workspace_id', currentWorkspace.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

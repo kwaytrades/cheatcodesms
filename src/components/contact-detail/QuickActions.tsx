@@ -1,3 +1,4 @@
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Mail, Phone, UserPlus, Tag } from "lucide-react";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 
 export const QuickActions = () => {
   const { id } = useParams<{ id: string }>();
+  const { currentWorkspace } = useWorkspace();
   const [smsOpen, setSmsOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);

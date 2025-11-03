@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useEditorContext } from "@/contexts/video-editor/EditorContext";
 import { Overlay, OverlayType } from "@/lib/video-editor/types";
@@ -13,6 +14,7 @@ import { toast } from "sonner";
 
 export const VideoPanel: React.FC = () => {
   const { addOverlay, durationInFrames } = useEditorContext();
+  const { currentWorkspace } = useWorkspace();
   const [videoUrl, setVideoUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -74,6 +76,7 @@ export const VideoPanel: React.FC = () => {
         .insert([{
           video_url: fileName,
           file_size_bytes: file.size,
+          user_id: user.id,
           workspace_id: currentWorkspace!.id
         }]);
 

@@ -207,6 +207,7 @@ const VideoRecorder = () => {
         file_size_bytes: blob.size,
         take_number: 1,
         is_final: true,
+        user_id: user.id,
         workspace_id: currentWorkspace!.id
       }]);
 
