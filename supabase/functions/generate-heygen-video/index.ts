@@ -34,8 +34,10 @@ serve(async (req) => {
       body: JSON.stringify({
         video_inputs: [{
           avatar_id: "152facd9d2f9445785a28a93f8a83e66",
-          voice_id: "3b6bd7b70b9c4ccebfef36bdedfe5886",
-          input_text: script,
+          voice: {
+            voice_id: "3b6bd7b70b9c4ccebfef36bdedfe5886",
+            input_text: script,
+          }
         }],
         dimension: {
           width: 1920,
