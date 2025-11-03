@@ -41,6 +41,7 @@ serve(async (req) => {
           voice: {
             type: "text",
             input_text: script,
+            voice_id: "1bd001e7e50f421d891986aad5158bc8", // Default English voice
           },
         }],
         dimension: {
