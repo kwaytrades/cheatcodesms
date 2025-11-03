@@ -25,7 +25,6 @@ serve(async (req) => {
     console.log('Generating HeyGen video with script:', script.substring(0, 100));
 
     // Call HeyGen API to generate video
-    // Note: Adjust the endpoint and payload based on HeyGen's actual API documentation
     const response = await fetch('https://api.heygen.com/v2/video/generate', {
       method: 'POST',
       headers: {
@@ -34,21 +33,15 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         video_inputs: [{
-          character: {
-            type: "avatar",
-            avatar_id: "default", // You can make this configurable
-          },
-          voice: {
-            type: "text",
-            input_text: script,
-            voice_id: "1bd001e7e50f421d891986aad5158bc8", // Default English voice
-          },
+          avatar_id: "152facd9d2f9445785a28a93f8a83e66",
+          voice_id: "3b6bd7b70b9c4ccebfef36bdedfe5886",
+          input_text: script,
         }],
         dimension: {
           width: 1920,
           height: 1080,
         },
-        test: false, // Set to true for testing
+        test: false,
       }),
     });
 
