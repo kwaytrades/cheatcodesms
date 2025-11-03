@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ interface Campaign {
 
 const Campaigns = () => {
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [salesCampaigns, setSalesCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,10 +83,12 @@ const Campaigns = () => {
   }, []);
 
   const loadCampaigns = async () => {
+    if (!currentWorkspace) return;
     try {
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("workspace_id", currentWorkspace.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -97,10 +101,12 @@ const Campaigns = () => {
   };
 
   const loadSalesCampaigns = async () => {
+    if (!currentWorkspace) return;
     try {
       const { data, error } = await supabase
         .from("ai_sales_campaigns")
         .select("*")
+        .eq("workspace_id", currentWorkspace.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -182,13 +188,14 @@ const Campaigns = () => {
           const personalizedMessage = campaign.message_template.replace("{FirstName}", firstName);
 
           if (!("phone_number" in contact) || !contact.phone_number) {
-            await supabase.from("campaign_messages").insert({
+            await supabase.from("campaign_messages").insert([{
               campaign_id: campaign.id,
               phone_number: "N/A",
               personalized_message: personalizedMessage,
               status: "failed",
-              error_message: "Contact has no phone number"
-            });
+              error_message: "Contact has no phone number",
+              workspace_id: currentWorkspace!.id
+            }]);
             failureCount++;
             continue;
           }
@@ -208,7 +215,8 @@ const Campaigns = () => {
                 personalized_message: personalizedMessage,
                 status: "failed",
                 error_message: sendError?.message || sendData?.error || "Unknown error",
-                sent_at: new Date().toISOString()
+                sent_at: new Date().toISOString(),
+                workspace_id: currentWorkspace!.id
               });
               failureCount++;
             } else {
@@ -218,7 +226,8 @@ const Campaigns = () => {
                 personalized_message: personalizedMessage,
                 status: "sent",
                 twilio_message_sid: sendData.messageSid,
-                sent_at: new Date().toISOString()
+                sent_at: new Date().toISOString(),
+                workspace_id: currentWorkspace!.id
               });
               successCount++;
             }
@@ -230,21 +239,23 @@ const Campaigns = () => {
               personalized_message: personalizedMessage,
               status: "failed",
               error_message: error.message || "Exception occurred during send",
-              sent_at: new Date().toISOString()
+              sent_at: new Date().toISOString(),
+              workspace_id: currentWorkspace!.id
             });
             failureCount++;
           }
         } else {
           // Email campaign
           if (!("email" in contact) || !contact.email) {
-            await supabase.from("campaign_messages").insert({
-              campaign_id: campaign.id,
-              to_email: "N/A",
-              personalized_message: "",
-              phone_number: "",
-              status: "failed",
-              error_message: "Contact has no email"
-            });
+              await supabase.from("campaign_messages").insert([{
+                campaign_id: campaign.id,
+                to_email: "N/A",
+                personalized_message: "",
+                phone_number: "",
+                status: "failed",
+                error_message: "Contact has no email",
+                workspace_id: currentWorkspace!.id
+              }]);
             failureCount++;
             continue;
           }

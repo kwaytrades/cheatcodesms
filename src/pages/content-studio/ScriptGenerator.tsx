@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ const HOOK_STYLES = ['question', 'stat', 'story', 'contrarian'];
 const ScriptGenerator = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const storyFromState = location.state?.story;
   const transcriptFromState = location.state?.transcript;
 
@@ -175,14 +177,14 @@ const ScriptGenerator = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.from('content_scripts').insert({
-        user_id: user.id,
+      const { data, error } = await supabase.from('content_scripts').insert([{
         title: `Script - ${format} - ${new Date().toLocaleDateString()}`,
         script_text: generatedScript,
         format,
         length_seconds: lengthSeconds,
         tone,
         hook_style: hookStyle,
+        workspace_id: currentWorkspace!.id,
         metadata: {
           word_count: wordCount,
           read_time: readTime,
@@ -191,7 +193,7 @@ const ScriptGenerator = () => {
           include_timestamps: includeTimestamps,
           include_market_data: includeMarketData
         }
-      }).select().single();
+      }]).select().single();
 
       if (error) throw error;
       return data;

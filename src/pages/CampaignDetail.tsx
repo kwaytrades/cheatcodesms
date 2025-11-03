@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ interface Campaign {
 const CampaignDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -110,7 +112,8 @@ const CampaignDetail = () => {
             phone_number: "N/A",
             personalized_message: personalizedMessage,
             status: "failed",
-            error_message: "Contact has no phone number"
+            error_message: "Contact has no phone number",
+            workspace_id: currentWorkspace!.id
           });
           failureCount++;
           continue;
@@ -132,7 +135,8 @@ const CampaignDetail = () => {
               personalized_message: personalizedMessage,
               status: "failed",
               error_message: sendError?.message || sendData?.error || "Unknown error",
-              sent_at: new Date().toISOString()
+              sent_at: new Date().toISOString(),
+              workspace_id: currentWorkspace!.id
             });
             failureCount++;
           } else {
@@ -143,7 +147,8 @@ const CampaignDetail = () => {
               personalized_message: personalizedMessage,
               status: "sent",
               twilio_message_sid: sendData.messageSid,
-              sent_at: new Date().toISOString()
+              sent_at: new Date().toISOString(),
+              workspace_id: currentWorkspace!.id
             });
             successCount++;
           }
@@ -167,7 +172,8 @@ const CampaignDetail = () => {
             personalized_message: personalizedMessage,
             status: "failed",
             error_message: error.message || "Exception occurred during send",
-            sent_at: new Date().toISOString()
+            sent_at: new Date().toISOString(),
+            workspace_id: currentWorkspace!.id
           });
           failureCount++;
         }

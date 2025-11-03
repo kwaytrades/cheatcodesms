@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import Webcam from "react-webcam";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,6 +20,7 @@ const FONTS = ['sans-serif', 'serif', 'monospace'];
 const VideoRecorder = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { currentWorkspace } = useWorkspace();
   const scriptFromState = location.state?.script;
   
   // Teleprompter state
@@ -199,14 +201,14 @@ const VideoRecorder = () => {
         .getPublicUrl(filePath);
 
       // Save to database
-      const { error: dbError } = await supabase.from('content_videos').insert({
-        user_id: user.id,
+      const { error: dbError } = await supabase.from('content_videos').insert([{
         video_url: filePath,
         duration_seconds: recordingTime,
         file_size_bytes: blob.size,
         take_number: 1,
-        is_final: true
-      });
+        is_final: true,
+        workspace_id: currentWorkspace!.id
+      }]);
 
       if (dbError) throw dbError;
 

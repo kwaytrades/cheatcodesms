@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Package } from "lucide-react";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Products() {
+  const { currentWorkspace } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -34,11 +36,13 @@ export default function Products() {
   const queryClient = useQueryClient();
 
   const { data: products, isLoading } = useQuery({
-    queryKey: ["products", searchQuery],
+    queryKey: ["products", searchQuery, currentWorkspace?.id],
     queryFn: async () => {
+      if (!currentWorkspace) return [];
       let query = supabase
         .from("products")
         .select("*")
+        .eq("workspace_id", currentWorkspace.id)
         .order("created_at", { ascending: false });
 
       if (searchQuery) {
@@ -49,6 +53,7 @@ export default function Products() {
       if (error) throw error;
       return data;
     },
+    enabled: !!currentWorkspace,
   });
 
   const deleteMutation = useMutation({

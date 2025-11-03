@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 export default function SalesCampaigns() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { currentWorkspace } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
@@ -24,16 +26,19 @@ export default function SalesCampaigns() {
   const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
 
   const { data: campaigns, isLoading } = useQuery({
-    queryKey: ['sales-campaigns'],
+    queryKey: ['sales-campaigns', currentWorkspace?.id],
     queryFn: async () => {
+      if (!currentWorkspace) return [];
       const { data, error } = await supabase
         .from('ai_sales_campaigns')
         .select('*')
+        .eq('workspace_id', currentWorkspace.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data;
     },
+    enabled: !!currentWorkspace,
   });
 
   const filteredCampaigns = campaigns?.filter(campaign => {
@@ -155,7 +160,9 @@ export default function SalesCampaigns() {
           audience_filter: original.audience_filter,
           campaign_config: original.campaign_config,
           campaign_strategy: original.campaign_strategy,
-          status: 'draft'
+          status: 'draft',
+          workspace_id: original.workspace_id,
+          channel: original.channel
         })
         .select()
         .single();
@@ -175,7 +182,8 @@ export default function SalesCampaigns() {
           const contactsToInsert = contactsData.contacts.map((contact: any) => ({
             campaign_id: duplicate.id,
             contact_id: contact.id,
-            status: 'pending'
+            status: 'pending',
+            workspace_id: original.workspace_id
           }));
 
           const { error: insertError } = await supabase

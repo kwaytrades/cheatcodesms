@@ -56,16 +56,17 @@ export function AutomationTriggersManager() {
       
       const { error } = await supabase
         .from('automation_triggers')
-        .insert({
+        .insert([{
           name,
           trigger_type: triggerType,
           action_type: actionType,
           trigger_config: { threshold: threshold ? parseFloat(threshold) : null },
           action_config: {},
           condition_config: {},
-          is_active: true,
-          created_by: user.user?.id
-        });
+          created_by: user?.user?.id,
+          workspace_id: currentWorkspace.id,
+          is_active: true
+        }]);
 
       if (error) throw error;
 

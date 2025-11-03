@@ -413,7 +413,9 @@ export default function SalesCampaignDetail() {
           audience_filter: campaign.audience_filter,
           campaign_config: campaign.campaign_config,
           campaign_strategy: campaign.campaign_strategy,
-          status: 'draft'
+          status: 'draft',
+          workspace_id: campaign.workspace_id,
+          channel: campaign.channel
         })
         .select()
         .single();
@@ -433,7 +435,8 @@ export default function SalesCampaignDetail() {
           const contactsToInsert = contactsData.contacts.map((contact: any) => ({
             campaign_id: duplicate.id,
             contact_id: contact.id,
-            status: 'pending'
+            status: 'pending',
+            workspace_id: campaign.workspace_id
           }));
 
           const { error: insertError } = await supabase

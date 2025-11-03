@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ interface FunnelStep {
 export default function FunnelBuilder() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { currentWorkspace } = useWorkspace();
   const [funnels, setFunnels] = useState<any[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string>("");
   const [funnelName, setFunnelName] = useState("");
@@ -61,9 +63,11 @@ export default function FunnelBuilder() {
   }, [selectedFunnelId]);
 
   const loadFunnels = async () => {
+    if (!currentWorkspace) return;
     const { data } = await supabase
       .from('funnels')
       .select('*')
+      .eq('workspace_id', currentWorkspace.id)
       .order('created_at', { ascending: false });
     
     setFunnels(data || []);
@@ -143,6 +147,7 @@ export default function FunnelBuilder() {
             name: funnelName,
             description: funnelDescription,
             created_by: user?.id,
+            workspace_id: currentWorkspace!.id,
           })
           .select()
           .single();
@@ -152,6 +157,7 @@ export default function FunnelBuilder() {
         // Insert steps
         const stepsToInsert = steps.map(step => ({
           funnel_id: newFunnel.id,
+          workspace_id: currentWorkspace!.id,
           ...step
         }));
 

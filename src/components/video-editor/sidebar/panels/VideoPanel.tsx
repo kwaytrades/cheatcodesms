@@ -71,11 +71,11 @@ export const VideoPanel: React.FC = () => {
       // Create database entry
       const { error: dbError } = await supabase
         .from('content_videos')
-        .insert({
-          user_id: user.id,
+        .insert([{
           video_url: fileName,
           file_size_bytes: file.size,
-        });
+          workspace_id: currentWorkspace!.id
+        }]);
 
       if (dbError) throw dbError;
 

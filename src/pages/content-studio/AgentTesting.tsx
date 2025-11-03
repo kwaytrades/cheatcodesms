@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,6 +30,7 @@ interface Message {
 
 export default function AgentTesting() {
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const [selectedAgent, setSelectedAgent] = useState("");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -83,7 +85,8 @@ export default function AgentTesting() {
               contact_id: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
               agent_type: selectedAgent,
               status: 'active',
-              started_at: new Date().toISOString()
+              started_at: new Date().toISOString(),
+              workspace_id: currentWorkspace!.id
             }])
             .select('id')
             .single();

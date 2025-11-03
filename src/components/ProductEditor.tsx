@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ interface ProductFormData {
 
 export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
   const queryClient = useQueryClient();
+  const { currentWorkspace } = useWorkspace();
   const isEditing = !!product;
 
   const [formData, setFormData] = useState<ProductFormData>({
@@ -115,7 +117,10 @@ export function ProductEditor({ product, open, onClose }: ProductEditorProps) {
           .eq("id", product.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("products").insert(payload);
+        const { error } = await supabase.from("products").insert({
+          ...payload,
+          workspace_id: currentWorkspace!.id
+        });
         if (error) throw error;
       }
     },

@@ -75,12 +75,13 @@ export const QuickActions = () => {
     try {
       const { error } = await supabase
         .from("contact_activities")
-        .insert({
+        .insert([{
           contact_id: id,
           activity_type: "call_scheduled",
           description: `Call scheduled for ${new Date(callDate).toLocaleString()}`,
-          metadata: { scheduled_date: callDate, notes: callNotes }
-        });
+          metadata: { scheduled_date: callDate, notes: callNotes },
+          workspace_id: currentWorkspace!.id
+        }]);
       
       if (error) throw error;
       toast.success("Call scheduled");
@@ -101,12 +102,13 @@ export const QuickActions = () => {
     try {
       const { error } = await supabase
         .from("contact_activities")
-        .insert({
+        .insert([{
           contact_id: id,
           activity_type: "handoff_to_human",
           description: "Contact handed off to human agent",
-          metadata: { notes: handoffNotes }
-        });
+          metadata: { notes: handoffNotes },
+          workspace_id: currentWorkspace!.id
+        }]);
       
       if (error) throw error;
       toast.success("Contact handed off to human agent");

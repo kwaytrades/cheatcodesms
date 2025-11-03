@@ -19,9 +19,14 @@ export const useLibrarySave = (
   const navigate = useNavigate();
   const cancelRef = useRef(false);
 
-  const saveToLibrary = async (title?: string) => {
+  const saveToLibrary = async (title?: string, workspaceId?: string) => {
     if (overlays.length === 0) {
       toast.error("No content to save");
+      return;
+    }
+
+    if (!workspaceId) {
+      toast.error("Workspace ID required");
       return;
     }
 
@@ -84,15 +89,15 @@ export const useLibrarySave = (
 
       const { error: dbError } = await supabase
         .from('content_videos')
-        .insert({
-          user_id: user.id,
+        .insert([{
           video_url: filePath,
           duration_seconds: durationSeconds,
           title: title || `Editor Video ${new Date().toLocaleDateString()}`,
           source: 'editor',
           composition_data: { overlays, durationInFrames, fps, width: dimensions.width, height: dimensions.height },
           is_final: true,
-        });
+          workspace_id: workspaceId
+        }]);
 
       if (dbError) throw dbError;
 

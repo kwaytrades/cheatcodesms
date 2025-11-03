@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const STEPS = [
 
 export default function InfluencerCampaignBuilder() {
   const navigate = useNavigate();
+  const { currentWorkspace } = useWorkspace();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   
@@ -102,6 +104,7 @@ export default function InfluencerCampaignBuilder() {
           start_date: campaignData.start_date || new Date().toISOString(),
           end_date: campaignData.end_date,
           audience_filter: campaignData.audience_filter as any,
+          workspace_id: currentWorkspace!.id,
           campaign_strategy: {
             campaign_type: campaignData.campaign_type,
             platforms: campaignData.platforms,
@@ -137,7 +140,8 @@ export default function InfluencerCampaignBuilder() {
         const contacts = matchedInfluencers.map(inf => ({
           campaign_id: campaign.id,
           contact_id: inf.id,
-          status: "pending"
+          status: "pending",
+          workspace_id: currentWorkspace!.id
         }));
 
         const { error: contactsError } = await supabase

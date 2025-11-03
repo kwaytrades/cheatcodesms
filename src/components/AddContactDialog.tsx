@@ -83,7 +83,10 @@ export const AddContactDialog = ({
 
       const { data, error } = await supabase
         .from("contacts")
-        .insert([formData])
+        .insert([{
+          ...formData,
+          workspace_id: currentWorkspace!.id
+        }])
         .select()
         .single();
 
