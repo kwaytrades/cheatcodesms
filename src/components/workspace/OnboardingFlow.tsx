@@ -18,7 +18,8 @@ export function OnboardingFlow() {
   const [isLoading, setIsLoading] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
-  const [inviteToken, setInviteToken] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
   const generateSlug = (name: string) => {
@@ -104,80 +105,27 @@ export function OnboardingFlow() {
     }
   };
 
-  const handleJoinWorkspace = async () => {
-    if (!inviteToken) {
-      toast.error("Please enter an invitation code");
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      toast.error("Please fill in all fields");
       return;
     }
 
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      // Find invitation
-      const { data: invitation, error: inviteError } = await supabase
-        .from("workspace_invitations")
-        .select("*, workspace:workspaces(id, name, organization_id)")
-        .eq("token", inviteToken)
-        .eq("email", user.email)
-        .is("accepted_at", null)
-        .single();
+      if (error) throw error;
 
-      if (inviteError || !invitation) {
-        throw new Error("Invalid or expired invitation");
-      }
-
-      // Check if invitation is expired
-      if (new Date(invitation.expires_at) < new Date()) {
-        throw new Error("Invitation has expired");
-      }
-
-      const workspace = invitation.workspace as any;
-
-      // Add user to workspace
-      const { error: memberError } = await supabase
-        .from("workspace_members")
-        .insert({
-          workspace_id: invitation.workspace_id,
-          user_id: user.id,
-          role: invitation.role,
-        });
-
-      if (memberError) throw memberError;
-
-      // Add user to organization
-      const { error: orgMemberError } = await supabase
-        .from("organization_members")
-        .insert({
-          organization_id: workspace.organization_id,
-          user_id: user.id,
-          role: "member",
-        });
-
-      // Ignore if already a member
-      if (orgMemberError && !orgMemberError.message.includes("duplicate")) {
-        throw orgMemberError;
-      }
-
-      // Mark invitation as accepted
-      await supabase
-        .from("workspace_invitations")
-        .update({ accepted_at: new Date().toISOString() })
-        .eq("id", invitation.id);
-
-      // Update profile with current workspace
-      await supabase
-        .from("profiles")
-        .update({ current_workspace_id: invitation.workspace_id })
-        .eq("id", user.id);
-
-      toast.success(`Joined ${workspace.name}!`);
+      toast.success("Welcome back!");
       navigate("/");
       window.location.reload(); // Reload to refresh workspace context
     } catch (error: any) {
-      console.error("Error joining workspace:", error);
-      toast.error(error.message || "Failed to join workspace");
+      console.error("Error signing in:", error);
+      toast.error(error.message || "Failed to sign in");
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +144,7 @@ export function OnboardingFlow() {
           <Tabs defaultValue="create">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="create">Create New</TabsTrigger>
-              <TabsTrigger value="join">Join Existing</TabsTrigger>
+              <TabsTrigger value="join">Sign In</TabsTrigger>
             </TabsList>
             
             <TabsContent value="create" className="space-y-4">
@@ -231,21 +179,32 @@ export function OnboardingFlow() {
 
             <TabsContent value="join" className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="invite-code">Invitation Code</Label>
+                <Label htmlFor="signin-email">Email</Label>
                 <Input
-                  id="invite-code"
-                  placeholder="Enter your invitation code"
-                  value={inviteToken}
-                  onChange={(e) => setInviteToken(e.target.value)}
+                  id="signin-email"
+                  type="email"
+                  placeholder="you@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signin-password">Password</Label>
+                <Input
+                  id="signin-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
 
               <Button
-                onClick={handleJoinWorkspace}
+                onClick={handleSignIn}
                 disabled={isLoading}
                 className="w-full"
               >
-                {isLoading ? "Joining..." : "Join Workspace"}
+                {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </TabsContent>
           </Tabs>
