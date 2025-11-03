@@ -2268,6 +2268,85 @@ export type Database = {
           },
         ]
       }
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          role: Database["public"]["Enums"]["organization_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          role?: Database["public"]["Enums"]["organization_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          role?: Database["public"]["Enums"]["organization_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          branding: Json | null
+          created_at: string
+          id: string
+          is_agency: boolean | null
+          name: string
+          parent_organization_id: string | null
+          plan_type: string
+          settings: Json | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          branding?: Json | null
+          created_at?: string
+          id?: string
+          is_agency?: boolean | null
+          name: string
+          parent_organization_id?: string | null
+          plan_type?: string
+          settings?: Json | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          branding?: Json | null
+          created_at?: string
+          id?: string
+          is_agency?: boolean | null
+          name?: string
+          parent_organization_id?: string | null
+          plan_type?: string
+          settings?: Json | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizations_parent_organization_id_fkey"
+            columns: ["parent_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_agents: {
         Row: {
           agent_context: Json
@@ -2426,6 +2505,47 @@ export type Database = {
           value_propositions?: Json | null
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          current_workspace_id: string | null
+          email: string
+          full_name: string | null
+          id: string
+          preferences: Json | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          current_workspace_id?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          current_workspace_id?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          preferences?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_current_workspace_id_fkey"
+            columns: ["current_workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchases: {
         Row: {
@@ -2944,6 +3064,167 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          token: string
+          workspace_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          token?: string
+          workspace_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          token?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_invitations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["workspace_role"]
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_usage: {
+        Row: {
+          campaigns_active: number | null
+          contacts_count: number | null
+          created_at: string
+          id: string
+          messages_sent: number | null
+          period_end: string
+          period_start: string
+          storage_used_mb: number | null
+          workspace_id: string
+        }
+        Insert: {
+          campaigns_active?: number | null
+          contacts_count?: number | null
+          created_at?: string
+          id?: string
+          messages_sent?: number | null
+          period_end: string
+          period_start: string
+          storage_used_mb?: number | null
+          workspace_id: string
+        }
+        Update: {
+          campaigns_active?: number | null
+          contacts_count?: number | null
+          created_at?: string
+          id?: string
+          messages_sent?: number | null
+          period_end?: string
+          period_start?: string
+          storage_used_mb?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_usage_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          created_at: string
+          id: string
+          limits: Json | null
+          name: string
+          organization_id: string
+          settings: Json | null
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          limits?: Json | null
+          name: string
+          organization_id: string
+          settings?: Json | null
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          limits?: Json | null
+          name?: string
+          organization_id?: string
+          settings?: Json | null
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspaces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2978,6 +3259,14 @@ export type Database = {
           p_contact_id: string
         }
         Returns: string
+      }
+      get_user_organization_role: {
+        Args: { org_uuid: string }
+        Returns: Database["public"]["Enums"]["organization_role"]
+      }
+      get_user_workspace_role: {
+        Args: { workspace_uuid: string }
+        Returns: Database["public"]["Enums"]["workspace_role"]
       }
       match_documents: {
         Args: {
@@ -3020,6 +3309,14 @@ export type Database = {
           similarity: number
         }[]
       }
+      user_has_organization_access: {
+        Args: { org_uuid: string }
+        Returns: boolean
+      }
+      user_has_workspace_access: {
+        Args: { workspace_uuid: string }
+        Returns: boolean
+      }
     }
     Enums: {
       agent_type: "sales_ai" | "cs_ai" | "human_team"
@@ -3034,6 +3331,8 @@ export type Database = {
       message_direction: "inbound" | "outbound"
       message_sender: "customer" | "ai_sales" | "ai_cs" | "human_team"
       message_status: "sent" | "delivered" | "failed" | "read"
+      organization_role: "owner" | "admin" | "member"
+      workspace_role: "owner" | "admin" | "manager" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3168,6 +3467,8 @@ export const Constants = {
       message_direction: ["inbound", "outbound"],
       message_sender: ["customer", "ai_sales", "ai_cs", "human_team"],
       message_status: ["sent", "delivered", "failed", "read"],
+      organization_role: ["owner", "admin", "member"],
+      workspace_role: ["owner", "admin", "manager", "viewer"],
     },
   },
 } as const
