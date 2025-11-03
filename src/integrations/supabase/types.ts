@@ -471,6 +471,7 @@ export type Database = {
           responded: boolean | null
           status: string | null
           updated_at: string | null
+          workspace_id: string
         }
         Insert: {
           agent_assigned_at?: string | null
@@ -486,6 +487,7 @@ export type Database = {
           responded?: boolean | null
           status?: string | null
           updated_at?: string | null
+          workspace_id: string
         }
         Update: {
           agent_assigned_at?: string | null
@@ -501,6 +503,7 @@ export type Database = {
           responded?: boolean | null
           status?: string | null
           updated_at?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -515,6 +518,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_sales_campaign_contacts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -540,6 +550,7 @@ export type Database = {
           start_date: string | null
           status: string | null
           updated_at: string | null
+          workspace_id: string
         }
         Insert: {
           agent_type: string
@@ -561,6 +572,7 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           updated_at?: string | null
+          workspace_id: string
         }
         Update: {
           agent_type?: string
@@ -582,8 +594,17 @@ export type Database = {
           start_date?: string | null
           status?: string | null
           updated_at?: string | null
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_sales_campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_video_clips: {
         Row: {
@@ -816,6 +837,7 @@ export type Database = {
           subject: string | null
           to_email: string | null
           twilio_message_sid: string | null
+          workspace_id: string
         }
         Insert: {
           campaign_id: string
@@ -832,6 +854,7 @@ export type Database = {
           subject?: string | null
           to_email?: string | null
           twilio_message_sid?: string | null
+          workspace_id: string
         }
         Update: {
           campaign_id?: string
@@ -848,6 +871,7 @@ export type Database = {
           subject?: string | null
           to_email?: string | null
           twilio_message_sid?: string | null
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -855,6 +879,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_messages_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -867,6 +898,7 @@ export type Database = {
           id: string
           priority: number | null
           product_id: string
+          workspace_id: string
         }
         Insert: {
           campaign_id: string
@@ -875,6 +907,7 @@ export type Database = {
           id?: string
           priority?: number | null
           product_id: string
+          workspace_id: string
         }
         Update: {
           campaign_id?: string
@@ -883,6 +916,7 @@ export type Database = {
           id?: string
           priority?: number | null
           product_id?: string
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -897,6 +931,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_products_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -926,6 +967,7 @@ export type Database = {
           subject: string | null
           total_contacts: number | null
           updated_at: string
+          workspace_id: string
         }
         Insert: {
           audience_filter?: Json | null
@@ -951,6 +993,7 @@ export type Database = {
           subject?: string | null
           total_contacts?: number | null
           updated_at?: string
+          workspace_id: string
         }
         Update: {
           audience_filter?: Json | null
@@ -976,8 +1019,17 @@ export type Database = {
           subject?: string | null
           total_contacts?: number | null
           updated_at?: string
+          workspace_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       contact_activities: {
         Row: {
