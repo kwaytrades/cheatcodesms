@@ -54,8 +54,25 @@ export const QuickActions = () => {
     
     setSending(true);
     try {
+      // First, fetch the contact's email address
+      const { data: contact, error: fetchError } = await supabase
+        .from("contacts")
+        .select("email")
+        .eq("id", id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      if (!contact?.email) {
+        toast.error("Contact does not have an email address");
+        return;
+      }
+      
       const { error } = await supabase.functions.invoke("send-email", {
-        body: { contactId: id, subject: emailSubject, body: emailBody }
+        body: { 
+          to: contact.email, 
+          subject: emailSubject, 
+          htmlBody: emailBody 
+        }
       });
       
       if (error) throw error;
