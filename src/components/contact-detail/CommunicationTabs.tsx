@@ -48,34 +48,47 @@ export const CommunicationTabs = ({
   onSendMessage,
   contactId
 }: CommunicationTabsProps) => {
-  // Fetch active agent for this contact (checks both product_agents and agent_conversations)
+  // Fetch active agent for this contact - check help mode and product agents
   const { data: activeAgent } = useQuery({
     queryKey: ['active-agent', contactId],
     queryFn: async () => {
       if (!contactId) return null;
       
+      // First check if help mode is active (customer service priority)
       const { data: convState } = await supabase
         .from('conversation_state')
-        .select('active_agent_id')
+        .select('help_mode_until, active_agent_id')
         .eq('contact_id', contactId)
         .maybeSingle();
       
-      if (!convState?.active_agent_id) return null;
+      // If help mode is active, customer service takes priority
+      if (convState?.help_mode_until) {
+        const helpModeUntil = new Date(convState.help_mode_until);
+        if (helpModeUntil > new Date()) {
+          return {
+            type: 'help_mode' as const,
+            agent_type: 'customer_service',
+            help_mode_until: convState.help_mode_until
+          };
+        }
+      }
       
-      // Try to find in product_agents first
+      // Check for assigned product agent
       const { data: productAgent } = await supabase
         .from('product_agents')
         .select('*')
-        .eq('id', convState.active_agent_id)
+        .eq('contact_id', contactId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (productAgent) {
         const now = new Date();
-        const expirationDate = new Date(productAgent.expiration_date);
-        const isExpired = now > expirationDate;
-        const isActive = productAgent.status === 'active';
+        const expirationDate = productAgent.expiration_date ? new Date(productAgent.expiration_date) : null;
+        const isExpired = expirationDate && now > expirationDate;
         
-        if (isActive && !isExpired) {
+        if (!isExpired) {
           return {
             type: 'product_agent' as const,
             agent_type: productAgent.product_type,
@@ -84,20 +97,22 @@ export const CommunicationTabs = ({
         }
       }
       
-      // Check agent_conversations
+      // Check for active agent conversation (textbook, etc.)
       const { data: convAgent } = await supabase
         .from('agent_conversations')
         .select('*')
-        .eq('id', convState.active_agent_id)
+        .eq('contact_id', contactId)
+        .eq('status', 'active')
+        .order('last_message_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
       
       if (convAgent) {
         const now = new Date();
-        const expirationDate = new Date(convAgent.expiration_date);
-        const isExpired = now > expirationDate;
-        const isActive = convAgent.status === 'active';
+        const expirationDate = convAgent.expiration_date ? new Date(convAgent.expiration_date) : null;
+        const isExpired = expirationDate && now > expirationDate;
         
-        if (isActive && !isExpired) {
+        if (!isExpired) {
           return {
             type: 'agent_conversation' as const,
             agent_type: convAgent.agent_type,
@@ -106,6 +121,7 @@ export const CommunicationTabs = ({
         }
       }
       
+      // No active agent - return null (don't default to customer service)
       return null;
     },
     enabled: !!contactId
@@ -149,13 +165,15 @@ export const CommunicationTabs = ({
                   <span className="text-muted-foreground ml-1">
                     ({activeAgent.agent_type.replace(/_/g, ' ')})
                   </span>
+                  {activeAgent.type === 'help_mode' && (
+                    <span className="ml-2 text-xs text-amber-600">
+                      (Help Mode - expires {new Date(activeAgent.help_mode_until).toLocaleTimeString()})
+                    </span>
+                  )}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <AgentTypeIcon type="customer_service" className="w-4 h-4" />
-                <span className="text-sm font-medium">Customer Service (Casey)</span>
-              </div>
+              <span className="text-sm text-muted-foreground italic">No active agent</span>
             )}
           </div>
           <div className="flex-1">
