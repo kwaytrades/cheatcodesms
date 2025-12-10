@@ -1,6 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, User } from "lucide-react";
+import { Bot, User, Video, Book, Layers, TrendingUp, Award, Sparkles, UserPlus, Headphones, Megaphone, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
 
 interface Message {
   id: string;
@@ -8,14 +9,59 @@ interface Message {
   created_at: string;
   direction: string;
   sender: string;
+  agent_type?: string;
 }
 
 interface SMSChatViewProps {
   messages: Message[];
+  activeAgentType?: string | null;
+  isTyping?: boolean;
 }
 
-export const SMSChatView = ({ messages }: SMSChatViewProps) => {
-  if (messages.length === 0) {
+const AGENT_CONFIG: Record<string, { Icon: LucideIcon; color: string; bgColor: string; name: string }> = {
+  sales_agent: { Icon: UserPlus, color: "text-cyan-500", bgColor: "bg-cyan-500/10", name: "Sam" },
+  customer_service: { Icon: Headphones, color: "text-pink-500", bgColor: "bg-pink-500/10", name: "Casey" },
+  webinar: { Icon: Video, color: "text-blue-500", bgColor: "bg-blue-500/10", name: "Wendi" },
+  textbook: { Icon: Book, color: "text-orange-500", bgColor: "bg-orange-500/10", name: "Thomas" },
+  flashcards: { Icon: Layers, color: "text-purple-500", bgColor: "bg-purple-500/10", name: "Frank" },
+  algo_monthly: { Icon: TrendingUp, color: "text-green-500", bgColor: "bg-green-500/10", name: "Adam" },
+  ccta: { Icon: Award, color: "text-yellow-500", bgColor: "bg-yellow-500/10", name: "Chris" },
+  lead_nurture: { Icon: Sparkles, color: "text-gray-500", bgColor: "bg-gray-500/10", name: "Jamie" },
+  influencer_outreach: { Icon: Megaphone, color: "text-purple-400", bgColor: "bg-purple-400/10", name: "Influencer" },
+};
+
+const TypingIndicator = ({ agentType }: { agentType?: string | null }) => {
+  const config = agentType ? AGENT_CONFIG[agentType] : AGENT_CONFIG.customer_service;
+  const Icon = config?.Icon || Bot;
+  
+  return (
+    <div className="flex gap-3">
+      <div className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+        config?.bgColor || "bg-primary/10"
+      )}>
+        <Icon className={cn("h-4 w-4", config?.color || "text-primary")} />
+      </div>
+      <div className="flex items-center gap-1 px-4 py-2 bg-muted rounded-lg">
+        <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+  );
+};
+
+export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMSChatViewProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
+
+  if (messages.length === 0 && !isTyping) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         No messages yet
@@ -24,28 +70,37 @@ export const SMSChatView = ({ messages }: SMSChatViewProps) => {
   }
 
   return (
-    <ScrollArea className="h-[calc(100vh-300px)]">
+    <ScrollArea className="h-[calc(100vh-300px)]" ref={scrollRef}>
       <div className="space-y-4 p-4">
         {messages.map((message) => {
           const isInbound = message.direction === "inbound";
           const isAI = message.sender.startsWith("ai_");
           
+          // Get agent config for AI messages
+          const agentType = message.agent_type || activeAgentType || 'customer_service';
+          const agentConfig = isAI ? AGENT_CONFIG[agentType] || AGENT_CONFIG.customer_service : null;
+          const AgentIcon = agentConfig?.Icon || Bot;
+          
           return (
             <div
               key={message.id}
               className={cn(
-                "flex gap-3",
+                "flex gap-3 animate-fade-in",
                 !isInbound && "flex-row-reverse"
               )}
             >
               <div className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                isInbound ? "bg-muted" : isAI ? "bg-primary/10" : "bg-primary"
+                isInbound 
+                  ? "bg-muted" 
+                  : isAI 
+                    ? agentConfig?.bgColor || "bg-primary/10"
+                    : "bg-primary"
               )}>
                 {isInbound ? (
                   <User className="h-4 w-4" />
                 ) : isAI ? (
-                  <Bot className="h-4 w-4 text-primary" />
+                  <AgentIcon className={cn("h-4 w-4", agentConfig?.color || "text-primary")} />
                 ) : (
                   <User className="h-4 w-4 text-primary-foreground" />
                 )}
@@ -69,12 +124,14 @@ export const SMSChatView = ({ messages }: SMSChatViewProps) => {
                     minute: '2-digit',
                     hour12: true
                   })}
-                  {!isInbound && ` (${isAI ? 'AI' : 'You'})`}
+                  {!isInbound && ` (${isAI ? agentConfig?.name || 'AI' : 'You'})`}
                 </div>
               </div>
             </div>
           );
         })}
+        
+        {isTyping && <TypingIndicator agentType={activeAgentType} />}
       </div>
     </ScrollArea>
   );

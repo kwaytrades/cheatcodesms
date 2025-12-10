@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
@@ -28,6 +28,8 @@ const ContactDetail = () => {
   const [purchases, setPurchases] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [activeAgentType, setActiveAgentType] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const messageIdCounter = useRef(0);
 
   useEffect(() => {
     if (id) {
@@ -156,7 +158,8 @@ const ContactDetail = () => {
           body: msg.content,
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
-          sender: msg.role === 'assistant' ? 'ai_agent' : 'user'
+          sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
+          agent_type: agentConvData.agent_type
         }));
         
         setAgentMessages(formattedAgentMsgs);
@@ -236,15 +239,23 @@ const ContactDetail = () => {
       // Determine agent type - use active agent or default to customer_service
       const agentToUse = activeAgentType || "customer_service";
       
-      // Optimistically add user message to UI
+      // Create stable timestamp for user message
+      const userMsgTimestamp = new Date().toISOString();
+      messageIdCounter.current += 1;
+      
+      // Optimistically add user message to UI with stable ID
       const tempUserMsg = {
-        id: `temp-${Date.now()}`,
+        id: `user-${messageIdCounter.current}-${Date.now()}`,
         body: message.trim(),
-        created_at: new Date().toISOString(),
+        created_at: userMsgTimestamp,
         direction: 'outbound',
-        sender: 'user'
+        sender: 'user',
+        agent_type: agentToUse
       };
       setAgentMessages(prev => [...prev, tempUserMsg]);
+      
+      // Show typing indicator
+      setIsTyping(true);
 
       // Call agent-chat function
       const { data: response, error: chatError } = await supabase.functions.invoke(
@@ -258,16 +269,22 @@ const ContactDetail = () => {
         }
       );
 
+      // Hide typing indicator
+      setIsTyping(false);
+
       if (chatError) throw chatError;
 
-      // Add AI response to messages
+      // Add AI response to messages with timestamp AFTER user message
       if (response?.response) {
+        messageIdCounter.current += 1;
+        const aiMsgTimestamp = new Date().toISOString();
         const aiMsg = {
-          id: response.conversationId + '-ai-' + Date.now(),
+          id: `ai-${messageIdCounter.current}-${Date.now()}`,
           body: response.response,
-          created_at: new Date().toISOString(),
+          created_at: aiMsgTimestamp,
           direction: 'inbound',
-          sender: 'ai_agent'
+          sender: 'ai_agent',
+          agent_type: agentToUse
         };
         setAgentMessages(prev => [...prev, aiMsg]);
       }
@@ -295,7 +312,8 @@ const ContactDetail = () => {
           body: msg.content,
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
-          sender: msg.role === 'assistant' ? 'ai_agent' : 'user'
+          sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
+          agent_type: agentConvData.agent_type
         }));
         
         setAgentMessages(formattedAgentMsgs);
@@ -304,6 +322,7 @@ const ContactDetail = () => {
       toast.success("Message sent");
     } catch (error: any) {
       console.error("Error sending message:", error);
+      setIsTyping(false);
       
       if (error.message?.includes('Rate limit')) {
         toast.error("Too many requests. Please wait a moment and try again.");
@@ -434,6 +453,8 @@ const ContactDetail = () => {
               timeline={timeline}
               onSendMessage={handleSendMessage}
               contactId={id}
+              activeAgentType={activeAgentType}
+              isTyping={isTyping}
             />
           </div>
 
