@@ -134,6 +134,17 @@ const ContactDetail = () => {
       
       setMessages(messagesData);
 
+      // Determine the active agent - product_agents take priority over agent_conversations
+      // First check for an active product agent (textbook, etc.)
+      const { data: activeProductAgent } = await supabase
+        .from("product_agents")
+        .select("product_type")
+        .eq("contact_id", contactId)
+        .eq("status", "active")
+        .order("assigned_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       // Load agent conversation messages (internal chat with AI agents)
       const { data: agentConvData } = await supabase
         .from("agent_conversations")
@@ -143,9 +154,11 @@ const ContactDetail = () => {
         .limit(1)
         .maybeSingle();
 
+      // Product agent takes priority if exists and is active
+      const effectiveAgentType = activeProductAgent?.product_type || agentConvData?.agent_type || null;
+      setActiveAgentType(effectiveAgentType);
+
       if (agentConvData) {
-        setActiveAgentType(agentConvData.agent_type);
-        
         const { data: agentMsgs } = await supabase
           .from("agent_messages")
           .select("*")
@@ -159,7 +172,7 @@ const ContactDetail = () => {
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
           sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
-          agent_type: agentConvData.agent_type
+          agent_type: effectiveAgentType
         }));
         
         setAgentMessages(formattedAgentMsgs);
