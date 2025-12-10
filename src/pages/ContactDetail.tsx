@@ -23,9 +23,11 @@ const ContactDetail = () => {
   const [loading, setLoading] = useState(true);
   const [contact, setContact] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [agentMessages, setAgentMessages] = useState<any[]>([]);
   const [emails, setEmails] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
+  const [activeAgentType, setActiveAgentType] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -33,41 +35,49 @@ const ContactDetail = () => {
     }
   }, [id]);
 
-  // Set up real-time subscription for new messages
+  // Set up real-time subscription for agent messages
   useEffect(() => {
     if (!id) return;
 
-    // Get conversation ID first
     const setupRealtimeSubscription = async () => {
-      const { data: conversationData } = await supabase
-        .from("conversations")
+      // Subscribe to agent_messages via agent_conversations
+      const { data: agentConv } = await supabase
+        .from("agent_conversations")
         .select("id")
         .eq("contact_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (!conversationData) return;
+      if (agentConv) {
+        const channel = supabase
+          .channel(`agent-messages-${agentConv.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'agent_messages',
+              filter: `conversation_id=eq.${agentConv.id}`
+            },
+            (payload) => {
+              console.log('New agent message received:', payload);
+              const newMsg = payload.new as any;
+              setAgentMessages((prev) => [...prev, {
+                id: newMsg.id,
+                body: newMsg.content,
+                created_at: newMsg.created_at,
+                direction: newMsg.role === 'user' ? 'outbound' : 'inbound',
+                sender: newMsg.role === 'assistant' ? 'ai_agent' : 'user'
+              }]);
+            }
+          )
+          .subscribe();
 
-      const channel = supabase
-        .channel(`messages-${conversationData.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-            filter: `conversation_id=eq.${conversationData.id}`
-          },
-          (payload) => {
-            console.log('New message received:', payload);
-            const newMsg = payload.new as any;
-            setMessages((prev) => [...prev, newMsg]);
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
     };
 
     setupRealtimeSubscription();
@@ -121,6 +131,36 @@ const ContactDetail = () => {
       }
       
       setMessages(messagesData);
+
+      // Load agent conversation messages (internal chat with AI agents)
+      const { data: agentConvData } = await supabase
+        .from("agent_conversations")
+        .select("id, agent_type")
+        .eq("contact_id", contactId)
+        .order("last_message_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (agentConvData) {
+        setActiveAgentType(agentConvData.agent_type);
+        
+        const { data: agentMsgs } = await supabase
+          .from("agent_messages")
+          .select("*")
+          .eq("conversation_id", agentConvData.id)
+          .order("created_at", { ascending: true });
+
+        // Convert agent_messages to the same format as SMS messages
+        const formattedAgentMsgs = (agentMsgs || []).map((msg: any) => ({
+          id: msg.id,
+          body: msg.content,
+          created_at: msg.created_at,
+          direction: msg.role === 'user' ? 'outbound' : 'inbound',
+          sender: msg.role === 'assistant' ? 'ai_agent' : 'user'
+        }));
+        
+        setAgentMessages(formattedAgentMsgs);
+      }
 
       // Load AI messages (emails)
       const { data: aiMessagesData } = await supabase
@@ -193,13 +233,26 @@ const ContactDetail = () => {
     if (!id || !message.trim()) return;
 
     try {
-      // Call new agent-chat function (handles conversation creation, context, RAG, etc.)
+      // Determine agent type - use active agent or default to customer_service
+      const agentToUse = activeAgentType || "customer_service";
+      
+      // Optimistically add user message to UI
+      const tempUserMsg = {
+        id: `temp-${Date.now()}`,
+        body: message.trim(),
+        created_at: new Date().toISOString(),
+        direction: 'outbound',
+        sender: 'user'
+      };
+      setAgentMessages(prev => [...prev, tempUserMsg]);
+
+      // Call agent-chat function
       const { data: response, error: chatError } = await supabase.functions.invoke(
         "agent-chat",
         {
           body: {
             contactId: id,
-            agentType: "customer_service",
+            agentType: agentToUse,
             message: message.trim(),
           },
         }
@@ -207,30 +260,51 @@ const ContactDetail = () => {
 
       if (chatError) throw chatError;
 
-      // Refresh messages from live SMS conversation
-      const { data: conversationData } = await supabase
-        .from("conversations")
-        .select("id")
+      // Add AI response to messages
+      if (response?.response) {
+        const aiMsg = {
+          id: response.conversationId + '-ai-' + Date.now(),
+          body: response.response,
+          created_at: new Date().toISOString(),
+          direction: 'inbound',
+          sender: 'ai_agent'
+        };
+        setAgentMessages(prev => [...prev, aiMsg]);
+      }
+
+      // Refresh agent messages to get actual DB records
+      const { data: agentConvData } = await supabase
+        .from("agent_conversations")
+        .select("id, agent_type")
         .eq("contact_id", id)
+        .order("last_message_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (conversationData) {
-        const { data: liveMessages } = await supabase
-          .from("messages")
+      if (agentConvData) {
+        setActiveAgentType(agentConvData.agent_type);
+        
+        const { data: agentMsgs } = await supabase
+          .from("agent_messages")
           .select("*")
-          .eq("conversation_id", conversationData.id)
+          .eq("conversation_id", agentConvData.id)
           .order("created_at", { ascending: true });
 
-        if (liveMessages) {
-          setMessages(liveMessages);
-        }
+        const formattedAgentMsgs = (agentMsgs || []).map((msg: any) => ({
+          id: msg.id,
+          body: msg.content,
+          created_at: msg.created_at,
+          direction: msg.role === 'user' ? 'outbound' : 'inbound',
+          sender: msg.role === 'assistant' ? 'ai_agent' : 'user'
+        }));
+        
+        setAgentMessages(formattedAgentMsgs);
       }
 
       toast.success("Message sent");
     } catch (error: any) {
       console.error("Error sending message:", error);
       
-      // Handle specific error types
       if (error.message?.includes('Rate limit')) {
         toast.error("Too many requests. Please wait a moment and try again.");
       } else if (error.message?.includes('Payment required') || error.message?.includes('AI service')) {
@@ -353,7 +427,9 @@ const ContactDetail = () => {
           {/* Center - Communication Area */}
           <div className="bg-background flex flex-col">
             <CommunicationTabs
-              messages={messages}
+              messages={[...messages, ...agentMessages].sort((a, b) => 
+                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              )}
               emails={emails}
               timeline={timeline}
               onSendMessage={handleSendMessage}
