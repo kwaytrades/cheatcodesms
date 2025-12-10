@@ -74,7 +74,10 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
     },
   });
 
-  // Merge both types of agents into unified array
+  // Merge both types of agents into unified array, deduplicating by agent_type
+  // Product agents take priority over agent_conversations for the same type
+  const productAgentTypes = new Set((productAgents || []).map(pa => pa.product_type));
+  
   const agents = [
     ...(productAgents || []).map(pa => ({
       id: pa.id,
@@ -87,17 +90,20 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
       conversion_achieved: pa.conversion_achieved,
       created_at: pa.assigned_date
     })),
-    ...(conversationAgents || []).map(ca => ({
-      id: ca.id,
-      type: 'agent_conversation' as const,
-      agent_type: ca.agent_type,
-      status: ca.status,
-      messages_sent: ca.message_count,
-      replies_received: 0, // agent_conversations doesn't track replies separately yet
-      expiration_date: ca.expiration_date,
-      conversion_achieved: false,
-      created_at: ca.started_at
-    }))
+    // Only include agent_conversations that don't already exist as product_agents
+    ...(conversationAgents || [])
+      .filter(ca => !productAgentTypes.has(ca.agent_type))
+      .map(ca => ({
+        id: ca.id,
+        type: 'agent_conversation' as const,
+        agent_type: ca.agent_type,
+        status: ca.status,
+        messages_sent: ca.message_count,
+        replies_received: 0,
+        expiration_date: ca.expiration_date,
+        conversion_achieved: false,
+        created_at: ca.started_at
+      }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const { data: conversationState } = useQuery({
