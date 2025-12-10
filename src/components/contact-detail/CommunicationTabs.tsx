@@ -39,6 +39,8 @@ interface CommunicationTabsProps {
   timeline: TimelineEvent[];
   onSendMessage?: (message: string) => void;
   contactId?: string;
+  activeAgentType?: string | null;
+  isTyping?: boolean;
 }
 
 export const CommunicationTabs = ({
@@ -46,7 +48,9 @@ export const CommunicationTabs = ({
   emails,
   timeline,
   onSendMessage,
-  contactId
+  contactId,
+  activeAgentType: propAgentType,
+  isTyping = false
 }: CommunicationTabsProps) => {
   // Fetch active agent for this contact - check help mode and product agents
   const { data: activeAgent } = useQuery({
@@ -177,7 +181,11 @@ export const CommunicationTabs = ({
             )}
           </div>
           <div className="flex-1">
-            <SMSChatView messages={messages} />
+            <SMSChatView 
+              messages={messages} 
+              activeAgentType={propAgentType || activeAgent?.agent_type}
+              isTyping={isTyping}
+            />
           </div>
         </TabsContent>
         
