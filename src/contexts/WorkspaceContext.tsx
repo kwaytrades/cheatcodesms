@@ -64,7 +64,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Get all workspaces user has access to
+    const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000002';
+
+    // Get all workspaces user has access to via membership
     const { data: memberData, error: memberError } = await supabase
       .from("workspace_members")
       .select(`
@@ -93,6 +95,36 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         },
       }))
       .filter((w: any) => w.id) || [];
+
+    // Check if default workspace is already in list
+    const hasDefaultWorkspace = workspacesWithDetails.some(
+      (w: any) => w.id === DEFAULT_WORKSPACE_ID
+    );
+
+    // If not, fetch and add the default workspace (accessible to all authenticated users)
+    if (!hasDefaultWorkspace) {
+      const { data: defaultWorkspace } = await supabase
+        .from("workspaces")
+        .select(`
+          *,
+          organization:organizations(*)
+        `)
+        .eq("id", DEFAULT_WORKSPACE_ID)
+        .single();
+
+      if (defaultWorkspace) {
+        workspacesWithDetails.unshift({
+          ...defaultWorkspace,
+          member: {
+            id: 'default-member',
+            workspace_id: DEFAULT_WORKSPACE_ID,
+            user_id: user.id,
+            role: 'viewer' as const,
+            created_at: new Date().toISOString(),
+          },
+        });
+      }
+    }
 
     setWorkspaces(workspacesWithDetails);
 
