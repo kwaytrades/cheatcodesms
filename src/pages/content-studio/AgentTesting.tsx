@@ -36,6 +36,7 @@ export default function AgentTesting() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [testContactId, setTestContactId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -46,16 +47,64 @@ export default function AgentTesting() {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize test conversation on mount
+  // Get or create test contact for current workspace
   useEffect(() => {
-    const initTestConversation = async () => {
+    const initTestContact = async () => {
+      if (!currentWorkspace?.id) return;
+
       try {
-        // Check if test conversation exists in agent_conversations
+        // Find or create a test contact in this workspace
+        const { data: existingContact, error: findError } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('workspace_id', currentWorkspace.id)
+          .eq('email', 'test-agent@internal.test')
+          .maybeSingle();
+
+        if (findError) throw findError;
+
+        if (existingContact) {
+          setTestContactId(existingContact.id);
+        } else {
+          // Create test contact for this workspace
+          const { data: newContact, error: insertError } = await supabase
+            .from('contacts')
+            .insert([{
+              full_name: 'Agent Test User',
+              email: 'test-agent@internal.test',
+              workspace_id: currentWorkspace.id,
+              lead_status: 'qualified',
+              customer_tier: 'VIP'
+            }])
+            .select('id')
+            .single();
+
+          if (insertError) throw insertError;
+          if (newContact) setTestContactId(newContact.id);
+        }
+      } catch (error) {
+        console.error('Error initializing test contact:', error);
+        toast.error('Failed to initialize test contact');
+      }
+    };
+
+    initTestContact();
+  }, [currentWorkspace?.id]);
+
+  // Load or create conversation when agent changes
+  useEffect(() => {
+    const initConversation = async () => {
+      if (!testContactId || !selectedAgent || !currentWorkspace?.id) return;
+
+      try {
+        // Check if conversation exists
         const { data: existingConv, error: fetchError } = await supabase
           .from('agent_conversations')
           .select('id')
-          .eq('contact_id', 'e1daabfd-5a02-4cca-a108-6de63af10a4f')
+          .eq('contact_id', testContactId)
           .eq('agent_type', selectedAgent)
+          .eq('workspace_id', currentWorkspace.id)
+          .eq('status', 'active')
           .maybeSingle();
 
         if (fetchError) throw fetchError;
@@ -76,32 +125,20 @@ export default function AgentTesting() {
               timestamp: new Date(msg.created_at)
             }));
             setMessages(formattedMessages as Message[]);
+          } else {
+            setMessages([]);
           }
         } else {
-          // Create new test conversation
-          const { data: newConv, error: insertError } = await supabase
-            .from('agent_conversations')
-            .insert([{
-              contact_id: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
-              agent_type: selectedAgent,
-              status: 'active',
-              started_at: new Date().toISOString(),
-              workspace_id: currentWorkspace!.id
-            }])
-            .select('id')
-            .single();
-
-          if (insertError) throw insertError;
-          if (newConv) setConversationId(newConv.id);
+          setConversationId(null);
+          setMessages([]);
         }
       } catch (error) {
-        console.error('Error initializing test conversation:', error);
-        toast.error('Failed to initialize test conversation');
+        console.error('Error initializing conversation:', error);
       }
     };
 
-    initTestConversation();
-  }, []);
+    initConversation();
+  }, [testContactId, selectedAgent, currentWorkspace?.id]);
 
   const handleSend = async () => {
     if (!input.trim() || !selectedAgent) {
@@ -122,9 +159,14 @@ export default function AgentTesting() {
     setIsLoading(true);
 
     try {
+      if (!testContactId) {
+        toast.error("Test contact not ready. Please wait...");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('agent-chat', {
         body: {
-          contactId: 'e1daabfd-5a02-4cca-a108-6de63af10a4f',
+          contactId: testContactId,
           agentType: selectedAgent,
           message: input.trim(),
           conversationId: conversationId || undefined,
