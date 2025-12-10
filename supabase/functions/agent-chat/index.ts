@@ -97,7 +97,48 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if contact is in help mode FIRST
+    // Get contact's workspace_id for proper data isolation
+    const { data: contactData, error: contactError } = await supabase
+      .from('contacts')
+      .select('workspace_id')
+      .eq('id', contactId)
+      .single();
+
+    if (contactError || !contactData?.workspace_id) {
+      throw new Error('Contact not found or missing workspace_id');
+    }
+    const workspaceId = contactData.workspace_id;
+
+    // Check for /help command to activate help mode
+    const isHelpCommand = message.trim().toLowerCase() === '/help';
+    
+    if (isHelpCommand) {
+      console.log('🆘 /help COMMAND DETECTED - Activating customer service mode for 24 hours');
+      const helpModeUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      
+      // Upsert conversation_state with help mode
+      await supabase
+        .from('conversation_state')
+        .upsert({
+          contact_id: contactId,
+          workspace_id: workspaceId,
+          help_mode_until: helpModeUntil,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'contact_id' });
+      
+      return new Response(
+        JSON.stringify({
+          response: "I've activated help mode! You're now connected to our customer service team. A specialist will assist you for the next 24 hours. How can I help you today?",
+          conversationId: requestConversationId || null,
+          latency: Date.now() - startTime,
+          needsHuman: false,
+          helpModeActivated: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if contact is in help mode
     const { data: helpModeData } = await supabase
       .from('conversation_state')
       .select('help_mode_until')
@@ -107,11 +148,19 @@ Deno.serve(async (req) => {
     const isHelpMode = helpModeData?.help_mode_until && 
       new Date(helpModeData.help_mode_until) > new Date();
 
-    // Override agentType if in help mode
+    // Determine effective agent type based on priority:
+    // 1. Help mode -> customer_service (highest priority)
+    // 2. Textbook agent -> takes priority if assigned
+    // 3. Requested agent type -> default
     let effectiveAgentType = agentType;
+    
     if (isHelpMode) {
       console.log('🚨 HELP MODE ACTIVE - Routing to customer_service');
       effectiveAgentType = 'customer_service';
+    } else if (agentType === 'textbook') {
+      // Textbook takes priority over other agents (except help mode)
+      console.log('📚 TEXTBOOK AGENT - Taking priority');
+      effectiveAgentType = 'textbook';
     }
 
     // 1. Get or create agent conversation (using safe DB function)
@@ -592,6 +641,7 @@ ${responseGuidelines}`;
     const messagesToInsert = [
       {
         conversation_id: conversationId,
+        workspace_id: workspaceId,
         role: 'user',
         content: message,
         token_count: message.split(/\s+/).length,
@@ -600,6 +650,7 @@ ${responseGuidelines}`;
       },
       {
         conversation_id: conversationId,
+        workspace_id: workspaceId,
         role: 'assistant',
         content: aiMessage,
         token_count: aiMessage.split(/\s+/).length,
