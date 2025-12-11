@@ -114,10 +114,10 @@ export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMS
                     ? agentConfig?.bgColor || "bg-primary/10"
                     : "bg-primary"
               )}>
-                {isInbound ? (
-                  <User className="h-4 w-4" />
-                ) : isAI ? (
+                {isAI ? (
                   <AgentIcon className={cn("h-4 w-4", agentConfig?.color || "text-primary")} />
+                ) : isInbound ? (
+                  <User className="h-4 w-4" />
                 ) : (
                   <User className="h-4 w-4 text-primary-foreground" />
                 )}
