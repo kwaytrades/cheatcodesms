@@ -256,11 +256,31 @@ const ContactDetail = () => {
       if (trimmedMsg === '/help') {
         agentToUse = 'customer_service';
         setActiveAgentType('customer_service');
-        toast.info("Switched to Casey, the Customer Service agent");
+        messageIdCounter.current += 1;
+        const systemMsg = {
+          id: `system-${messageIdCounter.current}-${Date.now()}`,
+          body: "Switched to Casey, the Customer Service agent",
+          created_at: new Date().toISOString(),
+          direction: 'system',
+          sender: 'system',
+          agent_type: 'customer_service'
+        };
+        setAgentMessages(prev => [...prev, systemMsg]);
+        return; // Don't send /help as actual message
       } else if (trimmedMsg === '/textbook') {
         agentToUse = 'textbook';
         setActiveAgentType('textbook');
-        toast.info("Switched to Thomas, the Textbook agent");
+        messageIdCounter.current += 1;
+        const systemMsg = {
+          id: `system-${messageIdCounter.current}-${Date.now()}`,
+          body: "Switched to Thomas, the Textbook agent",
+          created_at: new Date().toISOString(),
+          direction: 'system',
+          sender: 'system',
+          agent_type: 'textbook'
+        };
+        setAgentMessages(prev => [...prev, systemMsg]);
+        return; // Don't send /textbook as actual message
       }
       
       // Create stable timestamp for user message
