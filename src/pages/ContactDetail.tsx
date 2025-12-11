@@ -136,8 +136,17 @@ const ContactDetail = () => {
       
       setMessages(messagesData);
 
-      // Determine the active agent - product_agents take priority over agent_conversations
-      // First check for an active product agent (textbook, etc.)
+      // Determine the active agent - help_mode takes highest priority, then product_agents
+      // First check if help mode is active (customer service priority)
+      const { data: convState } = await supabase
+        .from("conversation_state")
+        .select("help_mode_until")
+        .eq("contact_id", contactId)
+        .maybeSingle();
+      
+      const helpModeActive = convState?.help_mode_until && new Date(convState.help_mode_until) > new Date();
+      
+      // Check for an active product agent (textbook, etc.)
       const { data: activeProductAgent } = await supabase
         .from("product_agents")
         .select("product_type")
@@ -156,8 +165,10 @@ const ContactDetail = () => {
         .limit(1)
         .maybeSingle();
 
-      // Product agent takes priority if exists and is active
-      const effectiveAgentType = activeProductAgent?.product_type || agentConvData?.agent_type || null;
+      // Help mode (customer_service) takes highest priority, then product agent, then agent conversation
+      const effectiveAgentType = helpModeActive 
+        ? 'customer_service' 
+        : (activeProductAgent?.product_type || agentConvData?.agent_type || null);
       setActiveAgentType(effectiveAgentType);
 
       if (agentConvData) {
