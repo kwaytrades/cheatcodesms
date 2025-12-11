@@ -26,6 +26,7 @@ import { formatDaysRemaining } from "@/lib/agent-utils";
 
 interface ProductAgentPanelProps {
   contactId: string;
+  activeAgentType?: string | null;
 }
 
 const getAgentBackgroundColor = (agentType: string, isActive: boolean) => {
@@ -44,7 +45,7 @@ const getAgentBackgroundColor = (agentType: string, isActive: boolean) => {
   return isActive ? `${baseColor} shadow-lg` : baseColor;
 };
 
-export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
+export function ProductAgentPanel({ contactId, activeAgentType }: ProductAgentPanelProps) {
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const queryClient = useQueryClient();
 
@@ -111,12 +112,30 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
     queryFn: async () => {
       const { data } = await supabase
         .from("conversation_state")
-        .select("active_agent_id, agent_queue")
+        .select("active_agent_id, agent_queue, help_mode_until")
         .eq("contact_id", contactId)
         .single();
       return data;
     },
   });
+
+  // Determine the effective active agent type
+  // Priority: prop (local state) > help_mode > database active_agent_id
+  const getEffectiveActiveAgentType = () => {
+    if (activeAgentType) return activeAgentType;
+    
+    // Check if help mode is active
+    if (conversationState?.help_mode_until) {
+      const helpModeUntil = new Date(conversationState.help_mode_until);
+      if (helpModeUntil > new Date()) {
+        return 'customer_service';
+      }
+    }
+    
+    return null;
+  };
+  
+  const effectiveActiveAgentType = getEffectiveActiveAgentType();
 
   const pauseAgentMutation = useMutation({
     mutationFn: async ({ agentId, agentType }: { agentId: string; agentType: 'product_agent' | 'agent_conversation' }) => {
@@ -174,7 +193,8 @@ export function ProductAgentPanel({ contactId }: ProductAgentPanelProps) {
             <p className="text-sm text-muted-foreground">No agents assigned yet</p>
           ) : (
             agents?.map((agent) => {
-              const isActive = agent.id === conversationState?.active_agent_id;
+              // Check if this agent is active by comparing agent_type with effective active type
+              const isActive = effectiveActiveAgentType === agent.agent_type;
               const queueData = conversationState?.agent_queue as Array<{ agent_id: string }> | undefined;
               const queuePosition = queueData?.findIndex((q) => q.agent_id === agent.id);
               const isQueued = queuePosition !== undefined && queuePosition >= 0;

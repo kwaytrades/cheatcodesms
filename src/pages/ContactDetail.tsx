@@ -564,7 +564,7 @@ const ContactDetail = () => {
               messages={messages}
               aiMessages={emails}
             />
-            <ProductAgentPanel contactId={id} />
+            <ProductAgentPanel contactId={id} activeAgentType={activeAgentType} />
             <TagsManager tags={contact.tags} />
             <QuickNotes notes={contact.notes} onSave={handleSaveNotes} />
           </div>
