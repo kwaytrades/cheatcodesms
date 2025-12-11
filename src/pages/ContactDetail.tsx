@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, X } from "lucide-react";
 import { ContactQuickInfo } from "@/components/contact-detail/ContactQuickInfo";
@@ -20,6 +21,7 @@ import { toast } from "sonner";
 const ContactDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [contact, setContact] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -267,6 +269,10 @@ const ContactDetail = () => {
           })
           .eq('contact_id', id);
         
+        // Invalidate queries to refresh UI immediately
+        queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
+        queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
+        
         messageIdCounter.current += 1;
         const systemMsg = {
           id: `system-${messageIdCounter.current}-${Date.now()}`,
@@ -290,6 +296,10 @@ const ContactDetail = () => {
             updated_at: new Date().toISOString()
           })
           .eq('contact_id', id);
+        
+        // Invalidate queries to refresh UI immediately
+        queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
+        queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
         
         messageIdCounter.current += 1;
         const systemMsg = {
