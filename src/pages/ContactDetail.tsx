@@ -249,8 +249,19 @@ const ContactDetail = () => {
     if (!id || !message.trim()) return;
 
     try {
-      // Determine agent type - use active agent or default to customer_service
-      const agentToUse = activeAgentType || "customer_service";
+      // Detect agent switch commands
+      const trimmedMsg = message.trim().toLowerCase();
+      let agentToUse = activeAgentType || "customer_service";
+      
+      if (trimmedMsg === '/help') {
+        agentToUse = 'customer_service';
+        setActiveAgentType('customer_service');
+        toast.info("Switched to Casey, the Customer Service agent");
+      } else if (trimmedMsg === '/textbook') {
+        agentToUse = 'textbook';
+        setActiveAgentType('textbook');
+        toast.info("Switched to Thomas, the Textbook agent");
+      }
       
       // Create stable timestamp for user message
       const userMsgTimestamp = new Date().toISOString();
