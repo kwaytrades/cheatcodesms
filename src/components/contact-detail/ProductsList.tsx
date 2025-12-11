@@ -49,7 +49,7 @@ export const ProductsList = ({ contactId, totalSpent }: ProductsListProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {contactProducts.slice(0, 5).map((cp: any) => (
+      {contactProducts.filter((cp: any) => cp.products !== null).slice(0, 5).map((cp: any) => (
           <div key={cp.id} className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0 space-y-1">
