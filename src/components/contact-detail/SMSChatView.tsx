@@ -1,4 +1,3 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, User, Video, Book, Layers, TrendingUp, Award, Sparkles, UserPlus, Headphones, Megaphone, LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useRef } from "react";
@@ -52,13 +51,15 @@ const TypingIndicator = ({ agentType }: { agentType?: string | null }) => {
 };
 
 export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMSChatViewProps) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or typing status changes
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+      }
+    }, 50);
   }, [messages, isTyping]);
 
   if (messages.length === 0 && !isTyping) {
@@ -69,16 +70,24 @@ export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMS
     );
   }
 
+  // Sort messages by created_at to ensure correct order (oldest first, newest at bottom)
+  const sortedMessages = [...messages].sort((a, b) => 
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+
   return (
-    <ScrollArea className="h-[calc(100vh-300px)]" ref={scrollRef}>
+    <div 
+      ref={scrollContainerRef}
+      className="h-[calc(100vh-300px)] overflow-y-auto"
+    >
       <div className="space-y-4 p-4">
-        {messages.map((message) => {
+        {sortedMessages.map((message) => {
           const isInbound = message.direction === "inbound";
           const isAI = message.sender.startsWith("ai_");
           
-          // Get agent config for AI messages
-          const agentType = message.agent_type || activeAgentType || 'customer_service';
-          const agentConfig = isAI ? AGENT_CONFIG[agentType] || AGENT_CONFIG.customer_service : null;
+          // Use message-specific agent_type, fallback to activeAgentType
+          const messageAgentType = message.agent_type || activeAgentType || 'customer_service';
+          const agentConfig = isAI ? AGENT_CONFIG[messageAgentType] || AGENT_CONFIG.customer_service : null;
           const AgentIcon = agentConfig?.Icon || Bot;
           
           return (
@@ -133,6 +142,6 @@ export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMS
         
         {isTyping && <TypingIndicator agentType={activeAgentType} />}
       </div>
-    </ScrollArea>
+    </div>
   );
 };
