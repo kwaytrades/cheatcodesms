@@ -91,7 +91,26 @@ export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMS
       <div className="space-y-4 p-4">
         {sortedMessages.map((message) => {
           const isInbound = message.direction === "inbound";
+          const isSystem = message.direction === "system";
           const isAI = message.sender.startsWith("ai_");
+          
+          // System messages (agent switch notifications)
+          if (isSystem) {
+            const config = AGENT_CONFIG[message.agent_type || 'customer_service'];
+            const Icon = config?.Icon || Bot;
+            return (
+              <div key={message.id} className="flex justify-center animate-fade-in">
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs",
+                  config?.bgColor || "bg-muted",
+                  config?.color || "text-muted-foreground"
+                )}>
+                  <Icon className="h-3 w-3" />
+                  {message.body}
+                </div>
+              </div>
+            );
+          }
           
           // Use message-specific agent_type, fallback to activeAgentType
           const messageAgentType = message.agent_type || activeAgentType || 'customer_service';
