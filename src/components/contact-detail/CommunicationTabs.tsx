@@ -161,7 +161,7 @@ export const CommunicationTabs = ({
           {/* Active Agent Indicator */}
           <div className="px-4 py-2 bg-muted/50 border-b flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Active Agent:</span>
-            {activeAgent ? (
+            {activeAgent?.agent_type ? (
               <div className="flex items-center gap-2">
                 <AgentTypeIcon type={activeAgent.agent_type} className="w-4 h-4" />
                 <span className="text-sm font-medium">
@@ -169,7 +169,7 @@ export const CommunicationTabs = ({
                   <span className="text-muted-foreground ml-1">
                     ({activeAgent.agent_type.replace(/_/g, ' ')})
                   </span>
-                  {activeAgent.type === 'help_mode' && (
+                  {activeAgent.type === 'help_mode' && activeAgent.help_mode_until && (
                     <span className="ml-2 text-xs text-amber-600">
                       (Help Mode - expires {new Date(activeAgent.help_mode_until).toLocaleTimeString()})
                     </span>
