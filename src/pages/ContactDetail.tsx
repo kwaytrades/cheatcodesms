@@ -303,6 +303,7 @@ const ContactDetail = () => {
       }
 
       // Refresh agent messages to get actual DB records
+      // But keep using the agent type we sent with (agentToUse)
       const { data: agentConvData } = await supabase
         .from("agent_conversations")
         .select("id, agent_type")
@@ -312,8 +313,6 @@ const ContactDetail = () => {
         .maybeSingle();
 
       if (agentConvData) {
-        setActiveAgentType(agentConvData.agent_type);
-        
         const { data: agentMsgs } = await supabase
           .from("agent_messages")
           .select("*")
@@ -326,7 +325,8 @@ const ContactDetail = () => {
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
           sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
-          agent_type: agentConvData.agent_type
+          // Use the agent type we actually sent with (product agent takes priority)
+          agent_type: agentToUse
         }));
         
         setAgentMessages(formattedAgentMsgs);
