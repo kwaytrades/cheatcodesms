@@ -256,6 +256,17 @@ const ContactDetail = () => {
       if (trimmedMsg === '/help') {
         agentToUse = 'customer_service';
         setActiveAgentType('customer_service');
+        
+        // Activate help mode in database (24 hours)
+        const helpModeUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await supabase
+          .from('conversation_state')
+          .update({
+            help_mode_until: helpModeUntil,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contact_id', id);
+        
         messageIdCounter.current += 1;
         const systemMsg = {
           id: `system-${messageIdCounter.current}-${Date.now()}`,
@@ -270,6 +281,16 @@ const ContactDetail = () => {
       } else if (trimmedMsg === '/textbook') {
         agentToUse = 'textbook';
         setActiveAgentType('textbook');
+        
+        // Clear help mode in database to switch back to textbook
+        await supabase
+          .from('conversation_state')
+          .update({
+            help_mode_until: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contact_id', id);
+        
         messageIdCounter.current += 1;
         const systemMsg = {
           id: `system-${messageIdCounter.current}-${Date.now()}`,
