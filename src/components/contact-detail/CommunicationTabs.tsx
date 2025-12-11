@@ -142,6 +142,11 @@ export const CommunicationTabs = ({
     customer_service: 'Casey',
   };
 
+  // Use prop for instant switching, fallback to query data
+  const displayAgentType = propAgentType || activeAgent?.agent_type;
+  const isHelpMode = activeAgent?.type === 'help_mode';
+  const helpModeExpiry = activeAgent?.help_mode_until;
+
   return (
     <div className="flex flex-col h-full">
       <Tabs defaultValue="sms" className="flex-1 flex flex-col">
@@ -161,17 +166,17 @@ export const CommunicationTabs = ({
           {/* Active Agent Indicator */}
           <div className="px-4 py-2 bg-muted/50 border-b flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Active Agent:</span>
-            {activeAgent?.agent_type ? (
+            {displayAgentType ? (
               <div className="flex items-center gap-2">
-                <AgentTypeIcon type={activeAgent.agent_type} className="w-4 h-4" />
+                <AgentTypeIcon type={displayAgentType} className="w-4 h-4" />
                 <span className="text-sm font-medium">
-                  {AGENT_NAMES[activeAgent.agent_type] || activeAgent.agent_type} 
+                  {AGENT_NAMES[displayAgentType] || displayAgentType} 
                   <span className="text-muted-foreground ml-1">
-                    ({activeAgent.agent_type.replace(/_/g, ' ')})
+                    ({displayAgentType.replace(/_/g, ' ')})
                   </span>
-                  {activeAgent.type === 'help_mode' && activeAgent.help_mode_until && (
+                  {isHelpMode && helpModeExpiry && (
                     <span className="ml-2 text-xs text-amber-600">
-                      (Help Mode - expires {new Date(activeAgent.help_mode_until).toLocaleTimeString()})
+                      (Help Mode - expires {new Date(helpModeExpiry).toLocaleTimeString()})
                     </span>
                   )}
                 </span>
