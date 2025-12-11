@@ -71,9 +71,17 @@ export const SMSChatView = ({ messages, activeAgentType, isTyping = false }: SMS
   }
 
   // Sort messages by created_at to ensure correct order (oldest first, newest at bottom)
-  const sortedMessages = [...messages].sort((a, b) => 
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  // Use secondary sort by ID for stability when timestamps are equal
+  const sortedMessages = [...messages].sort((a, b) => {
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    // Secondary sort: user messages before AI responses at same timestamp
+    if (a.direction !== b.direction) {
+      return a.direction === 'outbound' ? -1 : 1;
+    }
+    return a.id.localeCompare(b.id);
+  });
 
   return (
     <div 
