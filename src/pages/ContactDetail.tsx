@@ -259,20 +259,7 @@ const ContactDetail = () => {
         agentToUse = 'customer_service';
         setActiveAgentType('customer_service');
         
-        // Activate help mode in database (24 hours)
-        const helpModeUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        await supabase
-          .from('conversation_state')
-          .update({
-            help_mode_until: helpModeUntil,
-            updated_at: new Date().toISOString()
-          })
-          .eq('contact_id', id);
-        
-        // Invalidate queries to refresh UI immediately
-        queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
-        queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
-        
+        // Add system message IMMEDIATELY for instant UI feedback
         messageIdCounter.current += 1;
         const systemMsg = {
           id: `system-${messageIdCounter.current}-${Date.now()}`,
@@ -283,24 +270,27 @@ const ContactDetail = () => {
           agent_type: 'customer_service'
         };
         setAgentMessages(prev => [...prev, systemMsg]);
+        
+        // Activate help mode in database (24 hours) - async, non-blocking
+        const helpModeUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        supabase
+          .from('conversation_state')
+          .update({
+            help_mode_until: helpModeUntil,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contact_id', id)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
+            queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
+          });
+        
         return; // Don't send /help as actual message
       } else if (trimmedMsg === '/textbook') {
         agentToUse = 'textbook';
         setActiveAgentType('textbook');
         
-        // Clear help mode in database to switch back to textbook
-        await supabase
-          .from('conversation_state')
-          .update({
-            help_mode_until: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('contact_id', id);
-        
-        // Invalidate queries to refresh UI immediately
-        queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
-        queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
-        
+        // Add system message IMMEDIATELY for instant UI feedback
         messageIdCounter.current += 1;
         const systemMsg = {
           id: `system-${messageIdCounter.current}-${Date.now()}`,
@@ -311,6 +301,20 @@ const ContactDetail = () => {
           agent_type: 'textbook'
         };
         setAgentMessages(prev => [...prev, systemMsg]);
+        
+        // Clear help mode in database - async, non-blocking
+        supabase
+          .from('conversation_state')
+          .update({
+            help_mode_until: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('contact_id', id)
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
+            queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
+          });
+        
         return; // Don't send /textbook as actual message
       }
       
