@@ -44,36 +44,41 @@ const ContactDetail = () => {
     if (!id) return;
 
     const setupRealtimeSubscription = async () => {
-      // Subscribe to agent_messages via agent_conversations
-      const { data: agentConv } = await supabase
+      // Get all agent conversations to subscribe to and map their agent types
+      const { data: allAgentConvs } = await supabase
         .from("agent_conversations")
-        .select("id")
+        .select("id, agent_type")
         .eq("contact_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
 
-      if (agentConv) {
+      if (allAgentConvs && allAgentConvs.length > 0) {
+        const agentTypeMap = new Map(allAgentConvs.map(c => [c.id, c.agent_type]));
+        const conversationIds = allAgentConvs.map(c => c.id);
+        
+        // Subscribe to the most recent conversation for realtime updates
         const channel = supabase
-          .channel(`agent-messages-${agentConv.id}`)
+          .channel(`agent-messages-${id}`)
           .on(
             'postgres_changes',
             {
               event: 'INSERT',
               schema: 'public',
               table: 'agent_messages',
-              filter: `conversation_id=eq.${agentConv.id}`
             },
             (payload) => {
-              console.log('New agent message received:', payload);
               const newMsg = payload.new as any;
-              setAgentMessages((prev) => [...prev, {
-                id: newMsg.id,
-                body: newMsg.content,
-                created_at: newMsg.created_at,
-                direction: newMsg.role === 'user' ? 'outbound' : 'inbound',
-                sender: newMsg.role === 'assistant' ? 'ai_agent' : 'user'
-              }]);
+              // Only add if it belongs to one of this contact's conversations
+              if (conversationIds.includes(newMsg.conversation_id)) {
+                console.log('New agent message received:', payload);
+                setAgentMessages((prev) => [...prev, {
+                  id: newMsg.id,
+                  body: newMsg.content,
+                  created_at: newMsg.created_at,
+                  direction: newMsg.role === 'user' ? 'outbound' : 'inbound',
+                  sender: newMsg.role === 'assistant' ? 'ai_agent' : 'user',
+                  agent_type: agentTypeMap.get(newMsg.conversation_id) || 'customer_service'
+                }]);
+              }
             }
           )
           .subscribe();
@@ -156,14 +161,15 @@ const ContactDetail = () => {
         .limit(1)
         .maybeSingle();
 
-      // Load agent conversation messages (internal chat with AI agents)
-      const { data: agentConvData } = await supabase
+      // Load ALL agent conversations to get messages from each agent
+      const { data: allAgentConvs } = await supabase
         .from("agent_conversations")
         .select("id, agent_type")
         .eq("contact_id", contactId)
-        .order("last_message_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("last_message_at", { ascending: false });
+
+      // Get the most recent agent conversation for determining current active agent
+      const agentConvData = allAgentConvs?.[0] || null;
 
       // Help mode (customer_service) takes highest priority, then product agent, then agent conversation
       const effectiveAgentType = helpModeActive 
@@ -171,21 +177,25 @@ const ContactDetail = () => {
         : (activeProductAgent?.product_type || agentConvData?.agent_type || null);
       setActiveAgentType(effectiveAgentType);
 
-      if (agentConvData) {
+      // Load messages from ALL agent conversations, preserving each conversation's agent_type
+      if (allAgentConvs && allAgentConvs.length > 0) {
+        const conversationIds = allAgentConvs.map(c => c.id);
+        const agentTypeMap = new Map(allAgentConvs.map(c => [c.id, c.agent_type]));
+        
         const { data: agentMsgs } = await supabase
           .from("agent_messages")
-          .select("*")
-          .eq("conversation_id", agentConvData.id)
+          .select("*, conversation_id")
+          .in("conversation_id", conversationIds)
           .order("created_at", { ascending: true });
 
-        // Convert agent_messages to the same format as SMS messages
+        // Convert agent_messages, using each conversation's agent_type
         const formattedAgentMsgs = (agentMsgs || []).map((msg: any) => ({
           id: msg.id,
           body: msg.content,
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
           sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
-          agent_type: effectiveAgentType
+          agent_type: agentTypeMap.get(msg.conversation_id) || effectiveAgentType
         }));
         
         setAgentMessages(formattedAgentMsgs);
@@ -379,21 +389,21 @@ const ContactDetail = () => {
         setAgentMessages(prev => [...prev, aiMsg]);
       }
 
-      // Refresh agent messages to get actual DB records
-      // But keep using the agent type we sent with (agentToUse)
-      const { data: agentConvData } = await supabase
+      // Refresh agent messages from ALL conversations to preserve each agent's messages
+      const { data: allAgentConvs } = await supabase
         .from("agent_conversations")
         .select("id, agent_type")
         .eq("contact_id", id)
-        .order("last_message_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("last_message_at", { ascending: false });
 
-      if (agentConvData) {
+      if (allAgentConvs && allAgentConvs.length > 0) {
+        const conversationIds = allAgentConvs.map(c => c.id);
+        const agentTypeMap = new Map(allAgentConvs.map(c => [c.id, c.agent_type]));
+        
         const { data: agentMsgs } = await supabase
           .from("agent_messages")
-          .select("*")
-          .eq("conversation_id", agentConvData.id)
+          .select("*, conversation_id")
+          .in("conversation_id", conversationIds)
           .order("created_at", { ascending: true });
 
         const formattedAgentMsgs = (agentMsgs || []).map((msg: any) => ({
@@ -402,8 +412,8 @@ const ContactDetail = () => {
           created_at: msg.created_at,
           direction: msg.role === 'user' ? 'outbound' : 'inbound',
           sender: msg.role === 'assistant' ? 'ai_agent' : 'user',
-          // Use the agent type we actually sent with (product agent takes priority)
-          agent_type: agentToUse
+          // Use the conversation's agent_type to preserve original agent
+          agent_type: agentTypeMap.get(msg.conversation_id) || agentToUse
         }));
         
         // Preserve system messages (agent switch notifications) when refreshing from DB
