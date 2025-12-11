@@ -360,7 +360,13 @@ const ContactDetail = () => {
           agent_type: agentToUse
         }));
         
-        setAgentMessages(formattedAgentMsgs);
+        // Preserve system messages (agent switch notifications) when refreshing from DB
+        setAgentMessages(prev => {
+          const systemMessages = prev.filter(msg => msg.direction === 'system');
+          return [...formattedAgentMsgs, ...systemMessages].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        });
       }
 
       toast.success("Message sent");
