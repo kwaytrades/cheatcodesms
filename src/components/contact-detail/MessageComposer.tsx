@@ -18,24 +18,7 @@ export const MessageComposer = ({ onSend }: MessageComposerProps) => {
   const handleSend = async () => {
     if (!message.trim()) return;
 
-    // Check if message is /help command
-    if (message.trim() === '/help') {
-      try {
-        const { data, error } = await supabase.functions.invoke('activate-help-mode', {
-          body: { contact_id: id }
-        });
-
-        if (error) throw error;
-
-        toast.success('Help mode activated! Customer service agent is now prioritized for 4 hours.');
-        setMessage("");
-        return;
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to activate help mode');
-        return;
-      }
-    }
-
+    // Pass all messages (including commands like /help, /textbook) to parent handler
     onSend?.(message);
     setMessage("");
   };
