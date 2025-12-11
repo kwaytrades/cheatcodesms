@@ -144,8 +144,8 @@ export const CommunicationTabs = ({
 
   // Use prop for instant switching, fallback to query data
   const displayAgentType = propAgentType || activeAgent?.agent_type;
-  const isHelpMode = activeAgent?.type === 'help_mode';
-  const helpModeExpiry = activeAgent?.help_mode_until;
+  // Only show help mode when customer_service is active
+  const showHelpMode = displayAgentType === 'customer_service' && activeAgent?.help_mode_until;
 
   return (
     <div className="flex flex-col h-full">
@@ -174,9 +174,9 @@ export const CommunicationTabs = ({
                   <span className="text-muted-foreground ml-1">
                     ({displayAgentType.replace(/_/g, ' ')})
                   </span>
-                  {isHelpMode && helpModeExpiry && (
+                  {showHelpMode && (
                     <span className="ml-2 text-xs text-amber-600">
-                      (Help Mode - expires {new Date(helpModeExpiry).toLocaleTimeString()})
+                      (Help Mode - expires {new Date(activeAgent.help_mode_until!).toLocaleTimeString()})
                     </span>
                   )}
                 </span>
