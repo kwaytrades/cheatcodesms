@@ -67,7 +67,7 @@ export function WorkspaceSwitcher() {
                   <div className="flex flex-col">
                     <span className="font-medium">{workspace.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {workspace.organization.name}
+                      {workspace.organization?.name ?? ""}
                     </span>
                   </div>
                 </CommandItem>
