@@ -24,7 +24,11 @@ export const ProductsList = ({ contactId, totalSpent }: ProductsListProps) => {
     },
   });
 
-  if (!contactProducts || contactProducts.length === 0) {
+  const validProducts = (contactProducts ?? []).filter(
+    (cp: any) => cp?.products != null
+  );
+
+  if (validProducts.length === 0) {
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -49,40 +53,43 @@ export const ProductsList = ({ contactId, totalSpent }: ProductsListProps) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {contactProducts.filter((cp: any) => cp.products !== null).slice(0, 5).map((cp: any) => (
+        {validProducts.slice(0, 5).map((cp: any) => (
           <div key={cp.id} className="flex items-start gap-2">
             <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{cp.products.name}</span>
-                <Badge 
-                  variant={cp.status === 'active' ? 'default' : 'secondary'}
+                <span className="font-medium text-sm">
+                  {cp.products?.name ?? "Unknown product"}
+                </span>
+                <Badge
+                  variant={cp.status === "active" ? "default" : "secondary"}
                   className="text-xs"
                 >
                   {cp.status}
                 </Badge>
               </div>
-              {cp.products.description && (
+              {cp.products?.description && (
                 <p className="text-xs text-muted-foreground line-clamp-1">
                   {cp.products.description}
                 </p>
               )}
-              {cp.products.price && (
-                <p className="text-xs font-medium">
-                  ${cp.products.price}
-                </p>
+              {cp.products?.price != null && (
+                <p className="text-xs font-medium">${cp.products.price}</p>
               )}
             </div>
           </div>
         ))}
-        {contactProducts.length > 5 && (
+        {validProducts.length > 5 && (
           <div className="text-xs text-muted-foreground pt-1">
-            +{contactProducts.length - 5} more products
+            +{validProducts.length - 5} more products
           </div>
         )}
         {totalSpent && totalSpent > 0 && (
           <div className="text-xs text-muted-foreground pt-2 border-t">
-            Total Spent: <span className="font-semibold text-green-600">${totalSpent.toLocaleString()}</span>
+            Total Spent:{" "}
+            <span className="font-semibold text-green-600">
+              ${totalSpent.toLocaleString()}
+            </span>
           </div>
         )}
       </CardContent>
