@@ -90,6 +90,9 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!conversation) {
+      // Get workspace_id from contact or use default workspace
+      const workspaceId = existingContact?.workspace_id || '00000000-0000-0000-0000-000000000002';
+      
       const { data: newConv, error: createError } = await supabase
         .from('conversations')
         .insert({
@@ -98,6 +101,7 @@ serve(async (req) => {
           contact_name: existingContact?.full_name || null,
           status: isOptOut ? 'opted_out' : 'active',
           last_message_at: new Date().toISOString(),
+          workspace_id: workspaceId,
         })
         .select()
         .single();
