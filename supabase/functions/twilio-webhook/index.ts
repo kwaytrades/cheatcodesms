@@ -79,7 +79,28 @@ serve(async (req) => {
     if (existingContact) {
       console.log(`✅ Found contact: ${existingContact.id} (${existingContact.full_name})`);
     } else {
-      console.log(`❌ No contact found for ${from} or ${normalizedFrom}`);
+      console.log(`❌ No contact found for ${from} or ${normalizedFrom} - creating new contact`);
+      
+      // Auto-create a new contact for unknown numbers
+      const defaultWorkspaceId = '00000000-0000-0000-0000-000000000002';
+      const { data: newContact, error: createContactError } = await supabase
+        .from('contacts')
+        .insert({
+          full_name: from, // Use phone number as initial name
+          phone_number: normalizedFrom,
+          workspace_id: defaultWorkspaceId,
+          lead_source: 'inbound_sms',
+          lead_status: 'new',
+        })
+        .select()
+        .single();
+      
+      if (createContactError) {
+        console.error('Failed to create contact:', createContactError);
+      } else {
+        existingContact = newContact;
+        console.log(`✅ Created new contact: ${newContact.id} for ${from}`);
+      }
     }
 
     // Find or create conversation
