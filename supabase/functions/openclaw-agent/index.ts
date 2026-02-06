@@ -66,9 +66,9 @@ async function buildContactContext(
         total_spent,
         products_owned,
         products_interested,
-        lead_score,
+        likelihood_to_buy_score,
         lead_status,
-        last_interaction_date,
+        last_contact_date,
         ai_profile,
         notes
       `)
@@ -117,9 +117,9 @@ async function buildContactContext(
       totalSpent: contact.total_spent || 0,
       productsOwned: contact.products_owned || [],
       productsInterested: contact.products_interested || [],
-      leadScore: contact.lead_score || 0,
+      leadScore: contact.likelihood_to_buy_score || 0,
       leadStatus: contact.lead_status || 'cold',
-      lastInteraction: contact.last_interaction_date,
+      lastInteraction: contact.last_contact_date,
       conversationHistory,
       tradingProfile: contact.ai_profile || {
         interests: [],
