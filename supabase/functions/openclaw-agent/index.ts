@@ -167,7 +167,7 @@ Handle this conversation with full awareness of their history, interests, and cu
 }
 
 /**
- * Send message to OpenClaw Gateway
+ * Send message to OpenClaw Gateway via WebSocket
  */
 async function sendToOpenClaw(
   message: string,
@@ -175,58 +175,163 @@ async function sendToOpenClaw(
   gatewayUrl: string,
   gatewayToken: string
 ): Promise<{ response: string; error?: string }> {
-  try {
-    const payload = {
-      target: "agent:main:main",
-      message: `[CheatCodeSMS Contact Message]\n\n${context}\n\nCUSTOMER MESSAGE: ${message}\n\nRespond naturally as the CheatCodeSMS AI agent. Keep it conversational and helpful.`,
-      waitForReply: true,
-      timeoutMs: 30000
-    };
+  const wsUrl = gatewayUrl.replace(/^http/, 'ws');
+  const fullWsUrl = `${wsUrl}`;
+  const timeout = 30000;
 
-    console.log('Sending to OpenClaw Gateway:', {
-      url: gatewayUrl,
+  try {
+    console.log('Connecting to OpenClaw Gateway via WebSocket:', {
+      url: fullWsUrl,
       hasToken: !!gatewayToken,
       messageLength: message.length
     });
 
-    const response = await fetch(`${gatewayUrl}/api/sessions/send`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${gatewayToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    // Create WebSocket connection with timeout
+    const wsPromise = new Promise<WebSocket>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('WebSocket connection timeout'));
+      }, 5000);
+
+      try {
+        const ws = new WebSocket(fullWsUrl);
+        
+        ws.onopen = () => {
+          clearTimeout(timeoutId);
+          console.log('✅ WebSocket connected to OpenClaw Gateway');
+          resolve(ws);
+        };
+
+        ws.onerror = (error: Event) => {
+          clearTimeout(timeoutId);
+          reject(new Error(`WebSocket error: ${error}`));
+        };
+      } catch (err) {
+        clearTimeout(timeoutId);
+        reject(err);
+      }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenClaw Gateway error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      return {
-        response: '',
-        error: `Gateway error: ${response.status} - ${errorText}`
-      };
-    }
+    const ws = await wsPromise;
 
-    const data = await response.json();
-    console.log('OpenClaw response received:', {
-      hasReply: !!data.reply,
-      replyLength: data.reply?.length || 0
+    // Prepare the message payload
+    const sessionPayload = {
+      action: 'sessions_send',
+      target: 'agent:main:main',
+      message: `[CheatCodeSMS Contact Message]\n\n${context}\n\nCUSTOMER MESSAGE: ${message}\n\nRespond naturally as the CheatCodeSMS AI agent. Keep it conversational and helpful.`,
+      waitForReply: true,
+      timeoutMs: timeout,
+      token: gatewayToken,
+      requestId: `cheatcodesms-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    // Set up response listener before sending
+    const responsePromise = new Promise<string>((resolve, reject) => {
+      const responseTimeout = setTimeout(() => {
+        ws.close();
+        reject(new Error('Response timeout from OpenClaw Gateway'));
+      }, timeout);
+
+      const messageHandler = (event: MessageEvent) => {
+        try {
+          const data = typeof event.data === 'string' 
+            ? JSON.parse(event.data)
+            : event.data;
+
+          console.log('📨 Received message from OpenClaw:', {
+            hasReply: !!data.reply,
+            action: data.action,
+            requestId: data.requestId
+          });
+
+          // Check if this response matches our request
+          if (data.requestId === sessionPayload.requestId || data.reply) {
+            clearTimeout(responseTimeout);
+            ws.removeEventListener('message', messageHandler);
+            ws.close();
+            
+            if (data.error) {
+              reject(new Error(`OpenClaw error: ${data.error}`));
+            } else {
+              resolve(data.reply || 'I received your message and will get back to you shortly.');
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing WebSocket message:', parseError);
+          // Continue listening for other messages
+        }
+      };
+
+      ws.addEventListener('message', messageHandler);
+    });
+
+    // Send the message
+    console.log('📤 Sending message via WebSocket...');
+    ws.send(JSON.stringify(sessionPayload));
+
+    // Wait for response
+    const aiResponse = await responsePromise;
+
+    console.log('✅ Response received successfully:', {
+      responseLength: aiResponse.length
     });
 
     return {
-      response: data.reply || 'I received your message and will get back to you shortly.',
+      response: aiResponse,
       error: undefined
     };
+
   } catch (error: any) {
-    console.error('Failed to connect to OpenClaw Gateway:', error);
-    return {
-      response: '',
-      error: `Connection error: ${error.message}`
-    };
+    console.error('❌ Failed to connect to OpenClaw Gateway via WebSocket:', {
+      error: error.message,
+      url: fullWsUrl
+    });
+
+    // Try HTTP POST as fallback
+    console.log('⚠️ Attempting HTTP POST fallback...');
+    try {
+      const httpUrl = gatewayUrl.replace(/^ws/, 'http');
+      const payload = {
+        target: 'agent:main:main',
+        message: `[CheatCodeSMS Contact Message]\n\n${context}\n\nCUSTOMER MESSAGE: ${message}\n\nRespond naturally as the CheatCodeSMS AI agent. Keep it conversational and helpful.`,
+        waitForReply: true,
+        timeoutMs: timeout
+      };
+
+      const response = await fetch(`${httpUrl}/api/sessions/send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${gatewayToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('HTTP fallback also failed:', {
+          status: response.status,
+          body: errorText
+        });
+        return {
+          response: '',
+          error: `Connection failed: ${error.message}`
+        };
+      }
+
+      const data = await response.json();
+      console.log('✅ HTTP fallback succeeded');
+      return {
+        response: data.reply || 'I received your message and will get back to you shortly.',
+        error: undefined
+      };
+
+    } catch (fallbackError: any) {
+      console.error('HTTP fallback also failed:', fallbackError);
+      return {
+        response: '',
+        error: `Gateway unavailable: ${error.message}`
+      };
+    }
   }
 }
 
