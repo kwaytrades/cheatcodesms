@@ -15,7 +15,7 @@ import { InsightsPanel } from "@/components/contact-detail/InsightsPanel";
 import { TagsManager } from "@/components/contact-detail/TagsManager";
 import { QuickNotes } from "@/components/contact-detail/QuickNotes";
 import { CommunicationTabs } from "@/components/contact-detail/CommunicationTabs";
-import { ProductAgentPanel } from "@/components/contact-detail/ProductAgentPanel";
+// import { ProductAgentPanel } from "@/components/contact-detail/ProductAgentPanel"; // Removed - OpenClaw handles all
 import { toast } from "sonner";
 
 const ContactDetail = () => {
@@ -510,7 +510,7 @@ const ContactDetail = () => {
               messages={messages}
               aiMessages={emails}
             />
-            <ProductAgentPanel contactId={id} activeAgentType={activeAgentType} />
+            {/* ProductAgentPanel removed - OpenClaw (Khonsu) handles all conversations */}
             <TagsManager tags={contact.tags} />
             <QuickNotes notes={contact.notes} onSave={handleSaveNotes} />
           </div>
