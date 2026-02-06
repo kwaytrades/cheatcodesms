@@ -61,7 +61,7 @@ async function buildContactContext(
         id,
         full_name,
         email,
-        phone,
+        phone_number,
         customer_tier,
         total_spent,
         products_owned,
@@ -112,7 +112,7 @@ async function buildContactContext(
     return {
       name: contact.full_name || 'Unknown',
       email: contact.email,
-      phone: contact.phone,
+      phone: contact.phone_number,
       customerTier: contact.customer_tier || 'LEAD',
       totalSpent: contact.total_spent || 0,
       productsOwned: contact.products_owned || [],
