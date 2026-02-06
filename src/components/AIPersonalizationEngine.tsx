@@ -43,7 +43,7 @@ export function AIPersonalizationEngine({ contacts, onPersonalizedMessage }: AIP
           total_spent: contact.total_spent,
         };
 
-        const { data, error } = await supabase.functions.invoke('ai-agent', {
+        const { data, error } = await supabase.functions.invoke('openclaw-agent', {
           body: {
             type: 'personalize',
             base_message: baseMessage,

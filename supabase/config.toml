@@ -1,4 +1,4 @@
-project_id = "kkzqhkrcjwktttsntooz"
+project_id = "nvjkdcpcgbvedvlvqkmo"
 
 [functions.activate-help-mode]
 verify_jwt = false
@@ -202,4 +202,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.update-contact-scores-realtime]
+verify_jwt = false
+
+[functions.openclaw-agent]
 verify_jwt = false

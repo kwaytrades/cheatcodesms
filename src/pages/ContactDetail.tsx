@@ -357,9 +357,9 @@ const ContactDetail = () => {
       // Show typing indicator
       setIsTyping(true);
 
-      // Call agent-chat function
+      // Call openclaw-agent function (OpenClaw AI integration)
       const { data: response, error: chatError } = await supabase.functions.invoke(
-        "agent-chat",
+        "openclaw-agent",
         {
           body: {
             contactId: id,
