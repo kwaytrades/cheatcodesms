@@ -272,72 +272,8 @@ const ContactDetail = () => {
     if (!id || !message.trim()) return;
 
     try {
-      // Detect agent switch commands
-      const trimmedMsg = message.trim().toLowerCase();
-      let agentToUse = activeAgentType || "customer_service";
-      
-      if (trimmedMsg === '/help') {
-        agentToUse = 'customer_service';
-        setActiveAgentType('customer_service');
-        
-        // Add system message IMMEDIATELY for instant UI feedback
-        messageIdCounter.current += 1;
-        const systemMsg = {
-          id: `system-${messageIdCounter.current}-${Date.now()}`,
-          body: "Switched to Casey, the Customer Service agent",
-          created_at: new Date().toISOString(),
-          direction: 'system',
-          sender: 'system',
-          agent_type: 'customer_service'
-        };
-        setAgentMessages(prev => [...prev, systemMsg]);
-        
-        // Activate help mode in database (24 hours) - async, non-blocking
-        const helpModeUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        supabase
-          .from('conversation_state')
-          .update({
-            help_mode_until: helpModeUntil,
-            updated_at: new Date().toISOString()
-          })
-          .eq('contact_id', id)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
-            queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
-          });
-        
-        return; // Don't send /help as actual message
-      } else if (trimmedMsg === '/textbook') {
-        agentToUse = 'textbook';
-        setActiveAgentType('textbook');
-        
-        // Add system message IMMEDIATELY for instant UI feedback
-        messageIdCounter.current += 1;
-        const systemMsg = {
-          id: `system-${messageIdCounter.current}-${Date.now()}`,
-          body: "Switched to Thomas, the Textbook agent",
-          created_at: new Date().toISOString(),
-          direction: 'system',
-          sender: 'system',
-          agent_type: 'textbook'
-        };
-        setAgentMessages(prev => [...prev, systemMsg]);
-        
-        // Clear help mode in database - async, non-blocking
-        supabase
-          .from('conversation_state')
-          .update({
-            help_mode_until: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('contact_id', id)
-          .then(() => {
-            queryClient.invalidateQueries({ queryKey: ['active-agent', id] });
-            queryClient.invalidateQueries({ queryKey: ['product-agents', id] });
-          });
-        
-        return; // Don't send /textbook as actual message
-      }
+      // All messages route directly to OpenClaw AI (Khonsu)
+      const agentToUse = "openclaw";
       
       // Create stable timestamp for user message
       const userMsgTimestamp = new Date().toISOString();
