@@ -31,7 +31,7 @@ const VideoRecorder = () => {
   const [fontFamily, setFontFamily] = useState('sans-serif');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const teleprompterRef = useRef<HTMLDivElement>(null);
-  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Recording state
   const webcamRef = useRef<Webcam>(null);
@@ -41,7 +41,7 @@ const VideoRecorder = () => {
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Device selection
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
